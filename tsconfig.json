@@ -1,14 +1,23 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
     "moduleResolution": "bundler",
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
     "noUncheckedIndexedAccess": true,
-    "strict": true
-  }
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "types": ["vite/client", "node", "react", "react-dom"]
+  },
+  "include": ["src", "vite.config.ts"]
 }
