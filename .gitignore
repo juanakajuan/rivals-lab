@@ -2,6 +2,7 @@
 /coverage
 /dist
 /.svelte-kit
+/.wrangler
 .env*
 .DS_Store
 npm-debug.log*
