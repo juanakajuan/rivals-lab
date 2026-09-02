@@ -556,15 +556,17 @@ export default function App(): React.JSX.Element {
     setAnnouncement(`${hero.name} added to ${teamLabel(selectedTeam)}.`);
   }
 
-  function removeSelected(): void {
-    if (!selectedToken) return;
-
-    const heroName = HERO_BY_ID.get(selectedToken.heroId)?.name ?? 'Hero';
+  function removeToken(token: BoardToken): void {
+    const heroName = HERO_BY_ID.get(token.heroId)?.name ?? 'Hero';
     setTokens((currentTokens) =>
-      currentTokens.filter((current) => current.id !== selectedToken.id)
+      currentTokens.filter((current) => current.id !== token.id)
     );
-    setSelectedTokenId(null);
+    setSelectedTokenId((currentId) => (currentId === token.id ? null : currentId));
     setAnnouncement(`${heroName} removed from the board.`);
+  }
+
+  function removeSelected(): void {
+    if (selectedToken) removeToken(selectedToken);
   }
 
   function resetBoard(): void {
@@ -600,7 +602,7 @@ export default function App(): React.JSX.Element {
         <aside className="hero-panel" aria-labelledby="heroes-heading">
           <div className="sidebar-heading">
             <h2 id="heroes-heading">Heroes</h2>
-            <p>Choose a team, then add heroes to the board.</p>
+            <p>Choose a team, then add or remove heroes.</p>
           </div>
 
           <div className="team-picker" aria-label="Team for new heroes">
@@ -624,15 +626,16 @@ export default function App(): React.JSX.Element {
 
           <div className="hero-list">
             {HEROES.map((hero) => {
-              const isPlaced = tokens.some(
+              const placedToken = tokens.find(
                 (token) => token.id === `${selectedTeam}-${hero.id}`
               );
+              const isPlaced = placedToken !== undefined;
 
               return (
                 <button
                   className={`hero-row${isPlaced ? ' placed' : ''}`}
                   type="button"
-                  onClick={() => addHero(hero)}
+                  onClick={() => (placedToken ? removeToken(placedToken) : addHero(hero))}
                   key={hero.id}
                 >
                   <span className="hero-initials" style={heroInitialsStyle(hero.role)}>
@@ -642,7 +645,7 @@ export default function App(): React.JSX.Element {
                     <strong>{hero.name}</strong>
                     <small>{hero.role}</small>
                   </span>
-                  <span className="row-action">{isPlaced ? 'Added' : 'Add'}</span>
+                  <span className="row-action">{isPlaced ? 'Remove' : 'Add'}</span>
                 </button>
               );
             })}
@@ -690,13 +693,10 @@ export default function App(): React.JSX.Element {
               <span className="coordinates">
                 x {selectedToken.x}, y {selectedToken.y}
               </span>
-              <button className="text-button" type="button" onClick={removeSelected}>
-                Remove
-              </button>
             </div>
           ) : (
             <p className="board-help">
-              Drag a hero to change its position. Select one to remove it.
+              Drag a hero to change its position. Use the hero list to add or remove heroes.
             </p>
           )}
         </section>
