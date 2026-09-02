@@ -446,6 +446,7 @@ export default function App(): React.JSX.Element {
   const tokenLayerRef = useRef<Konva.Layer | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [heroSearch, setHeroSearch] = useState('');
   const [tokens, setTokens] = useState<BoardToken[]>(initialTokens);
   const [announcement, setAnnouncement] = useState(
     'Drag any token to explain a rotation or position.'
@@ -455,6 +456,10 @@ export default function App(): React.JSX.Element {
   const selectedHero = selectedToken ? HERO_BY_ID.get(selectedToken.heroId) : undefined;
   const allyCount = tokens.filter((token) => token.team === 'ally').length;
   const enemyCount = tokens.filter((token) => token.team === 'enemy').length;
+  const normalizedHeroSearch = heroSearch.trim().toLocaleLowerCase();
+  const visibleHeroes = HEROES.filter((hero) =>
+    hero.name.toLocaleLowerCase().includes(normalizedHeroSearch)
+  );
 
   useEffect(() => {
     const host = boardHostRef.current;
@@ -624,8 +629,31 @@ export default function App(): React.JSX.Element {
             </button>
           </div>
 
+          <div className="hero-search">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <circle cx="7" cy="7" r="4.25" />
+              <path d="m10.25 10.25 3.25 3.25" />
+            </svg>
+            <input
+              type="search"
+              value={heroSearch}
+              onChange={(event) => setHeroSearch(event.currentTarget.value)}
+              placeholder="Search heroes"
+              aria-label="Search heroes"
+            />
+            {heroSearch.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setHeroSearch('')}
+                aria-label="Clear hero search"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+
           <div className="hero-list">
-            {HEROES.map((hero) => {
+            {visibleHeroes.map((hero) => {
               const placedToken = tokens.find(
                 (token) => token.id === `${selectedTeam}-${hero.id}`
               );
@@ -650,6 +678,9 @@ export default function App(): React.JSX.Element {
               );
             })}
           </div>
+          {visibleHeroes.length === 0 ? (
+            <p className="hero-empty">No heroes match “{heroSearch.trim()}”.</p>
+          ) : null}
         </aside>
 
         <section className="board-panel" aria-labelledby="board-heading">
