@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
 
 type Team = 'ally' | 'enemy';
@@ -21,10 +21,6 @@ interface BoardToken {
   y: number;
 }
 
-interface HeroInitialsStyle extends CSSProperties {
-  '--role-color': string;
-}
-
 interface MapZone {
   readonly points: number[];
   readonly fill: string;
@@ -40,6 +36,7 @@ interface MapLabel {
 interface TokenGroupOptions {
   readonly token: BoardToken;
   readonly hero: HeroDefinition;
+  readonly heroImage: HTMLImageElement | undefined;
   readonly stage: Konva.Stage;
   readonly isSelected: boolean;
   readonly onSelect: () => void;
@@ -50,6 +47,12 @@ const BOARD_WIDTH = 1200;
 const BOARD_HEIGHT = 760;
 const GRID_SIZE = 60;
 const TOKEN_RADIUS = 30;
+
+const HERO_IMAGE_FILE_OVERRIDES: Readonly<Record<string, string>> = {
+  strange: 'doctor-strange',
+  luna: 'luna-snow',
+  rocket: 'rocket-raccoon'
+};
 
 const TEAM_LABELS: Readonly<Record<Team, string>> = {
   ally: 'Allies',
@@ -371,13 +374,26 @@ function roleColor(role: HeroRole): string {
   return ROLE_COLORS[role];
 }
 
-function heroInitialsStyle(role: HeroRole): HeroInitialsStyle {
-  return { '--role-color': roleColor(role) };
+function heroImagePath(heroId: string): string {
+  const fileName = HERO_IMAGE_FILE_OVERRIDES[heroId] ?? heroId;
+  return `/hero-icons/${fileName}.png`;
+}
+
+function loadHeroImage(
+  hero: HeroDefinition
+): Promise<readonly [string, HTMLImageElement] | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve([hero.id, image] as const);
+    image.onerror = () => resolve(null);
+    image.src = heroImagePath(hero.id);
+  });
 }
 
 function createTokenGroup({
   token,
   hero,
+  heroImage,
   stage,
   isSelected,
   onSelect,
@@ -390,14 +406,21 @@ function createTokenGroup({
     dragBoundFunc: (position) => boundTokenPosition(position, stage.scaleX())
   });
 
-  group.add(
-    new Konva.Circle({
-      radius: TOKEN_RADIUS,
-      fill: '#222326',
-      stroke: isSelected ? '#ffffff' : TEAM_COLORS[token.team],
-      strokeWidth: isSelected ? 4 : 3
-    }),
-    new Konva.Text({
+  group.add(new Konva.Circle({ radius: TOKEN_RADIUS, fill: '#222326' }));
+
+  if (heroImage) {
+    group.add(
+      new Konva.Image({
+        x: -TOKEN_RADIUS + 3,
+        y: -TOKEN_RADIUS + 3,
+        width: (TOKEN_RADIUS - 3) * 2,
+        height: (TOKEN_RADIUS - 3) * 2,
+        image: heroImage,
+        cornerRadius: TOKEN_RADIUS - 3
+      })
+    );
+  } else {
+    group.add(new Konva.Text({
       x: -27,
       y: -9,
       width: 54,
@@ -407,6 +430,14 @@ function createTokenGroup({
       fontSize: 17,
       fontStyle: 'bold',
       fill: roleColor(hero.role)
+    }));
+  }
+
+  group.add(
+    new Konva.Circle({
+      radius: TOKEN_RADIUS,
+      stroke: isSelected ? '#ffffff' : TEAM_COLORS[token.team],
+      strokeWidth: isSelected ? 4 : 3
     })
   );
 
@@ -448,6 +479,9 @@ export default function App(): React.JSX.Element {
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState('');
   const [tokens, setTokens] = useState<BoardToken[]>(initialTokens);
+  const [heroImages, setHeroImages] = useState<ReadonlyMap<string, HTMLImageElement>>(
+    () => new Map<string, HTMLImageElement>()
+  );
   const [announcement, setAnnouncement] = useState(
     'Drag any token to explain a rotation or position.'
   );
@@ -460,6 +494,23 @@ export default function App(): React.JSX.Element {
   const visibleHeroes = HEROES.filter((hero) =>
     hero.name.toLocaleLowerCase().includes(normalizedHeroSearch)
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void Promise.all(HEROES.map(loadHeroImage)).then((loadedImages) => {
+      if (!cancelled) {
+        const availableImages = loadedImages.filter(
+          (entry): entry is readonly [string, HTMLImageElement] => entry !== null
+        );
+        setHeroImages(new Map<string, HTMLImageElement>(availableImages));
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const host = boardHostRef.current;
@@ -508,6 +559,7 @@ export default function App(): React.JSX.Element {
       const group = createTokenGroup({
         token,
         hero,
+        heroImage: heroImages.get(hero.id),
         stage,
         isSelected: token.id === selectedTokenId,
         onSelect: () => {
@@ -525,7 +577,7 @@ export default function App(): React.JSX.Element {
     }
 
     layer.draw();
-  }, [tokens, selectedTokenId]);
+  }, [tokens, selectedTokenId, heroImages]);
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent): void {
@@ -666,8 +718,8 @@ export default function App(): React.JSX.Element {
                   onClick={() => (placedToken ? removeToken(placedToken) : addHero(hero))}
                   key={hero.id}
                 >
-                  <span className="hero-initials" style={heroInitialsStyle(hero.role)}>
-                    {hero.initials}
+                  <span className="hero-avatar">
+                    <img src={heroImagePath(hero.id)} alt="" />
                   </span>
                   <span className="hero-name">
                     <strong>{hero.name}</strong>
