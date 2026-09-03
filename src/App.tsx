@@ -41,6 +41,13 @@ interface TokenGroupOptions {
   readonly isSelected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (x: number, y: number) => void;
+  readonly onContextMenu: (clientX: number, clientY: number) => void;
+}
+
+interface TokenContextMenu {
+  readonly tokenId: string;
+  readonly x: number;
+  readonly y: number;
 }
 
 const BOARD_WIDTH = 1200;
@@ -397,7 +404,8 @@ function createTokenGroup({
   stage,
   isSelected,
   onSelect,
-  onMove
+  onMove,
+  onContextMenu
 }: TokenGroupOptions): Konva.Group {
   const group = new Konva.Group({
     x: token.x,
@@ -445,6 +453,11 @@ function createTokenGroup({
     event.cancelBubble = true;
     onSelect();
   });
+  group.on('contextmenu', (event) => {
+    event.evt.preventDefault();
+    event.cancelBubble = true;
+    onContextMenu(event.evt.clientX, event.evt.clientY);
+  });
   group.on('pointerenter', () => setBoardCursor(stage, 'grab'));
   group.on('pointerleave', () => setBoardCursor(stage, 'default'));
   group.on('dragstart', () => {
@@ -478,6 +491,8 @@ export default function App(): React.JSX.Element {
   const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState('');
+  const [isHeroDragging, setIsHeroDragging] = useState(false);
+  const [contextMenu, setContextMenu] = useState<TokenContextMenu | null>(null);
   const [tokens, setTokens] = useState<BoardToken[]>(initialTokens);
   const [heroImages, setHeroImages] = useState<ReadonlyMap<string, HTMLImageElement>>(
     () => new Map<string, HTMLImageElement>()
@@ -488,6 +503,10 @@ export default function App(): React.JSX.Element {
 
   const selectedToken = tokens.find((token) => token.id === selectedTokenId);
   const selectedHero = selectedToken ? HERO_BY_ID.get(selectedToken.heroId) : undefined;
+  const contextToken = contextMenu
+    ? tokens.find((token) => token.id === contextMenu.tokenId)
+    : undefined;
+  const contextHero = contextToken ? HERO_BY_ID.get(contextToken.heroId) : undefined;
   const allyCount = tokens.filter((token) => token.team === 'ally').length;
   const enemyCount = tokens.filter((token) => token.team === 'enemy').length;
   const normalizedHeroSearch = heroSearch.trim().toLocaleLowerCase();
@@ -530,6 +549,7 @@ export default function App(): React.JSX.Element {
     drawMap(mapLayer);
 
     stage.on('click tap', (event) => {
+      setContextMenu(null);
       if (event.target === stage) setSelectedTokenId(null);
     });
 
@@ -570,6 +590,15 @@ export default function App(): React.JSX.Element {
           setSelectedTokenId(token.id);
           setTokens((currentTokens) => updateTokenPosition(currentTokens, token.id, x, y));
           setAnnouncement(`${hero.name} moved to ${x}, ${y}.`);
+        },
+        onContextMenu: (clientX, clientY) => {
+          setSelectedTokenId(token.id);
+          setContextMenu({
+            tokenId: token.id,
+            x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
+            y: Math.max(8, Math.min(clientY, window.innerHeight - 52))
+          });
+          setAnnouncement(`${hero.name} menu opened.`);
         }
       });
 
@@ -580,37 +609,75 @@ export default function App(): React.JSX.Element {
   }, [tokens, selectedTokenId, heroImages]);
 
   useEffect(() => {
+    function handleClick(): void {
+      setContextMenu(null);
+    }
+
     function handleKeydown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        setContextMenu(null);
+        return;
+      }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedTokenId) {
         event.preventDefault();
         removeSelected();
       }
     }
 
+    window.addEventListener('click', handleClick);
     window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleKeydown);
+    };
   });
 
-  function addHero(hero: HeroDefinition): void {
-    const id = `${selectedTeam}-${hero.id}`;
-    if (tokens.some((token) => token.id === id)) {
+  function placeHero(hero: HeroDefinition, x: number, y: number, team: Team): void {
+    const id = `${team}-${hero.id}`;
+    const boardX = Math.round(clamp(x, TOKEN_RADIUS, BOARD_WIDTH - TOKEN_RADIUS));
+    const boardY = Math.round(clamp(y, TOKEN_RADIUS, BOARD_HEIGHT - TOKEN_RADIUS));
+    const existingToken = tokens.find((token) => token.id === id);
+
+    if (existingToken) {
+      setTokens((currentTokens) => updateTokenPosition(currentTokens, id, boardX, boardY));
       setSelectedTokenId(id);
-      setAnnouncement(`${hero.name} is already with ${teamLabel(selectedTeam)}.`);
+      setAnnouncement(`${hero.name} moved to ${boardX}, ${boardY}.`);
       return;
     }
 
-    const index = tokens.filter((token) => token.team === selectedTeam).length;
-    const token: BoardToken = {
-      id,
-      heroId: hero.id,
-      team: selectedTeam,
-      x: selectedTeam === 'ally' ? 130 + (index % 3) * 72 : 1070 - (index % 3) * 72,
-      y: 580 - Math.floor(index / 3) * 78
-    };
-
+    const token: BoardToken = { id, heroId: hero.id, team, x: boardX, y: boardY };
     setTokens((currentTokens) => [...currentTokens, token]);
     setSelectedTokenId(token.id);
-    setAnnouncement(`${hero.name} added to ${teamLabel(selectedTeam)}.`);
+    setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
+  }
+
+  function handleHeroDragStart(event: React.DragEvent<HTMLDivElement>, hero: HeroDefinition): void {
+    event.dataTransfer.effectAllowed = 'copyMove';
+    event.dataTransfer.setData('application/x-rivals-hero', hero.id);
+    event.dataTransfer.setData('application/x-rivals-team', selectedTeam);
+    setIsHeroDragging(true);
+    setAnnouncement(`Dragging ${hero.name}. Drop on the map.`);
+  }
+
+  function handleBoardDrop(event: React.DragEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    setIsHeroDragging(false);
+
+    const heroId = event.dataTransfer.getData('application/x-rivals-hero');
+    const teamValue = event.dataTransfer.getData('application/x-rivals-team');
+    const hero = HERO_BY_ID.get(heroId);
+    if (!hero || (teamValue !== 'ally' && teamValue !== 'enemy')) return;
+
+    const stage = stageRef.current;
+    if (!stage) return;
+    const stageBounds = stage.container().getBoundingClientRect();
+    const scale = stage.scaleX();
+    placeHero(
+      hero,
+      (event.clientX - stageBounds.left) / scale,
+      (event.clientY - stageBounds.top) / scale,
+      teamValue
+    );
   }
 
   function removeToken(token: BoardToken): void {
@@ -619,6 +686,7 @@ export default function App(): React.JSX.Element {
       currentTokens.filter((current) => current.id !== token.id)
     );
     setSelectedTokenId((currentId) => (currentId === token.id ? null : currentId));
+    setContextMenu(null);
     setAnnouncement(`${heroName} removed from the board.`);
   }
 
@@ -659,7 +727,7 @@ export default function App(): React.JSX.Element {
         <aside className="hero-panel" aria-labelledby="heroes-heading">
           <div className="sidebar-heading">
             <h2 id="heroes-heading">Heroes</h2>
-            <p>Choose a team, then add or remove heroes.</p>
+            <p>Choose a team, then drag a hero onto the map.</p>
           </div>
 
           <div className="team-picker" aria-label="Team for new heroes">
@@ -712,10 +780,14 @@ export default function App(): React.JSX.Element {
               const isPlaced = placedToken !== undefined;
 
               return (
-                <button
+                <div
                   className={`hero-row${isPlaced ? ' placed' : ''}`}
-                  type="button"
-                  onClick={() => (placedToken ? removeToken(placedToken) : addHero(hero))}
+                  draggable
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Drag ${hero.name} onto the map for ${teamLabel(selectedTeam)}`}
+                  onDragStart={(event) => handleHeroDragStart(event, hero)}
+                  onDragEnd={() => setIsHeroDragging(false)}
                   key={hero.id}
                 >
                   <span className="hero-avatar">
@@ -725,8 +797,21 @@ export default function App(): React.JSX.Element {
                     <strong>{hero.name}</strong>
                     <small>{hero.role}</small>
                   </span>
-                  <span className="row-action">{isPlaced ? 'Remove' : 'Add'}</span>
-                </button>
+                  <span className="row-action" aria-hidden="true">
+                    {isPlaced ? (
+                      <svg viewBox="0 0 16 16">
+                        <path d="m3.5 8.2 2.7 2.7 6.3-6.3" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 16 16">
+                        <circle cx="5" cy="5" r="1" />
+                        <circle cx="11" cy="5" r="1" />
+                        <circle cx="5" cy="11" r="1" />
+                        <circle cx="11" cy="11" r="1" />
+                      </svg>
+                    )}
+                  </span>
+                </div>
               );
             })}
           </div>
@@ -754,7 +839,14 @@ export default function App(): React.JSX.Element {
             </div>
           </div>
 
-          <div className="board-shell">
+          <div
+            className={`board-shell${isHeroDragging ? ' drop-ready' : ''}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={handleBoardDrop}
+          >
             <div
               className="stage-host"
               ref={boardHostRef}
@@ -762,28 +854,47 @@ export default function App(): React.JSX.Element {
             />
           </div>
 
-          {selectedToken && selectedHero ? (
-            <div className="selection-bar">
-              <span
-                className={`selection-team ${
-                  selectedToken.team === 'ally' ? 'blue-team' : 'red-team'
-                }`}
-              />
-              <div className="selection-name">
-                <strong>{selectedHero.name}</strong>
-                <span>{teamLabel(selectedToken.team)}</span>
+          <div className="board-toolbar">
+            {selectedToken && selectedHero ? (
+              <div className="selection-summary">
+                <span
+                  className={`selection-team ${
+                    selectedToken.team === 'ally' ? 'blue-team' : 'red-team'
+                  }`}
+                />
+                <div className="selection-name">
+                  <strong>{selectedHero.name}</strong>
+                  <span>{teamLabel(selectedToken.team)} · Press Delete to remove</span>
+                </div>
+                <span className="coordinates">
+                  x {selectedToken.x}, y {selectedToken.y}
+                </span>
               </div>
-              <span className="coordinates">
-                x {selectedToken.x}, y {selectedToken.y}
-              </span>
-            </div>
-          ) : (
-            <p className="board-help">
-              Drag a hero to change its position. Use the hero list to add or remove heroes.
-            </p>
-          )}
+            ) : (
+              <p className="board-help">
+                Drag heroes onto the map. Right-click a token to remove it.
+              </p>
+            )}
+          </div>
         </section>
       </main>
+
+      {contextMenu && contextToken && contextHero ? (
+        <div
+          className="token-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          role="menu"
+          aria-label={`${contextHero.name} actions`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button type="button" role="menuitem" onClick={() => removeToken(contextToken)}>
+            <svg aria-hidden="true" viewBox="0 0 20 20">
+              <path d="M3.5 5.5h13M8 3h4l1 2.5H7L8 3Zm-2.5 2.5.8 11h7.4l.8-11M8.3 8v6M11.7 8v6" />
+            </svg>
+            Remove {contextHero.name}
+          </button>
+        </div>
+      ) : null}
 
       <p className="sr-only" aria-live="polite">
         {announcement}
