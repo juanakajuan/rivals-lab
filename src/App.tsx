@@ -1,50 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
 
-import { bindTokenDragLifecycle } from './tokenDrag';
-import { configureTokenSelection, updateTokenSelection } from './tokenSelection';
-
-type Team = 'ally' | 'enemy';
-type Role = 'Vanguard' | 'Duelist' | 'Strategist';
-type HeroRole = Role | 'All Roles';
-type BoardCursor = 'default' | 'grab' | 'grabbing';
-
-interface HeroDefinition {
-  id: string;
-  name: string;
-  initials: string;
-  role: HeroRole;
-}
-
-interface BoardToken {
-  id: string;
-  heroId: string;
-  team: Team;
-  x: number;
-  y: number;
-}
-
-interface MapZone {
-  readonly points: number[];
-  readonly fill: string;
-  readonly stroke: string;
-}
-
-interface MapLabel {
-  readonly x: number;
-  readonly y: number;
-  readonly text: string;
-}
-
-interface TokenGroupOptions {
-  readonly token: BoardToken;
-  readonly hero: HeroDefinition;
-  readonly heroImage: HTMLImageElement | undefined;
-  readonly stage: Konva.Stage;
-  readonly onSelect: () => void;
-  readonly onMove: (x: number, y: number) => void;
-  readonly onContextMenu: (clientX: number, clientY: number) => void;
-}
+import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
+import {
+  BOARD_HEIGHT,
+  BOARD_WIDTH,
+  clampToBoard,
+  createTokenGroup,
+  drawMap,
+  resizeStage,
+  type BoardToken
+} from './boardCanvas';
+import {
+  HERO_BY_ID,
+  HEROES,
+  heroImagePath,
+  isTeam,
+  teamLabel,
+  type HeroDefinition,
+  type Team
+} from './heroes';
+import { updateTokenSelection } from './tokenSelection';
 
 interface TokenContextMenu {
   readonly tokenId: string;
@@ -52,142 +28,19 @@ interface TokenContextMenu {
   readonly y: number;
 }
 
-const BOARD_WIDTH = 1200;
-const BOARD_HEIGHT = 760;
-const GRID_SIZE = 60;
-const TOKEN_RADIUS = 30;
+const HERO_DRAG_TYPE = 'application/x-rivals-hero';
+const TEAM_DRAG_TYPE = 'application/x-rivals-team';
 
-const HERO_IMAGE_FILE_OVERRIDES: Readonly<Record<string, string>> = {
-  strange: 'doctor-strange',
-  luna: 'luna-snow',
-  rocket: 'rocket-raccoon'
-};
-
-const TEAM_LABELS: Readonly<Record<Team, string>> = {
-  ally: 'Allies',
-  enemy: 'Opponents'
-};
-
-const TEAM_COLORS: Readonly<Record<Team, string>> = {
-  ally: '#50b9ff',
-  enemy: '#ff6268'
-};
-
-const ROLE_COLORS: Readonly<Record<HeroRole, string>> = {
-  Vanguard: '#c2a173',
-  Duelist: '#a693d4',
-  Strategist: '#73aa9c',
-  'All Roles': '#d6d7dc'
-};
-
-const HEROES: readonly HeroDefinition[] = [
-  { id: 'angela', name: 'Angela', initials: 'AG', role: 'Vanguard' },
-  { id: 'captain-america', name: 'Captain America', initials: 'CA', role: 'Vanguard' },
-  { id: 'devil-dinosaur', name: 'Devil Dinosaur', initials: 'DD', role: 'Vanguard' },
-  { id: 'strange', name: 'Doctor Strange', initials: 'DS', role: 'Vanguard' },
-  { id: 'emma-frost', name: 'Emma Frost', initials: 'EF', role: 'Vanguard' },
-  { id: 'groot', name: 'Groot', initials: 'GR', role: 'Vanguard' },
-  { id: 'hulk', name: 'Hulk', initials: 'HK', role: 'Vanguard' },
-  { id: 'magneto', name: 'Magneto', initials: 'MG', role: 'Vanguard' },
-  { id: 'peni-parker', name: 'Peni Parker', initials: 'PP', role: 'Vanguard' },
-  { id: 'rogue', name: 'Rogue', initials: 'RG', role: 'Vanguard' },
-  { id: 'the-hood', name: 'The Hood', initials: 'TH', role: 'Vanguard' },
-  { id: 'the-thing', name: 'The Thing', initials: 'TT', role: 'Vanguard' },
-  { id: 'thor', name: 'Thor', initials: 'TR', role: 'Vanguard' },
-  { id: 'venom', name: 'Venom', initials: 'VN', role: 'Vanguard' },
-  { id: 'black-cat', name: 'Black Cat', initials: 'BC', role: 'Duelist' },
-  { id: 'black-panther', name: 'Black Panther', initials: 'BP', role: 'Duelist' },
-  { id: 'black-widow', name: 'Black Widow', initials: 'BW', role: 'Duelist' },
-  { id: 'blade', name: 'Blade', initials: 'BL', role: 'Duelist' },
-  { id: 'cyclops', name: 'Cyclops', initials: 'CY', role: 'Duelist' },
-  { id: 'daredevil', name: 'Daredevil', initials: 'DD', role: 'Duelist' },
-  { id: 'elsa-bloodstone', name: 'Elsa Bloodstone', initials: 'EB', role: 'Duelist' },
-  { id: 'hawkeye', name: 'Hawkeye', initials: 'HE', role: 'Duelist' },
-  { id: 'hela', name: 'Hela', initials: 'HL', role: 'Duelist' },
-  { id: 'human-torch', name: 'Human Torch', initials: 'HT', role: 'Duelist' },
-  { id: 'iron-fist', name: 'Iron Fist', initials: 'IF', role: 'Duelist' },
-  { id: 'iron-man', name: 'Iron Man', initials: 'IM', role: 'Duelist' },
-  { id: 'magik', name: 'Magik', initials: 'MK', role: 'Duelist' },
-  { id: 'mister-fantastic', name: 'Mister Fantastic', initials: 'MF', role: 'Duelist' },
-  { id: 'moon-knight', name: 'Moon Knight', initials: 'MN', role: 'Duelist' },
-  { id: 'namor', name: 'Namor', initials: 'NM', role: 'Duelist' },
-  { id: 'phoenix', name: 'Phoenix', initials: 'PX', role: 'Duelist' },
-  { id: 'psylocke', name: 'Psylocke', initials: 'PS', role: 'Duelist' },
-  { id: 'scarlet-witch', name: 'Scarlet Witch', initials: 'SW', role: 'Duelist' },
-  { id: 'spider-man', name: 'Spider-Man', initials: 'SM', role: 'Duelist' },
-  { id: 'squirrel-girl', name: 'Squirrel Girl', initials: 'SG', role: 'Duelist' },
-  { id: 'star-lord', name: 'Star-Lord', initials: 'SL', role: 'Duelist' },
-  { id: 'storm', name: 'Storm', initials: 'ST', role: 'Duelist' },
-  { id: 'the-punisher', name: 'The Punisher', initials: 'TP', role: 'Duelist' },
-  { id: 'winter-soldier', name: 'Winter Soldier', initials: 'WS', role: 'Duelist' },
-  { id: 'wolverine', name: 'Wolverine', initials: 'WV', role: 'Duelist' },
-  { id: 'adam-warlock', name: 'Adam Warlock', initials: 'AW', role: 'Strategist' },
-  { id: 'cloak-and-dagger', name: 'Cloak & Dagger', initials: 'CD', role: 'Strategist' },
-  { id: 'gambit', name: 'Gambit', initials: 'GB', role: 'Strategist' },
-  { id: 'invisible-woman', name: 'Invisible Woman', initials: 'IW', role: 'Strategist' },
-  {
-    id: 'jeff-the-land-shark',
-    name: 'Jeff the Land Shark',
-    initials: 'JL',
-    role: 'Strategist'
-  },
-  { id: 'jubilee', name: 'Jubilee', initials: 'JB', role: 'Strategist' },
-  { id: 'loki', name: 'Loki', initials: 'LK', role: 'Strategist' },
-  { id: 'luna', name: 'Luna Snow', initials: 'LS', role: 'Strategist' },
-  { id: 'mantis', name: 'Mantis', initials: 'MN', role: 'Strategist' },
-  { id: 'rocket', name: 'Rocket Raccoon', initials: 'RR', role: 'Strategist' },
-  { id: 'ultron', name: 'Ultron', initials: 'UL', role: 'Strategist' },
-  { id: 'white-fox', name: 'White Fox', initials: 'WF', role: 'Strategist' },
-  { id: 'deadpool', name: 'Deadpool', initials: 'DP', role: 'All Roles' }
-];
-
-const HERO_BY_ID: ReadonlyMap<string, HeroDefinition> = new Map<string, HeroDefinition>(
-  HEROES.map((hero): [string, HeroDefinition] => [hero.id, hero])
-);
-
-const MAP_ZONES: readonly MapZone[] = [
-  {
-    points: [48, 94, 270, 46, 366, 166, 330, 305, 116, 330, 38, 236],
-    fill: '#191a1d',
-    stroke: '#303137'
-  },
-  {
-    points: [432, 68, 762, 48, 866, 178, 790, 312, 444, 298, 370, 176],
-    fill: '#17181b',
-    stroke: '#2d2e33'
-  },
-  {
-    points: [866, 86, 1144, 116, 1170, 312, 1038, 352, 842, 278],
-    fill: '#1b1c20',
-    stroke: '#323339'
-  },
-  {
-    points: [54, 410, 260, 344, 420, 462, 340, 690, 98, 714, 34, 574],
-    fill: '#18191c',
-    stroke: '#2e2f34'
-  },
-  {
-    points: [456, 378, 754, 348, 850, 510, 710, 704, 448, 682, 374, 520],
-    fill: '#1c1d20',
-    stroke: '#33343a'
-  },
-  {
-    points: [894, 392, 1138, 358, 1172, 568, 1084, 710, 830, 674, 804, 520],
-    fill: '#17181b',
-    stroke: '#2d2e33'
-  }
-];
-
-const ROUTE_POINTS = [
-  92, 550, 250, 480, 390, 420, 530, 390, 650, 390, 798, 430, 938, 474, 1110, 530
-];
-
-const MAP_LABELS: readonly MapLabel[] = [
-  { x: 88, y: 170, text: 'WEST GROVE' },
-  { x: 505, y: 144, text: 'GALA HALL' },
-  { x: 920, y: 192, text: 'EAST GARDEN' },
-  { x: 470, y: 610, text: 'LOWER WALK' }
-];
+function loadHeroImage(
+  hero: HeroDefinition
+): Promise<readonly [string, HTMLImageElement] | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve([hero.id, image]);
+    image.onerror = () => resolve(null);
+    image.src = heroImagePath(hero.id);
+  });
+}
 
 function initialTokens(): BoardToken[] {
   return [
@@ -198,282 +51,6 @@ function initialTokens(): BoardToken[] {
     { id: 'enemy-magik', heroId: 'magik', team: 'enemy', x: 960, y: 410 },
     { id: 'enemy-rocket', heroId: 'rocket', team: 'enemy', x: 910, y: 515 }
   ];
-}
-
-function drawMap(layer: Konva.Layer): void {
-  layer.add(
-    new Konva.Rect({
-      width: BOARD_WIDTH,
-      height: BOARD_HEIGHT,
-      fill: '#111214',
-      listening: false
-    })
-  );
-
-  for (let x = 0; x <= BOARD_WIDTH; x += GRID_SIZE) {
-    layer.add(
-      new Konva.Line({
-        points: [x, 0, x, BOARD_HEIGHT],
-        stroke: 'rgba(255, 255, 255, 0.05)',
-        strokeWidth: 1,
-        listening: false
-      })
-    );
-  }
-
-  for (let y = 0; y <= BOARD_HEIGHT; y += GRID_SIZE) {
-    layer.add(
-      new Konva.Line({
-        points: [0, y, BOARD_WIDTH, y],
-        stroke: 'rgba(255, 255, 255, 0.05)',
-        strokeWidth: 1,
-        listening: false
-      })
-    );
-  }
-
-  for (const zone of MAP_ZONES) {
-    layer.add(
-      new Konva.Line({
-        points: zone.points,
-        closed: true,
-        fill: zone.fill,
-        stroke: zone.stroke,
-        strokeWidth: 3,
-        listening: false
-      })
-    );
-  }
-
-  layer.add(
-    new Konva.Line({
-      points: ROUTE_POINTS,
-      stroke: '#2b2d31',
-      strokeWidth: 18,
-      lineCap: 'round',
-      lineJoin: 'round',
-      listening: false
-    }),
-    new Konva.Line({
-      points: ROUTE_POINTS,
-      stroke: '#5f626a',
-      strokeWidth: 2,
-      lineCap: 'round',
-      listening: false
-    })
-  );
-
-  addSpawnZone(layer, 116, 540, 'A', '#57b9ff');
-  addSpawnZone(layer, 1084, 530, 'B', '#ff696d');
-
-  layer.add(
-    new Konva.Circle({
-      x: 610,
-      y: 395,
-      radius: 74,
-      fill: 'rgba(138, 143, 152, 0.08)',
-      stroke: '#8a8f98',
-      strokeWidth: 2,
-      listening: false
-    }),
-    new Konva.Circle({
-      x: 610,
-      y: 395,
-      radius: 28,
-      fill: '#8a8f98',
-      listening: false
-    }),
-    new Konva.Text({
-      x: 566,
-      y: 462,
-      width: 88,
-      text: 'OBJECTIVE',
-      align: 'center',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 14,
-      fontStyle: 'bold',
-      fill: '#c6c8ce',
-      listening: false
-    })
-  );
-
-  for (const label of MAP_LABELS) {
-    layer.add(
-      new Konva.Text({
-        x: label.x,
-        y: label.y,
-        text: label.text,
-        fontFamily: 'Arial, sans-serif',
-        fontSize: 17,
-        fontStyle: 'bold',
-        fill: 'rgba(255, 255, 255, 0.28)',
-        listening: false
-      })
-    );
-  }
-
-  layer.draw();
-}
-
-function addSpawnZone(
-  layer: Konva.Layer,
-  x: number,
-  y: number,
-  label: string,
-  color: string
-): void {
-  layer.add(
-    new Konva.Circle({
-      x,
-      y,
-      radius: 58,
-      fill: 'rgba(255, 255, 255, 0.025)',
-      stroke: color,
-      strokeWidth: 2,
-      listening: false
-    }),
-    new Konva.Text({
-      x: x - 18,
-      y: y - 19,
-      width: 36,
-      text: label,
-      align: 'center',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 38,
-      fontStyle: 'bold',
-      fill: color,
-      opacity: 0.7,
-      listening: false
-    })
-  );
-}
-
-function resizeStage(stage: Konva.Stage, host: HTMLDivElement): void {
-  const width = host.clientWidth;
-  const height = host.clientHeight;
-  if (width <= 0 || height <= 0) return;
-
-  const scale = Math.min(width / BOARD_WIDTH, height / BOARD_HEIGHT);
-  stage.width(BOARD_WIDTH * scale);
-  stage.height(BOARD_HEIGHT * scale);
-  stage.scale({ x: scale, y: scale });
-  stage.batchDraw();
-}
-
-function boundTokenPosition(position: Konva.Vector2d, scale: number): Konva.Vector2d {
-  return {
-    x: clamp(position.x, TOKEN_RADIUS * scale, (BOARD_WIDTH - TOKEN_RADIUS) * scale),
-    y: clamp(position.y, TOKEN_RADIUS * scale, (BOARD_HEIGHT - TOKEN_RADIUS) * scale)
-  };
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.max(minimum, Math.min(maximum, value));
-}
-
-function setBoardCursor(stage: Konva.Stage, cursor: BoardCursor): void {
-  stage.container().style.cursor = cursor;
-}
-
-function teamLabel(team: Team): string {
-  return TEAM_LABELS[team];
-}
-
-function roleColor(role: HeroRole): string {
-  return ROLE_COLORS[role];
-}
-
-function heroImagePath(heroId: string): string {
-  const fileName = HERO_IMAGE_FILE_OVERRIDES[heroId] ?? heroId;
-  return `/hero-icons/${fileName}.png`;
-}
-
-function loadHeroImage(
-  hero: HeroDefinition
-): Promise<readonly [string, HTMLImageElement] | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve([hero.id, image] as const);
-    image.onerror = () => resolve(null);
-    image.src = heroImagePath(hero.id);
-  });
-}
-
-function createTokenGroup({
-  token,
-  hero,
-  heroImage,
-  stage,
-  onSelect,
-  onMove,
-  onContextMenu
-}: TokenGroupOptions): Konva.Group {
-  const group = new Konva.Group({
-    x: token.x,
-    y: token.y,
-    draggable: true,
-    dragBoundFunc: (position) => boundTokenPosition(position, stage.scaleX())
-  });
-
-  group.add(new Konva.Circle({ radius: TOKEN_RADIUS, fill: '#222326' }));
-
-  if (heroImage) {
-    group.add(
-      new Konva.Image({
-        x: -TOKEN_RADIUS + 3,
-        y: -TOKEN_RADIUS + 3,
-        width: (TOKEN_RADIUS - 3) * 2,
-        height: (TOKEN_RADIUS - 3) * 2,
-        image: heroImage,
-        cornerRadius: TOKEN_RADIUS - 3
-      })
-    );
-  } else {
-    group.add(new Konva.Text({
-      x: -27,
-      y: -9,
-      width: 54,
-      text: hero.initials,
-      align: 'center',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 17,
-      fontStyle: 'bold',
-      fill: roleColor(hero.role)
-    }));
-  }
-
-  const selectionRing = new Konva.Circle({
-    radius: TOKEN_RADIUS,
-    stroke: TEAM_COLORS[token.team],
-    strokeWidth: 3
-  });
-  configureTokenSelection(group, selectionRing, token.id, TEAM_COLORS[token.team]);
-  group.add(selectionRing);
-
-  group.on('click tap', (event) => {
-    event.cancelBubble = true;
-    onSelect();
-  });
-  group.on('contextmenu', (event) => {
-    event.evt.preventDefault();
-    event.cancelBubble = true;
-    onContextMenu(event.evt.clientX, event.evt.clientY);
-  });
-  group.on('pointerenter', () => setBoardCursor(stage, 'grab'));
-  group.on('pointerleave', () => setBoardCursor(stage, 'default'));
-  bindTokenDragLifecycle(group, {
-    onSelect,
-    onDragStart: () => {
-      group.moveToTop();
-      setBoardCursor(stage, 'grabbing');
-    },
-    onDragEnd: (x, y) => {
-      onMove(x, y);
-      setBoardCursor(stage, 'grab');
-    }
-  });
-
-  return group;
 }
 
 function updateTokenPosition(
@@ -644,8 +221,8 @@ export default function App(): React.JSX.Element {
 
   function placeHero(hero: HeroDefinition, x: number, y: number, team: Team): void {
     const id = `${team}-${hero.id}`;
-    const boardX = Math.round(clamp(x, TOKEN_RADIUS, BOARD_WIDTH - TOKEN_RADIUS));
-    const boardY = Math.round(clamp(y, TOKEN_RADIUS, BOARD_HEIGHT - TOKEN_RADIUS));
+    const boardX = clampToBoard(x, BOARD_WIDTH);
+    const boardY = clampToBoard(y, BOARD_HEIGHT);
     const existingToken = tokens.find((token) => token.id === id);
 
     if (existingToken) {
@@ -663,8 +240,8 @@ export default function App(): React.JSX.Element {
 
   function handleHeroDragStart(event: React.DragEvent<HTMLDivElement>, hero: HeroDefinition): void {
     event.dataTransfer.effectAllowed = 'copyMove';
-    event.dataTransfer.setData('application/x-rivals-hero', hero.id);
-    event.dataTransfer.setData('application/x-rivals-team', selectedTeam);
+    event.dataTransfer.setData(HERO_DRAG_TYPE, hero.id);
+    event.dataTransfer.setData(TEAM_DRAG_TYPE, selectedTeam);
     setIsHeroDragging(true);
     setAnnouncement(`Dragging ${hero.name}. Drop on the map.`);
   }
@@ -673,10 +250,10 @@ export default function App(): React.JSX.Element {
     event.preventDefault();
     setIsHeroDragging(false);
 
-    const heroId = event.dataTransfer.getData('application/x-rivals-hero');
-    const teamValue = event.dataTransfer.getData('application/x-rivals-team');
+    const heroId = event.dataTransfer.getData(HERO_DRAG_TYPE);
+    const teamValue = event.dataTransfer.getData(TEAM_DRAG_TYPE);
     const hero = HERO_BY_ID.get(heroId);
-    if (!hero || (teamValue !== 'ally' && teamValue !== 'enemy')) return;
+    if (!hero || !isTeam(teamValue)) return;
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -734,178 +311,36 @@ export default function App(): React.JSX.Element {
       </header>
 
       <main className="app-main">
-        <aside className="hero-panel" aria-labelledby="heroes-heading">
-          <div className="sidebar-heading">
-            <h2 id="heroes-heading">Heroes</h2>
-            <p>Choose a team, then drag a hero onto the map.</p>
-          </div>
-
-          <div className="team-picker" aria-label="Team for new heroes">
-            <button
-              className={`team-option blue${selectedTeam === 'ally' ? ' active' : ''}`}
-              type="button"
-              aria-pressed={selectedTeam === 'ally'}
-              onClick={() => setSelectedTeam('ally')}
-            >
-              Allies <span>{allyCount}</span>
-            </button>
-            <button
-              className={`team-option red${selectedTeam === 'enemy' ? ' active' : ''}`}
-              type="button"
-              aria-pressed={selectedTeam === 'enemy'}
-              onClick={() => setSelectedTeam('enemy')}
-            >
-              Opponents <span>{enemyCount}</span>
-            </button>
-          </div>
-
-          <div className="hero-search">
-            <svg aria-hidden="true" viewBox="0 0 16 16">
-              <circle cx="7" cy="7" r="4.25" />
-              <path d="m10.25 10.25 3.25 3.25" />
-            </svg>
-            <input
-              type="search"
-              value={heroSearch}
-              onChange={(event) => setHeroSearch(event.currentTarget.value)}
-              placeholder="Search heroes"
-              aria-label="Search heroes"
-            />
-            {heroSearch.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setHeroSearch('')}
-                aria-label="Clear hero search"
-              >
-                Clear
-              </button>
-            ) : null}
-          </div>
-
-          <div className="hero-list">
-            {visibleHeroes.map((hero) => {
-              const placedToken = tokens.find(
-                (token) => token.id === `${selectedTeam}-${hero.id}`
-              );
-              const isPlaced = placedToken !== undefined;
-
-              return (
-                <div
-                  className={`hero-row${isPlaced ? ' placed' : ''}`}
-                  draggable
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Drag ${hero.name} onto the map for ${teamLabel(selectedTeam)}`}
-                  onDragStart={(event) => handleHeroDragStart(event, hero)}
-                  onDragEnd={() => setIsHeroDragging(false)}
-                  key={hero.id}
-                >
-                  <span className="hero-avatar">
-                    <img src={heroImagePath(hero.id)} alt="" />
-                  </span>
-                  <span className="hero-name">
-                    <strong>{hero.name}</strong>
-                    <small>{hero.role}</small>
-                  </span>
-                  <span className="row-action" aria-hidden="true">
-                    {isPlaced ? (
-                      <svg viewBox="0 0 16 16">
-                        <path d="m3.5 8.2 2.7 2.7 6.3-6.3" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 16 16">
-                        <circle cx="5" cy="5" r="1" />
-                        <circle cx="11" cy="5" r="1" />
-                        <circle cx="5" cy="11" r="1" />
-                        <circle cx="11" cy="11" r="1" />
-                      </svg>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {visibleHeroes.length === 0 ? (
-            <p className="hero-empty">No heroes match “{heroSearch.trim()}”.</p>
-          ) : null}
-        </aside>
-
-        <section className="board-panel" aria-labelledby="board-heading">
-          <div className="board-heading">
-            <div>
-              <h1 id="board-heading">Krakoa</h1>
-              <p>Placeholder map</p>
-            </div>
-            <div className="legend">
-              <span>
-                <i className="blue-dot" />Allies
-              </span>
-              <span>
-                <i className="red-dot" />Opponents
-              </span>
-              <span>
-                <i className="objective-dot" />Objective
-              </span>
-            </div>
-          </div>
-
-          <div
-            className={`board-shell${isHeroDragging ? ' drop-ready' : ''}`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
-            }}
-            onDrop={handleBoardDrop}
-          >
-            <div
-              className="stage-host"
-              ref={boardHostRef}
-              aria-label="Placeholder overhead map of Krakoa with draggable hero position tokens"
-            />
-          </div>
-
-          <div className="board-toolbar">
-            {selectedToken && selectedHero ? (
-              <div className="selection-summary">
-                <span
-                  className={`selection-team ${
-                    selectedToken.team === 'ally' ? 'blue-team' : 'red-team'
-                  }`}
-                />
-                <div className="selection-name">
-                  <strong>{selectedHero.name}</strong>
-                  <span>{teamLabel(selectedToken.team)} · Press Delete to remove</span>
-                </div>
-                <span className="coordinates">
-                  x {selectedToken.x}, y {selectedToken.y}
-                </span>
-              </div>
-            ) : (
-              <p className="board-help">
-                Drag heroes onto the map. Right-click a token to remove it.
-              </p>
-            )}
-          </div>
-        </section>
+        <HeroPanel
+          selectedTeam={selectedTeam}
+          allyCount={allyCount}
+          enemyCount={enemyCount}
+          heroSearch={heroSearch}
+          visibleHeroes={visibleHeroes}
+          tokens={tokens}
+          onTeamChange={setSelectedTeam}
+          onSearchChange={setHeroSearch}
+          onHeroDragStart={handleHeroDragStart}
+          onHeroDragEnd={() => setIsHeroDragging(false)}
+        />
+        <BoardPanel
+          isHeroDragging={isHeroDragging}
+          boardHostRef={boardHostRef}
+          selectedToken={selectedToken}
+          selectedHero={selectedHero}
+          onDrop={handleBoardDrop}
+        />
       </main>
 
       {contextMenu && contextToken && contextHero ? (
-        <div
-          className="token-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          role="menu"
-          aria-label={`${contextHero.name} actions`}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <button type="button" role="menuitem" onClick={() => removeToken(contextToken)}>
-            <svg aria-hidden="true" viewBox="0 0 20 20">
-              <path d="M3.5 5.5h13M8 3h4l1 2.5H7L8 3Zm-2.5 2.5.8 11h7.4l.8-11M8.3 8v6M11.7 8v6" />
-            </svg>
-            Remove {contextHero.name}
-          </button>
-        </div>
+        <TokenMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          token={contextToken}
+          hero={contextHero}
+          onRemove={removeToken}
+        />
       ) : null}
-
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>
