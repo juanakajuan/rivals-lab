@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Konva from 'konva';
 
+import { bindTokenDragLifecycle } from './tokenDrag';
+import { configureTokenSelection, updateTokenSelection } from './tokenSelection';
+
 type Team = 'ally' | 'enemy';
 type Role = 'Vanguard' | 'Duelist' | 'Strategist';
 type HeroRole = Role | 'All Roles';
@@ -38,7 +41,6 @@ interface TokenGroupOptions {
   readonly hero: HeroDefinition;
   readonly heroImage: HTMLImageElement | undefined;
   readonly stage: Konva.Stage;
-  readonly isSelected: boolean;
   readonly onSelect: () => void;
   readonly onMove: (x: number, y: number) => void;
   readonly onContextMenu: (clientX: number, clientY: number) => void;
@@ -402,7 +404,6 @@ function createTokenGroup({
   hero,
   heroImage,
   stage,
-  isSelected,
   onSelect,
   onMove,
   onContextMenu
@@ -441,13 +442,13 @@ function createTokenGroup({
     }));
   }
 
-  group.add(
-    new Konva.Circle({
-      radius: TOKEN_RADIUS,
-      stroke: isSelected ? '#ffffff' : TEAM_COLORS[token.team],
-      strokeWidth: isSelected ? 4 : 3
-    })
-  );
+  const selectionRing = new Konva.Circle({
+    radius: TOKEN_RADIUS,
+    stroke: TEAM_COLORS[token.team],
+    strokeWidth: 3
+  });
+  configureTokenSelection(group, selectionRing, token.id, TEAM_COLORS[token.team]);
+  group.add(selectionRing);
 
   group.on('click tap', (event) => {
     event.cancelBubble = true;
@@ -460,13 +461,16 @@ function createTokenGroup({
   });
   group.on('pointerenter', () => setBoardCursor(stage, 'grab'));
   group.on('pointerleave', () => setBoardCursor(stage, 'default'));
-  group.on('dragstart', () => {
-    group.moveToTop();
-    setBoardCursor(stage, 'grabbing');
-  });
-  group.on('dragend', () => {
-    onMove(Math.round(group.x()), Math.round(group.y()));
-    setBoardCursor(stage, 'grab');
+  bindTokenDragLifecycle(group, {
+    onSelect,
+    onDragStart: () => {
+      group.moveToTop();
+      setBoardCursor(stage, 'grabbing');
+    },
+    onDragEnd: (x, y) => {
+      onMove(x, y);
+      setBoardCursor(stage, 'grab');
+    }
   });
 
   return group;
@@ -581,13 +585,11 @@ export default function App(): React.JSX.Element {
         hero,
         heroImage: heroImages.get(hero.id),
         stage,
-        isSelected: token.id === selectedTokenId,
         onSelect: () => {
           setSelectedTokenId(token.id);
           setAnnouncement(`${hero.name} selected.`);
         },
         onMove: (x, y) => {
-          setSelectedTokenId(token.id);
           setTokens((currentTokens) => updateTokenPosition(currentTokens, token.id, x, y));
           setAnnouncement(`${hero.name} moved to ${x}, ${y}.`);
         },
@@ -606,6 +608,14 @@ export default function App(): React.JSX.Element {
     }
 
     layer.draw();
+  }, [tokens, heroImages]);
+
+  useEffect(() => {
+    const layer = tokenLayerRef.current;
+    if (!layer) return;
+
+    updateTokenSelection(layer, selectedTokenId);
+    layer.batchDraw();
   }, [tokens, selectedTokenId, heroImages]);
 
   useEffect(() => {
