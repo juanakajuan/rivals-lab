@@ -92,26 +92,13 @@ export function HeroPanel({
               {index > 0 && visibleHeroes[index - 1]?.role !== hero.role ? (
                 <hr className="hero-role-divider" />
               ) : null}
-              <div
-                className={`hero-row${isPlaced ? ' placed' : ''}`}
-                draggable
-                role="button"
-                tabIndex={0}
-                aria-label={`Drag ${hero.name} onto the map for ${teamLabel(selectedTeam)}`}
-                onDragStart={(event) => onHeroDragStart(event, hero)}
+              <HeroRow
+                hero={hero}
+                team={selectedTeam}
+                isPlaced={isPlaced}
+                onDragStart={onHeroDragStart}
                 onDragEnd={onHeroDragEnd}
-              >
-                <span className="hero-avatar">
-                  <img src={heroImagePath(hero.id)} alt="" />
-                </span>
-                <span className="hero-name">
-                  <strong>{hero.name}</strong>
-                  <small>{hero.role}</small>
-                </span>
-                <span className="row-action" aria-hidden="true">
-                  {isPlaced ? <CircleCheck /> : <Move />}
-                </span>
-              </div>
+              />
             </Fragment>
           );
         })}
@@ -120,6 +107,45 @@ export function HeroPanel({
         <p className="hero-empty">No heroes match “{heroSearch.trim()}”.</p>
       ) : null}
     </aside>
+  );
+}
+
+interface HeroRowProps {
+  readonly hero: HeroDefinition;
+  readonly team: Team;
+  readonly isPlaced: boolean;
+  readonly onDragStart: (event: DragEvent<HTMLDivElement>, hero: HeroDefinition) => void;
+  readonly onDragEnd: () => void;
+}
+
+function HeroRow({
+  hero,
+  team,
+  isPlaced,
+  onDragStart,
+  onDragEnd
+}: HeroRowProps): React.JSX.Element {
+  return (
+    <div
+      className={`hero-row${isPlaced ? ' placed' : ''}`}
+      draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`Drag ${hero.name} onto the map for ${teamLabel(team)}`}
+      onDragStart={(event) => onDragStart(event, hero)}
+      onDragEnd={onDragEnd}
+    >
+      <span className="hero-avatar">
+        <img src={heroImagePath(hero.id)} alt="" />
+      </span>
+      <span className="hero-name">
+        <strong>{hero.name}</strong>
+        <small>{hero.role}</small>
+      </span>
+      <span className="row-action" aria-hidden="true">
+        {isPlaced ? <CircleCheck /> : <Move />}
+      </span>
+    </div>
   );
 }
 

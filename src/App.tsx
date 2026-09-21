@@ -30,18 +30,14 @@ interface TokenContextMenu {
 const HERO_DRAG_TYPE = 'application/x-rivals-hero';
 const TEAM_DRAG_TYPE = 'application/x-rivals-team';
 
-function loadHeroImage(
+async function loadHeroImage(
   hero: HeroDefinition
 ): Promise<readonly [string, HTMLImageElement] | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve([hero.id, image]);
-    image.onerror = () => resolve(null);
-    image.src = heroImagePath(hero.id);
-  });
+  const image = await loadImage(heroImagePath(hero.id));
+  return image ? [hero.id, image] : null;
 }
 
-function loadMapImage(source: string): Promise<HTMLImageElement | null> {
+function loadImage(source: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => resolve(image);
@@ -109,12 +105,11 @@ export default function App(): React.JSX.Element {
     let cancelled = false;
 
     void Promise.all(HEROES.map(loadHeroImage)).then((loadedImages) => {
-      if (!cancelled) {
-        const availableImages = loadedImages.filter(
-          (entry): entry is readonly [string, HTMLImageElement] => entry !== null
-        );
-        setHeroImages(new Map<string, HTMLImageElement>(availableImages));
-      }
+      if (cancelled) return;
+      const availableImages = loadedImages.filter(
+        (entry): entry is readonly [string, HTMLImageElement] => entry !== null
+      );
+      setHeroImages(new Map<string, HTMLImageElement>(availableImages));
     });
 
     return () => {
@@ -139,7 +134,7 @@ export default function App(): React.JSX.Element {
     stage.add(mapLayer, tokenLayer);
 
     let cancelled = false;
-    void loadMapImage(selectedMap.imagePath).then((image) => {
+    void loadImage(selectedMap.imagePath).then((image) => {
       if (cancelled || !image) return;
       drawMap(mapLayer, selectedMap, image);
     });
@@ -241,17 +236,16 @@ export default function App(): React.JSX.Element {
     const boardX = clampToBoard(x, selectedMap.width);
     const boardY = clampToBoard(y, selectedMap.height);
     const existingToken = tokens.find((token) => token.id === id);
+    setSelectedTokenId(id);
 
     if (existingToken) {
       setTokens((currentTokens) => updateTokenPosition(currentTokens, id, boardX, boardY));
-      setSelectedTokenId(id);
       setAnnouncement(`${hero.name} moved to ${boardX}, ${boardY}.`);
       return;
     }
 
     const token: BoardToken = { id, heroId: hero.id, team, x: boardX, y: boardY };
     setTokens((currentTokens) => [...currentTokens, token]);
-    setSelectedTokenId(token.id);
     setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
   }
 

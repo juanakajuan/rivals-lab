@@ -93,6 +93,34 @@ function setBoardCursor(stage: Konva.Stage, cursor: BoardCursor): void {
   stage.container().style.cursor = cursor;
 }
 
+function createTokenPortrait(
+  hero: HeroDefinition,
+  heroImage: HTMLImageElement | undefined
+): Konva.Image | Konva.Text {
+  if (heroImage) {
+    return new Konva.Image({
+      x: -TOKEN_RADIUS + 3,
+      y: -TOKEN_RADIUS + 3,
+      width: (TOKEN_RADIUS - 3) * 2,
+      height: (TOKEN_RADIUS - 3) * 2,
+      image: heroImage,
+      cornerRadius: TOKEN_RADIUS - 3
+    });
+  }
+
+  return new Konva.Text({
+    x: -TOKEN_RADIUS + 3,
+    y: -9,
+    width: (TOKEN_RADIUS - 3) * 2,
+    text: hero.initials,
+    align: 'center',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 17,
+    fontStyle: 'bold',
+    fill: ROLE_COLORS[hero.role]
+  });
+}
+
 export function createTokenGroup(options: TokenGroupOptions): Konva.Group {
   const { token, hero, heroImage, stage, map, onSelect, onMove, onContextMenu } = options;
   const group = new Konva.Group({
@@ -103,28 +131,7 @@ export function createTokenGroup(options: TokenGroupOptions): Konva.Group {
   });
 
   group.add(new Konva.Circle({ radius: TOKEN_RADIUS, fill: '#222326' }));
-  if (heroImage) {
-    group.add(new Konva.Image({
-      x: -TOKEN_RADIUS + 3,
-      y: -TOKEN_RADIUS + 3,
-      width: (TOKEN_RADIUS - 3) * 2,
-      height: (TOKEN_RADIUS - 3) * 2,
-      image: heroImage,
-      cornerRadius: TOKEN_RADIUS - 3
-    }));
-  } else {
-    group.add(new Konva.Text({
-      x: -TOKEN_RADIUS + 3,
-      y: -9,
-      width: (TOKEN_RADIUS - 3) * 2,
-      text: hero.initials,
-      align: 'center',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 17,
-      fontStyle: 'bold',
-      fill: ROLE_COLORS[hero.role]
-    }));
-  }
+  group.add(createTokenPortrait(hero, heroImage));
 
   const selectionRing = new Konva.Circle({
     radius: TOKEN_RADIUS,
