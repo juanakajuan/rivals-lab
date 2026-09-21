@@ -3,8 +3,6 @@ import Konva from 'konva';
 
 import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
 import {
-  BOARD_HEIGHT,
-  BOARD_WIDTH,
   clampToBoard,
   createTokenGroup,
   drawMap,
@@ -20,6 +18,7 @@ import {
   type HeroDefinition,
   type Team
 } from './heroes';
+import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from './maps';
 import { updateTokenSelection } from './tokenSelection';
 
 interface TokenContextMenu {
@@ -39,6 +38,15 @@ function loadHeroImage(
     image.onload = () => resolve([hero.id, image]);
     image.onerror = () => resolve(null);
     image.src = heroImagePath(hero.id);
+  });
+}
+
+function loadMapImage(source: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = source;
   });
 }
 
@@ -70,6 +78,7 @@ export default function App(): React.JSX.Element {
   const stageRef = useRef<Konva.Stage | null>(null);
   const tokenLayerRef = useRef<Konva.Layer | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
+  const [selectedMapId, setSelectedMapId] = useState<MapId>(DEFAULT_MAP_ID);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState('');
   const [isHeroDragging, setIsHeroDragging] = useState(false);
@@ -81,6 +90,7 @@ export default function App(): React.JSX.Element {
   const [announcement, setAnnouncement] = useState(
     'Drag any token to explain a rotation or position.'
   );
+  const selectedMap = getMap(selectedMapId);
 
   const selectedToken = tokens.find((token) => token.id === selectedTokenId);
   const selectedHero = selectedToken ? HERO_BY_ID.get(selectedToken.heroId) : undefined;
@@ -127,24 +137,30 @@ export default function App(): React.JSX.Element {
     stageRef.current = stage;
     tokenLayerRef.current = tokenLayer;
     stage.add(mapLayer, tokenLayer);
-    drawMap(mapLayer);
+
+    let cancelled = false;
+    void loadMapImage(selectedMap.imagePath).then((image) => {
+      if (cancelled || !image) return;
+      drawMap(mapLayer, selectedMap, image);
+    });
 
     stage.on('click tap', (event) => {
       setContextMenu(null);
       if (event.target === stage) setSelectedTokenId(null);
     });
 
-    const resizeObserver = new ResizeObserver(() => resizeStage(stage, host));
+    const resizeObserver = new ResizeObserver(() => resizeStage(stage, host, selectedMap));
     resizeObserver.observe(host);
-    resizeStage(stage, host);
+    resizeStage(stage, host, selectedMap);
 
     return () => {
+      cancelled = true;
       resizeObserver.disconnect();
       stage.destroy();
       stageRef.current = null;
       tokenLayerRef.current = null;
     };
-  }, []);
+  }, [selectedMap]);
 
   useEffect(() => {
     const layer = tokenLayerRef.current;
@@ -162,6 +178,7 @@ export default function App(): React.JSX.Element {
         hero,
         heroImage: heroImages.get(hero.id),
         stage,
+        map: selectedMap,
         onSelect: () => {
           setSelectedTokenId(token.id);
           setAnnouncement(`${hero.name} selected.`);
@@ -185,7 +202,7 @@ export default function App(): React.JSX.Element {
     }
 
     layer.draw();
-  }, [tokens, heroImages]);
+  }, [tokens, heroImages, selectedMap]);
 
   useEffect(() => {
     const layer = tokenLayerRef.current;
@@ -221,8 +238,8 @@ export default function App(): React.JSX.Element {
 
   function placeHero(hero: HeroDefinition, x: number, y: number, team: Team): void {
     const id = `${team}-${hero.id}`;
-    const boardX = clampToBoard(x, BOARD_WIDTH);
-    const boardY = clampToBoard(y, BOARD_HEIGHT);
+    const boardX = clampToBoard(x, selectedMap.width);
+    const boardY = clampToBoard(y, selectedMap.height);
     const existingToken = tokens.find((token) => token.id === id);
 
     if (existingToken) {
@@ -293,6 +310,19 @@ export default function App(): React.JSX.Element {
     setAnnouncement('The board is clear.');
   }
 
+  function changeMap(value: string): void {
+    if (!isMapId(value)) return;
+    const map = getMap(value);
+    setSelectedMapId(value);
+    setTokens((currentTokens) => currentTokens.map((token) => ({
+      ...token,
+      x: clampToBoard(token.x, map.width),
+      y: clampToBoard(token.y, map.height)
+    })));
+    setContextMenu(null);
+    setAnnouncement(`${map.name} selected.`);
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -324,10 +354,13 @@ export default function App(): React.JSX.Element {
           onHeroDragEnd={() => setIsHeroDragging(false)}
         />
         <BoardPanel
+          selectedMapId={selectedMapId}
+          selectedMap={selectedMap}
           isHeroDragging={isHeroDragging}
           boardHostRef={boardHostRef}
           selectedToken={selectedToken}
           selectedHero={selectedHero}
+          onMapChange={changeMap}
           onDrop={handleBoardDrop}
         />
       </main>

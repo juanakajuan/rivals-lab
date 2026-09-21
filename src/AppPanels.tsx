@@ -2,6 +2,7 @@ import type { DragEvent, RefObject } from 'react';
 
 import type { BoardToken } from './boardCanvas';
 import { heroImagePath, teamLabel, type HeroDefinition, type Team } from './heroes';
+import { MAPS, type MapDefinition, type MapId } from './maps';
 
 interface HeroPanelProps {
   readonly selectedTeam: Team;
@@ -137,18 +138,24 @@ function DragIcon(): React.JSX.Element {
 }
 
 interface BoardPanelProps {
+  readonly selectedMapId: MapId;
+  readonly selectedMap: MapDefinition;
   readonly isHeroDragging: boolean;
   readonly boardHostRef: RefObject<HTMLDivElement | null>;
   readonly selectedToken: BoardToken | undefined;
   readonly selectedHero: HeroDefinition | undefined;
+  readonly onMapChange: (mapId: string) => void;
   readonly onDrop: (event: DragEvent<HTMLDivElement>) => void;
 }
 
 export function BoardPanel({
+  selectedMapId,
+  selectedMap,
   isHeroDragging,
   boardHostRef,
   selectedToken,
   selectedHero,
+  onMapChange,
   onDrop
 }: BoardPanelProps): React.JSX.Element {
   function allowDrop(event: DragEvent<HTMLDivElement>): void {
@@ -159,20 +166,32 @@ export function BoardPanel({
   return (
     <section className="board-panel" aria-labelledby="board-heading">
       <div className="board-heading">
-        <div>
-          <h1 id="board-heading">Krakoa</h1>
-          <p>Placeholder map</p>
+        <div className="map-title">
+          <h1 id="board-heading">{selectedMap.name}</h1>
+          <p>{selectedMap.mode}</p>
         </div>
-        <div className="legend">
-          <span>
-            <i className="blue-dot" />Allies
-          </span>
-          <span>
-            <i className="red-dot" />Opponents
-          </span>
-          <span>
-            <i className="objective-dot" />Objective
-          </span>
+        <div className="board-heading-actions">
+          <label className="map-picker">
+            <span>Map</span>
+            <select
+              value={selectedMapId}
+              onChange={(event) => onMapChange(event.currentTarget.value)}
+            >
+              {MAPS.map((map) => (
+                <option value={map.id} key={map.id}>
+                  {map.name} · {map.mode}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="legend">
+            <span>
+              <i className="blue-dot" />Allies
+            </span>
+            <span>
+              <i className="red-dot" />Opponents
+            </span>
+          </div>
         </div>
       </div>
 
@@ -184,7 +203,8 @@ export function BoardPanel({
         <div
           className="stage-host"
           ref={boardHostRef}
-          aria-label="Placeholder overhead map of Krakoa with draggable hero position tokens"
+          style={{ aspectRatio: `${selectedMap.width} / ${selectedMap.height}` }}
+          aria-label={`Overhead map of ${selectedMap.name} with draggable hero position tokens`}
         />
       </div>
 

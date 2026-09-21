@@ -375,6 +375,51 @@ button:focus-visible {
   font-size: 11px;
 }
 
+.map-title {
+  min-width: 0;
+}
+
+.map-title h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-heading-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.map-picker {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.map-picker select {
+  max-width: min(34vw, 360px);
+  min-height: 30px;
+  padding: 0 28px 0 9px;
+  color: #f4f5f8;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.map-picker select:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
 .legend {
   display: flex;
   gap: 14px;
@@ -588,7 +633,6 @@ button:focus-visible {
 
   .stage-host {
     height: auto;
-    aspect-ratio: 1200 / 760;
     display: block;
   }
 
@@ -606,6 +650,14 @@ button:focus-visible {
   .title-group span,
   .legend {
     display: none;
+  }
+
+  .board-heading-actions {
+    gap: 0;
+  }
+
+  .map-picker select {
+    max-width: 42vw;
   }
 
   .hero-list {
