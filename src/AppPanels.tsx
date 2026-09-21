@@ -1,4 +1,4 @@
-import type { DragEvent, RefObject } from 'react';
+import { Fragment, type DragEvent, type RefObject } from 'react';
 import { CircleCheck, Move } from 'lucide-react';
 
 import type { BoardToken } from './boardCanvas';
@@ -83,32 +83,36 @@ export function HeroPanel({
       </div>
 
       <div className="hero-list">
-        {visibleHeroes.map((hero) => {
+        {visibleHeroes.map((hero, index) => {
           const tokenId = `${selectedTeam}-${hero.id}`;
           const isPlaced = tokens.some((token) => token.id === tokenId);
 
           return (
-            <div
-              className={`hero-row${isPlaced ? ' placed' : ''}`}
-              draggable
-              role="button"
-              tabIndex={0}
-              aria-label={`Drag ${hero.name} onto the map for ${teamLabel(selectedTeam)}`}
-              onDragStart={(event) => onHeroDragStart(event, hero)}
-              onDragEnd={onHeroDragEnd}
-              key={hero.id}
-            >
-              <span className="hero-avatar">
-                <img src={heroImagePath(hero.id)} alt="" />
-              </span>
-              <span className="hero-name">
-                <strong>{hero.name}</strong>
-                <small>{hero.role}</small>
-              </span>
-              <span className="row-action" aria-hidden="true">
-                {isPlaced ? <CircleCheck /> : <Move />}
-              </span>
-            </div>
+            <Fragment key={hero.id}>
+              {index > 0 && visibleHeroes[index - 1]?.role !== hero.role ? (
+                <hr className="hero-role-divider" />
+              ) : null}
+              <div
+                className={`hero-row${isPlaced ? ' placed' : ''}`}
+                draggable
+                role="button"
+                tabIndex={0}
+                aria-label={`Drag ${hero.name} onto the map for ${teamLabel(selectedTeam)}`}
+                onDragStart={(event) => onHeroDragStart(event, hero)}
+                onDragEnd={onHeroDragEnd}
+              >
+                <span className="hero-avatar">
+                  <img src={heroImagePath(hero.id)} alt="" />
+                </span>
+                <span className="hero-name">
+                  <strong>{hero.name}</strong>
+                  <small>{hero.role}</small>
+                </span>
+                <span className="row-action" aria-hidden="true">
+                  {isPlaced ? <CircleCheck /> : <Move />}
+                </span>
+              </div>
+            </Fragment>
           );
         })}
       </div>
