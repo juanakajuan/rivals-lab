@@ -1,25 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import Konva from 'konva';
 
 import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
 import {
   clampToBoard,
-  createTokenGroup,
-  drawMap,
-  resizeStage,
+  createBoardCanvas,
+  type BoardCanvas,
   type BoardToken
 } from './boardCanvas';
 import {
   HERO_BY_ID,
   HEROES,
-  heroImagePath,
   isTeam,
   teamLabel,
   type HeroDefinition,
   type Team
 } from './heroes';
 import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from './maps';
-import { updateTokenSelection } from './tokenSelection';
 
 interface TokenContextMenu {
   readonly tokenId: string;
@@ -29,22 +25,6 @@ interface TokenContextMenu {
 
 const HERO_DRAG_TYPE = 'application/x-rivals-hero';
 const TEAM_DRAG_TYPE = 'application/x-rivals-team';
-
-async function loadHeroImage(
-  hero: HeroDefinition
-): Promise<readonly [string, HTMLImageElement] | null> {
-  const image = await loadImage(heroImagePath(hero.id));
-  return image ? [hero.id, image] : null;
-}
-
-function loadImage(source: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = source;
-  });
-}
 
 function initialTokens(): BoardToken[] {
   return [
@@ -71,8 +51,7 @@ function updateTokenPosition(
 
 export default function App(): React.JSX.Element {
   const boardHostRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<Konva.Stage | null>(null);
-  const tokenLayerRef = useRef<Konva.Layer | null>(null);
+  const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
   const [selectedMapId, setSelectedMapId] = useState<MapId>(DEFAULT_MAP_ID);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
@@ -80,9 +59,6 @@ export default function App(): React.JSX.Element {
   const [isHeroDragging, setIsHeroDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<TokenContextMenu | null>(null);
   const [tokens, setTokens] = useState<BoardToken[]>(initialTokens);
-  const [heroImages, setHeroImages] = useState<ReadonlyMap<string, HTMLImageElement>>(
-    () => new Map<string, HTMLImageElement>()
-  );
   const [announcement, setAnnouncement] = useState(
     'Drag any token to explain a rotation or position.'
   );
@@ -102,110 +78,42 @@ export default function App(): React.JSX.Element {
   );
 
   useEffect(() => {
-    let cancelled = false;
+    const host = boardHostRef.current;
+    if (!host) return;
 
-    void Promise.all(HEROES.map(loadHeroImage)).then((loadedImages) => {
-      if (cancelled) return;
-      const availableImages = loadedImages.filter(
-        (entry): entry is readonly [string, HTMLImageElement] => entry !== null
-      );
-      setHeroImages(new Map<string, HTMLImageElement>(availableImages));
+    const board = createBoardCanvas(host, {
+      onSelect: (token) => {
+        setSelectedTokenId(token?.id ?? null);
+        if (!token) {
+          setContextMenu(null);
+          return;
+        }
+        setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} selected.`);
+      },
+      onMove: (token, x, y) => {
+        setTokens((current) => updateTokenPosition(current, token.id, x, y));
+        setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} moved to ${x}, ${y}.`);
+      },
+      onContextMenu: (token, clientX, clientY) => {
+        setSelectedTokenId(token.id);
+        setContextMenu({
+          tokenId: token.id,
+          x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
+          y: Math.max(8, Math.min(clientY, window.innerHeight - 52))
+        });
+        setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} menu opened.`);
+      }
     });
-
+    boardRef.current = board;
     return () => {
-      cancelled = true;
+      board.destroy();
+      boardRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    const host = boardHostRef.current;
-    if (!host) return;
-
-    const stage = new Konva.Stage({
-      container: host,
-      width: 1,
-      height: 1
-    });
-    const mapLayer = new Konva.Layer();
-    const tokenLayer = new Konva.Layer();
-
-    stageRef.current = stage;
-    tokenLayerRef.current = tokenLayer;
-    stage.add(mapLayer, tokenLayer);
-
-    let cancelled = false;
-    void loadImage(selectedMap.imagePath).then((image) => {
-      if (cancelled || !image) return;
-      drawMap(mapLayer, selectedMap, image);
-    });
-
-    stage.on('click tap', (event) => {
-      setContextMenu(null);
-      if (event.target === stage) setSelectedTokenId(null);
-    });
-
-    const resizeObserver = new ResizeObserver(() => resizeStage(stage, host, selectedMap));
-    resizeObserver.observe(host);
-    resizeStage(stage, host, selectedMap);
-
-    return () => {
-      cancelled = true;
-      resizeObserver.disconnect();
-      stage.destroy();
-      stageRef.current = null;
-      tokenLayerRef.current = null;
-    };
-  }, [selectedMap]);
-
-  useEffect(() => {
-    const layer = tokenLayerRef.current;
-    const stage = stageRef.current;
-    if (!layer || !stage) return;
-
-    layer.destroyChildren();
-
-    for (const token of tokens) {
-      const hero = HERO_BY_ID.get(token.heroId);
-      if (!hero) continue;
-
-      const group = createTokenGroup({
-        token,
-        hero,
-        heroImage: heroImages.get(hero.id),
-        stage,
-        map: selectedMap,
-        onSelect: () => {
-          setSelectedTokenId(token.id);
-          setAnnouncement(`${hero.name} selected.`);
-        },
-        onMove: (x, y) => {
-          setTokens((currentTokens) => updateTokenPosition(currentTokens, token.id, x, y));
-          setAnnouncement(`${hero.name} moved to ${x}, ${y}.`);
-        },
-        onContextMenu: (clientX, clientY) => {
-          setSelectedTokenId(token.id);
-          setContextMenu({
-            tokenId: token.id,
-            x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
-            y: Math.max(8, Math.min(clientY, window.innerHeight - 52))
-          });
-          setAnnouncement(`${hero.name} menu opened.`);
-        }
-      });
-
-      layer.add(group);
-    }
-
-    layer.draw();
-  }, [tokens, heroImages, selectedMap]);
-
-  useEffect(() => {
-    const layer = tokenLayerRef.current;
-    if (!layer) return;
-
-    updateTokenSelection(layer, selectedTokenId);
-    layer.batchDraw();
-  }, [tokens, selectedTokenId, heroImages]);
+    boardRef.current?.update({ map: selectedMap, tokens, selectedTokenId });
+  }, [selectedMap, tokens, selectedTokenId]);
 
   useEffect(() => {
     function handleClick(): void {
@@ -266,16 +174,10 @@ export default function App(): React.JSX.Element {
     const hero = HERO_BY_ID.get(heroId);
     if (!hero || !isTeam(teamValue)) return;
 
-    const stage = stageRef.current;
-    if (!stage) return;
-    const stageBounds = stage.container().getBoundingClientRect();
-    const scale = stage.scaleX();
-    placeHero(
-      hero,
-      (event.clientX - stageBounds.left) / scale,
-      (event.clientY - stageBounds.top) / scale,
-      teamValue
-    );
+    const board = boardRef.current;
+    if (!board) return;
+    const point = board.toBoardPoint(event.clientX, event.clientY);
+    placeHero(hero, point.x, point.y, teamValue);
   }
 
   function removeToken(token: BoardToken): void {
