@@ -165,6 +165,18 @@ button:focus-visible {
   border-radius: 6px;
 }
 
+.team-option.blue,
+.hero-row[data-team='ally'] {
+  --team-color: var(--blue);
+  --team-text: #a8b2ff;
+}
+
+.team-option.red,
+.hero-row[data-team='enemy'] {
+  --team-color: var(--red);
+  --team-text: #ffabb3;
+}
+
 .team-option {
   min-width: 0;
   min-height: 30px;
@@ -172,9 +184,9 @@ button:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--muted);
+  color: var(--team-text);
   background: transparent;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
@@ -183,16 +195,20 @@ button:focus-visible {
 .team-option span {
   min-width: 17px;
   padding: 1px 4px;
-  color: #bfc1c2;
-  background: #25262a;
+  color: var(--team-text);
+  background: color-mix(in srgb, var(--team-color) 20%, var(--panel));
   border-radius: 8px;
   font-size: 9px;
   text-align: center;
 }
 
 .team-option.active {
-  color: #f3f3f3;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--team-color) 24%, var(--panel));
+  border-color: var(--team-color);
+}
+
+.team-option:hover {
+  background: color-mix(in srgb, var(--team-color) 16%, var(--panel));
 }
 
 .hero-search {
@@ -284,7 +300,7 @@ button:focus-visible {
   gap: 9px;
   min-height: 43px;
   padding: 5px 7px;
-  background: transparent;
+  background: color-mix(in srgb, var(--team-color) 7%, var(--panel));
   border: 1px solid transparent;
   border-radius: 5px;
   text-align: left;
@@ -293,8 +309,8 @@ button:focus-visible {
 }
 
 .hero-row:hover {
-  background: var(--surface);
-  border-color: var(--border);
+  background: color-mix(in srgb, var(--team-color) 16%, var(--panel));
+  border-color: var(--team-color);
 }
 
 .hero-row:focus-visible {

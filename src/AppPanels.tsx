@@ -130,6 +130,7 @@ function HeroRow({
   return (
     <div
       className={`hero-row${isPlaced ? ' placed' : ''}`}
+      data-team={team}
       draggable
       role="button"
       tabIndex={0}
