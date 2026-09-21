@@ -26,7 +26,7 @@ interface TokenGroupOptions {
 
 type BoardCursor = 'default' | 'grab' | 'grabbing';
 
-export const TOKEN_RADIUS = 30;
+export const TOKEN_RADIUS = 26;
 
 const TEAM_COLORS: Readonly<Record<Team, string>> = {
   ally: '#50b9ff',
@@ -114,9 +114,9 @@ export function createTokenGroup(options: TokenGroupOptions): Konva.Group {
     }));
   } else {
     group.add(new Konva.Text({
-      x: -27,
+      x: -TOKEN_RADIUS + 3,
       y: -9,
-      width: 54,
+      width: (TOKEN_RADIUS - 3) * 2,
       text: hero.initials,
       align: 'center',
       fontFamily: 'Arial, sans-serif',
