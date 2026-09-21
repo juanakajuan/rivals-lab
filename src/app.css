@@ -332,13 +332,13 @@ button:focus-visible {
 }
 
 .row-action svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
+  width: 16px;
+  height: 16px;
+  fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 
 .hero-row.placed .row-action {

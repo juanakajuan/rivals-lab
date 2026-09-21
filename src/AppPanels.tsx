@@ -1,4 +1,5 @@
 import type { DragEvent, RefObject } from 'react';
+import { CircleCheck, Move } from 'lucide-react';
 
 import type { BoardToken } from './boardCanvas';
 import { heroImagePath, teamLabel, type HeroDefinition, type Team } from './heroes';
@@ -105,7 +106,7 @@ export function HeroPanel({
                 <small>{hero.role}</small>
               </span>
               <span className="row-action" aria-hidden="true">
-                {isPlaced ? <PlacedIcon /> : <DragIcon />}
+                {isPlaced ? <CircleCheck /> : <Move />}
               </span>
             </div>
           );
@@ -115,25 +116,6 @@ export function HeroPanel({
         <p className="hero-empty">No heroes match “{heroSearch.trim()}”.</p>
       ) : null}
     </aside>
-  );
-}
-
-function PlacedIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16">
-      <path d="m3.5 8.2 2.7 2.7 6.3-6.3" />
-    </svg>
-  );
-}
-
-function DragIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 16 16">
-      <circle cx="5" cy="5" r="1" />
-      <circle cx="11" cy="5" r="1" />
-      <circle cx="5" cy="11" r="1" />
-      <circle cx="11" cy="11" r="1" />
-    </svg>
   );
 }
 
