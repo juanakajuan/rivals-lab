@@ -50,7 +50,7 @@ interface TokenDrawing {
 
 type BoardCursor = 'default' | 'grab' | 'grabbing';
 
-const TOKEN_RADIUS = 26;
+const TOKEN_RADIUS = 22;
 
 const TEAM_COLORS: Readonly<Record<Team, string>> = {
   ally: '#50b9ff',
