@@ -287,7 +287,8 @@ export function createBoardCanvas(host: HTMLDivElement, events: BoardEvents): Bo
       renderTokens(current);
     },
     toBoardPoint(clientX, clientY) {
-      const bounds = host.getBoundingClientRect();
+      // The canvas is centered inside the host, which can have unused space.
+      const bounds = stage.getContent().getBoundingClientRect();
       return {
         x: (clientX - bounds.left) / stage.scaleX(),
         y: (clientY - bounds.top) / stage.scaleY()

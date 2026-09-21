@@ -1,6 +1,33 @@
 import { expect, test } from '@playwright/test';
 import type {} from './fixtures/board.ts';
 
+for (const viewport of [{ width: 1280, height: 1000 }, { width: 1600, height: 720 }]) {
+  test(`hero drop uses the map origin at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const canvas = page.locator('.stage-host canvas').first();
+    const bounds = await canvas.boundingBox();
+    if (!bounds) throw new Error('Missing map bounds');
+    const clientX = Math.floor(bounds.x + bounds.width / 2);
+    const clientY = Math.floor(bounds.y + bounds.height / 2);
+    const expectedX = Math.round((clientX - bounds.x) * 1200 / bounds.width);
+    const expectedY = Math.round((clientY - bounds.y) * 654 / bounds.height);
+    const dataTransfer = await page.evaluateHandle(() => {
+      const data = new DataTransfer();
+      data.setData('application/x-rivals-hero', 'strange');
+      data.setData('application/x-rivals-team', 'ally');
+      return data;
+    });
+    await canvas.dispatchEvent('drop', {
+      dataTransfer,
+      clientX,
+      clientY
+    });
+    await expect(page.locator('.coordinates')).toHaveText(`x ${expectedX}, y ${expectedY}`);
+    await dataTransfer.dispose();
+  });
+}
+
 test('selection and late portraits preserve a drag through board updates', async ({ page }) => {
   let releaseImages: () => void = () => undefined;
   const imagesReady = new Promise<void>((resolve) => { releaseImages = resolve; });
