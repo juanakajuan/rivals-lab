@@ -121,10 +121,20 @@ button:focus-visible {
 
 .hero-panel {
   min-height: 0;
-  padding: 20px 14px;
+  padding: 0 14px 20px;
   overflow-y: auto;
   background: var(--panel);
   border-right: 1px solid var(--border);
+}
+
+.hero-panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flow-root;
+  margin: 0 -14px;
+  padding: 20px 14px 0;
+  background: var(--panel);
 }
 
 .sidebar-heading {

@@ -35,51 +35,53 @@ export function HeroPanel({
 }: HeroPanelProps): React.JSX.Element {
   return (
     <aside className="hero-panel" aria-labelledby="heroes-heading">
-      <div className="sidebar-heading">
-        <h2 id="heroes-heading">Heroes</h2>
-        <p>Choose a team, then drag a hero onto the map.</p>
-      </div>
+      <div className="hero-panel-header">
+        <div className="sidebar-heading">
+          <h2 id="heroes-heading">Heroes</h2>
+          <p>Choose a team, then drag a hero onto the map.</p>
+        </div>
 
-      <div className="team-picker" aria-label="Team for new heroes">
-        <button
-          className={`team-option blue${selectedTeam === 'ally' ? ' active' : ''}`}
-          type="button"
-          aria-pressed={selectedTeam === 'ally'}
-          onClick={() => onTeamChange('ally')}
-        >
-          Allies <span>{allyCount}</span>
-        </button>
-        <button
-          className={`team-option red${selectedTeam === 'enemy' ? ' active' : ''}`}
-          type="button"
-          aria-pressed={selectedTeam === 'enemy'}
-          onClick={() => onTeamChange('enemy')}
-        >
-          Opponents <span>{enemyCount}</span>
-        </button>
-      </div>
-
-      <div className="hero-search">
-        <svg aria-hidden="true" viewBox="0 0 16 16">
-          <circle cx="7" cy="7" r="4.25" />
-          <path d="m10.25 10.25 3.25 3.25" />
-        </svg>
-        <input
-          type="search"
-          value={heroSearch}
-          onChange={(event) => onSearchChange(event.currentTarget.value)}
-          placeholder="Search heroes"
-          aria-label="Search heroes"
-        />
-        {heroSearch.length > 0 ? (
+        <div className="team-picker" aria-label="Team for new heroes">
           <button
+            className={`team-option blue${selectedTeam === 'ally' ? ' active' : ''}`}
             type="button"
-            onClick={() => onSearchChange('')}
-            aria-label="Clear hero search"
+            aria-pressed={selectedTeam === 'ally'}
+            onClick={() => onTeamChange('ally')}
           >
-            Clear
+            Allies <span>{allyCount}</span>
           </button>
-        ) : null}
+          <button
+            className={`team-option red${selectedTeam === 'enemy' ? ' active' : ''}`}
+            type="button"
+            aria-pressed={selectedTeam === 'enemy'}
+            onClick={() => onTeamChange('enemy')}
+          >
+            Opponents <span>{enemyCount}</span>
+          </button>
+        </div>
+
+        <div className="hero-search">
+          <svg aria-hidden="true" viewBox="0 0 16 16">
+            <circle cx="7" cy="7" r="4.25" />
+            <path d="m10.25 10.25 3.25 3.25" />
+          </svg>
+          <input
+            type="search"
+            value={heroSearch}
+            onChange={(event) => onSearchChange(event.currentTarget.value)}
+            placeholder="Search heroes"
+            aria-label="Search heroes"
+          />
+          {heroSearch.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onSearchChange('')}
+              aria-label="Clear hero search"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="hero-list">
