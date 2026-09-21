@@ -199,14 +199,6 @@ export function BoardPanel({
               ))}
             </select>
           </label>
-          <div className="legend">
-            <span>
-              <i className="blue-dot" />Allies
-            </span>
-            <span>
-              <i className="red-dot" />Opponents
-            </span>
-          </div>
         </div>
       </div>
 

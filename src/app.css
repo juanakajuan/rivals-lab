@@ -453,20 +453,6 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-.legend {
-  display: flex;
-  gap: 14px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.legend i,
 .selection-team {
   width: 7px;
   height: 7px;
@@ -474,12 +460,10 @@ button:focus-visible {
   border-radius: 50%;
 }
 
-.blue-dot,
 .blue-team {
   background: var(--blue);
 }
 
-.red-dot,
 .red-team {
   background: var(--red);
 }
@@ -680,8 +664,7 @@ button:focus-visible {
     padding: 0 12px;
   }
 
-  .title-group span,
-  .legend {
+  .title-group span {
     display: none;
   }
 
