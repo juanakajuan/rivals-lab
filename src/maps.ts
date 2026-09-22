@@ -23,6 +23,14 @@ export const MAPS = [
     imagePath: '/maps/hells-heaven-domination.png',
     width: 1200,
     height: 657
+  },
+  {
+    id: 'museum-of-contemplation-convoy',
+    name: 'Museum of Contemplation',
+    mode: 'Convoy',
+    imagePath: '/maps/museum-of-contemplation-convoy.png',
+    width: 1200,
+    height: 658
   }
 ] as const satisfies readonly MapDefinition[];
 
