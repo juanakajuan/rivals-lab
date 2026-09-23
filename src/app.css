@@ -104,6 +104,13 @@ button:focus-visible {
   background: transparent;
 }
 
+.header-actions .history-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  padding: 0;
+}
+
 .primary-button:hover {
   background: #6c76df;
 }

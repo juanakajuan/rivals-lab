@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
+import { Redo2, Undo2 } from 'lucide-react';
 
 import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
 import {
@@ -271,24 +272,26 @@ export default function App(): React.JSX.Element {
         </div>
         <div className="header-actions">
           <button
-            className="secondary-button"
+            className="secondary-button history-button"
             type="button"
             disabled={history.past.length === 0}
             onClick={() => restoreBoard('undo')}
             title="Undo (Ctrl/Cmd+Z)"
+            aria-label="Undo"
             aria-keyshortcuts="Control+z Meta+z"
           >
-            Undo
+            <Undo2 size={16} aria-hidden="true" />
           </button>
           <button
-            className="secondary-button"
+            className="secondary-button history-button"
             type="button"
             disabled={history.future.length === 0}
             onClick={() => restoreBoard('redo')}
             title="Redo (Ctrl/Cmd+Shift+Z)"
+            aria-label="Redo"
             aria-keyshortcuts="Control+Shift+z Meta+Shift+z"
           >
-            Redo
+            <Redo2 size={16} aria-hidden="true" />
           </button>
           <button className="secondary-button" type="button" onClick={clearBoard}>
             Clear
