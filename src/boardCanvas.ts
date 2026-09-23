@@ -266,6 +266,17 @@ export function createBoardCanvas(host: HTMLDivElement, events: BoardEvents): Bo
     update(current) {
       if (destroyed) return;
       const mapChanged = snapshot?.map !== current.map;
+      // Committed edits (including history restore) cancel an unfinished gesture.
+      // Selection and image updates keep the same token array and preserve it.
+      if (snapshot?.tokens !== current.tokens) {
+        for (const [id, drawing] of drawings) {
+          if (!drawing.dragging) continue;
+          drawing.group.off();
+          drawing.group.destroy();
+          drawings.delete(id);
+          setBoardCursor(stage, 'default');
+        }
+      }
       snapshot = current;
       if (mapChanged) {
         // A map change ends the old gesture, as stage replacement did before.

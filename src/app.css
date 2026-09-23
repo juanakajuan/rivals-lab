@@ -108,8 +108,13 @@ button:focus-visible {
   background: #6c76df;
 }
 
-.secondary-button:hover {
+.secondary-button:hover:not(:disabled) {
   background: var(--surface);
+}
+
+.secondary-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .app-main {
@@ -661,7 +666,15 @@ button:focus-visible {
 
 @media (max-width: 460px) {
   .topbar {
-    padding: 0 12px;
+    padding: 0 8px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions button {
+    padding: 0 8px;
   }
 
   .title-group span {

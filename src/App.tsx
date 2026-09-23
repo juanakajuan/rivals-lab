@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 
 import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
 import {
@@ -15,7 +15,8 @@ import {
   type HeroDefinition,
   type Team
 } from './heroes';
-import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from './maps';
+import { boardHistoryReducer, createBoardHistory } from './boardHistory';
+import { DEFAULT_MAP_ID, getMap, isMapId } from './maps';
 
 interface TokenContextMenu {
   readonly tokenId: string;
@@ -53,12 +54,14 @@ export default function App(): React.JSX.Element {
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
-  const [selectedMapId, setSelectedMapId] = useState<MapId>(DEFAULT_MAP_ID);
+  const [history, dispatch] = useReducer(boardHistoryReducer, undefined, () =>
+    createBoardHistory({ mapId: DEFAULT_MAP_ID, tokens: initialTokens() })
+  );
+  const { mapId: selectedMapId, tokens } = history.present;
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState('');
   const [isHeroDragging, setIsHeroDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<TokenContextMenu | null>(null);
-  const [tokens, setTokens] = useState<BoardToken[]>(initialTokens);
   const [announcement, setAnnouncement] = useState(
     'Drag any token to explain a rotation or position.'
   );
@@ -91,7 +94,12 @@ export default function App(): React.JSX.Element {
         setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} selected.`);
       },
       onMove: (token, x, y) => {
-        setTokens((current) => updateTokenPosition(current, token.id, x, y));
+        dispatch({
+          type: 'edit',
+          update: (board) => ({
+            ...board, tokens: updateTokenPosition(board.tokens, token.id, x, y)
+          })
+        });
         setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} moved to ${x}, ${y}.`);
       },
       onContextMenu: (token, clientX, clientY) => {
@@ -116,6 +124,12 @@ export default function App(): React.JSX.Element {
   }, [selectedMap, tokens, selectedTokenId]);
 
   useEffect(() => {
+    setSelectedTokenId((id) => tokens.some((token) => token.id === id) ? id : null);
+    setContextMenu((menu) => menu && tokens.some((token) => token.id === menu.tokenId)
+      ? menu : null);
+  }, [tokens]);
+
+  useEffect(() => {
     function handleClick(): void {
       setContextMenu(null);
     }
@@ -123,6 +137,15 @@ export default function App(): React.JSX.Element {
     function handleKeydown(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         setContextMenu(null);
+        return;
+      }
+      const target = event.target;
+      if (event.defaultPrevented || event.isComposing ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable || target.closest('input, textarea, select')))) return;
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        restoreBoard(event.shiftKey ? 'redo' : 'undo');
         return;
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedTokenId) {
@@ -147,13 +170,18 @@ export default function App(): React.JSX.Element {
     setSelectedTokenId(id);
 
     if (existingToken) {
-      setTokens((currentTokens) => updateTokenPosition(currentTokens, id, boardX, boardY));
+      dispatch({
+        type: 'edit',
+        update: (board) => ({
+          ...board, tokens: updateTokenPosition(board.tokens, id, boardX, boardY)
+        })
+      });
       setAnnouncement(`${hero.name} moved to ${boardX}, ${boardY}.`);
       return;
     }
 
     const token: BoardToken = { id, heroId: hero.id, team, x: boardX, y: boardY };
-    setTokens((currentTokens) => [...currentTokens, token]);
+    dispatch({ type: 'edit', update: (board) => ({ ...board, tokens: [...board.tokens, token] }) });
     setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
   }
 
@@ -182,9 +210,12 @@ export default function App(): React.JSX.Element {
 
   function removeToken(token: BoardToken): void {
     const heroName = HERO_BY_ID.get(token.heroId)?.name ?? 'Hero';
-    setTokens((currentTokens) =>
-      currentTokens.filter((current) => current.id !== token.id)
-    );
+    dispatch({
+      type: 'edit',
+      update: (board) => ({
+        ...board, tokens: board.tokens.filter((current) => current.id !== token.id)
+      })
+    });
     setSelectedTokenId((currentId) => (currentId === token.id ? null : currentId));
     setContextMenu(null);
     setAnnouncement(`${heroName} removed from the board.`);
@@ -195,13 +226,13 @@ export default function App(): React.JSX.Element {
   }
 
   function resetBoard(): void {
-    setTokens(initialTokens());
+    dispatch({ type: 'edit', update: (board) => ({ ...board, tokens: initialTokens() }) });
     setSelectedTokenId(null);
     setAnnouncement('The example formation is restored.');
   }
 
   function clearBoard(): void {
-    setTokens([]);
+    dispatch({ type: 'edit', update: (board) => ({ ...board, tokens: [] }) });
     setSelectedTokenId(null);
     setAnnouncement('The board is clear.');
   }
@@ -209,14 +240,26 @@ export default function App(): React.JSX.Element {
   function changeMap(value: string): void {
     if (!isMapId(value)) return;
     const map = getMap(value);
-    setSelectedMapId(value);
-    setTokens((currentTokens) => currentTokens.map((token) => ({
-      ...token,
-      x: clampToBoard(token.x, map.width),
-      y: clampToBoard(token.y, map.height)
-    })));
+    dispatch({
+      type: 'edit',
+      update: (board) => ({
+        mapId: value,
+        tokens: board.tokens.map((token) => ({
+          ...token,
+          x: clampToBoard(token.x, map.width),
+          y: clampToBoard(token.y, map.height)
+        }))
+      })
+    });
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);
+  }
+
+  function restoreBoard(type: 'undo' | 'redo'): void {
+    if (type === 'undo' ? history.past.length === 0 : history.future.length === 0) return;
+    dispatch({ type });
+    setContextMenu(null);
+    setAnnouncement(type === 'undo' ? 'Board edit undone.' : 'Board edit restored.');
   }
 
   return (
@@ -227,6 +270,26 @@ export default function App(): React.JSX.Element {
           <span>Position Board</span>
         </div>
         <div className="header-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={history.past.length === 0}
+            onClick={() => restoreBoard('undo')}
+            title="Undo (Ctrl/Cmd+Z)"
+            aria-keyshortcuts="Control+z Meta+z"
+          >
+            Undo
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={history.future.length === 0}
+            onClick={() => restoreBoard('redo')}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+            aria-keyshortcuts="Control+Shift+z Meta+Shift+z"
+          >
+            Redo
+          </button>
           <button className="secondary-button" type="button" onClick={clearBoard}>
             Clear
           </button>
