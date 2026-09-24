@@ -1,7 +1,7 @@
-import { HERO_BY_ID, type Team } from './heroes';
+import { HERO_BY_ID, type Team } from "./heroes";
 
-export type DraftFormat = 'mrc' | 'ignite';
-export type DraftActionKind = 'ban' | 'save';
+export type DraftFormat = "mrc" | "ignite";
+export type DraftActionKind = "ban" | "save";
 
 export interface DraftAction {
   readonly team: Team;
@@ -28,25 +28,49 @@ export interface DraftEffects {
 }
 
 export function otherTeam(team: Team): Team {
-  return team === 'ally' ? 'enemy' : 'ally';
+  return team === "ally" ? "enemy" : "ally";
 }
 
 function actionTarget(format: DraftFormat, action: DraftAction): Team {
-  if (format === 'mrc' || action.kind === 'save') return action.team;
+  if (format === "mrc" || action.kind === "save") return action.team;
   return otherTeam(action.team);
 }
 
-export function draftPhases(draft: Pick<DraftState, 'format' | 'firstTeam'>): readonly (readonly DraftAction[])[] {
+export function draftPhases(
+  draft: Pick<DraftState, "format" | "firstTeam">,
+): readonly (readonly DraftAction[])[] {
   const t1 = draft.firstTeam;
   const t2 = otherTeam(t1);
-  const ban = (team: Team): DraftAction => ({ team, kind: 'ban' });
-  const save = (team: Team): DraftAction => ({ team, kind: 'save' });
+  const ban = (team: Team): DraftAction => ({ team, kind: "ban" });
+  const save = (team: Team): DraftAction => ({ team, kind: "save" });
   const both = [ban(t1), ban(t2)];
-  return draft.format === 'mrc'
-    ? [[ban(t1)], [ban(t2)], [save(t2)], [save(t1)], [ban(t1)], [ban(t2)],
-      [save(t2)], [save(t1)], [ban(t1)], [ban(t2)], both]
-    : [both, [save(t1)], [ban(t2)], [save(t2)], [ban(t1)], both,
-      [save(t2)], [ban(t1)], [save(t1)], [ban(t2)], both];
+  return draft.format === "mrc"
+    ? [
+        [ban(t1)],
+        [ban(t2)],
+        [save(t2)],
+        [save(t1)],
+        [ban(t1)],
+        [ban(t2)],
+        [save(t2)],
+        [save(t1)],
+        [ban(t1)],
+        [ban(t2)],
+        both,
+      ]
+    : [
+        both,
+        [save(t1)],
+        [ban(t2)],
+        [save(t2)],
+        [ban(t1)],
+        both,
+        [save(t2)],
+        [ban(t1)],
+        [save(t1)],
+        [ban(t2)],
+        both,
+      ];
 }
 
 export function draftProgress(draft: DraftState): DraftProgress {
@@ -55,16 +79,32 @@ export function draftProgress(draft: DraftState): DraftProgress {
   for (const [phaseIndex, phase] of phases.entries()) {
     if (draft.choices.length < offset + phase.length) {
       const pendingChoices = draft.choices.slice(offset);
-      return { phaseIndex, phase, pendingChoices, action: phase[pendingChoices.length] };
+      return {
+        phaseIndex,
+        phase,
+        pendingChoices,
+        action: phase[pendingChoices.length],
+      };
     }
     offset += phase.length;
   }
-  return { phaseIndex: phases.length, phase: [], pendingChoices: [], action: undefined };
+  return {
+    phaseIndex: phases.length,
+    phase: [],
+    pendingChoices: [],
+    action: undefined,
+  };
 }
 
 export function draftEffects(draft: DraftState | null): DraftEffects {
-  const banned: Record<Team, Set<string>> = { ally: new Set(), enemy: new Set() };
-  const saved: Record<Team, Set<string>> = { ally: new Set(), enemy: new Set() };
+  const banned: Record<Team, Set<string>> = {
+    ally: new Set(),
+    enemy: new Set(),
+  };
+  const saved: Record<Team, Set<string>> = {
+    ally: new Set(),
+    enemy: new Set(),
+  };
   if (!draft) return { banned, saved };
   let offset = 0;
   for (const phase of draftPhases(draft)) {
@@ -72,11 +112,12 @@ export function draftEffects(draft: DraftState | null): DraftEffects {
     for (const [index, action] of phase.entries()) {
       const heroId = draft.choices[offset + index];
       if (!heroId) continue;
-      const targets: readonly Team[] = draft.format === 'mrc'
-        ? ['ally', 'enemy']
-        : [actionTarget(draft.format, action)];
+      const targets: readonly Team[] =
+        draft.format === "mrc"
+          ? ["ally", "enemy"]
+          : [actionTarget(draft.format, action)];
       for (const target of targets) {
-        (action.kind === 'ban' ? banned : saved)[target].add(heroId);
+        (action.kind === "ban" ? banned : saved)[target].add(heroId);
       }
     }
     offset += phase.length;
@@ -85,14 +126,18 @@ export function draftEffects(draft: DraftState | null): DraftEffects {
 }
 
 /** Returns an explanation for an unavailable choice, or null when legal. */
-export function draftChoiceError(draft: DraftState, heroId: string): string | null {
-  if (!HERO_BY_ID.has(heroId)) return 'Unknown hero.';
+export function draftChoiceError(
+  draft: DraftState,
+  heroId: string,
+): string | null {
+  if (!HERO_BY_ID.has(heroId)) return "Unknown hero.";
   const { action } = draftProgress(draft);
-  if (!action) return 'The draft is complete.';
+  if (!action) return "The draft is complete.";
   const target = actionTarget(draft.format, action);
   const effects = draftEffects(draft);
-  if (effects.banned[target].has(heroId)) return 'Already banned for this team.';
-  if (effects.saved[target].has(heroId)) return 'Protected for this team.';
+  if (effects.banned[target].has(heroId))
+    return "Already banned for this team.";
+  if (effects.saved[target].has(heroId)) return "Protected for this team.";
   return null;
 }
 
