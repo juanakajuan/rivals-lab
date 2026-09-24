@@ -1,25 +1,25 @@
-import { useEffect, useReducer, useRef, useState } from 'react';
-import { Redo2, Undo2 } from 'lucide-react';
+import { useEffect, useReducer, useRef, useState } from "react";
+import { Redo2, Undo2 } from "lucide-react";
 
-import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
-import { CompBuilder } from './CompBuilder';
-import type { Comp } from './comps';
+import { BoardPanel, HeroPanel, TokenMenu } from "./AppPanels";
+import { CompBuilder } from "./CompBuilder";
+import type { Comp } from "./comps";
 import {
   clampToBoard,
   createBoardCanvas,
   type BoardCanvas,
-  type BoardToken
-} from './boardCanvas';
+  type BoardToken,
+} from "./boardCanvas";
 import {
   HERO_BY_ID,
   HEROES,
   isTeam,
   teamLabel,
   type HeroDefinition,
-  type Team
-} from './heroes';
-import { boardHistoryReducer, createBoardHistory } from './boardHistory';
-import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from './maps';
+  type Team,
+} from "./heroes";
+import { boardHistoryReducer, createBoardHistory } from "./boardHistory";
+import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from "./maps";
 
 interface TokenContextMenu {
   readonly tokenId: string;
@@ -27,17 +27,17 @@ interface TokenContextMenu {
   readonly y: number;
 }
 
-const HERO_DRAG_TYPE = 'application/x-rivals-hero';
-const TEAM_DRAG_TYPE = 'application/x-rivals-team';
+const HERO_DRAG_TYPE = "application/x-rivals-hero";
+const TEAM_DRAG_TYPE = "application/x-rivals-team";
 
 function initialTokens(): BoardToken[] {
   return [
-    { id: 'ally-strange', heroId: 'strange', team: 'ally', x: 270, y: 435 },
-    { id: 'ally-psylocke', heroId: 'psylocke', team: 'ally', x: 380, y: 350 },
-    { id: 'ally-luna', heroId: 'luna', team: 'ally', x: 230, y: 520 },
-    { id: 'enemy-magneto', heroId: 'magneto', team: 'enemy', x: 865, y: 310 },
-    { id: 'enemy-magik', heroId: 'magik', team: 'enemy', x: 960, y: 410 },
-    { id: 'enemy-rocket', heroId: 'rocket', team: 'enemy', x: 910, y: 515 }
+    { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 435 },
+    { id: "ally-psylocke", heroId: "psylocke", team: "ally", x: 380, y: 350 },
+    { id: "ally-luna", heroId: "luna", team: "ally", x: 230, y: 520 },
+    { id: "enemy-magneto", heroId: "magneto", team: "enemy", x: 865, y: 310 },
+    { id: "enemy-magik", heroId: "magik", team: "enemy", x: 960, y: 410 },
+    { id: "enemy-rocket", heroId: "rocket", team: "enemy", x: 910, y: 515 },
   ];
 }
 
@@ -45,7 +45,7 @@ function updateTokenPosition(
   tokens: readonly BoardToken[],
   tokenId: string,
   x: number,
-  y: number
+  y: number,
 ): BoardToken[] {
   return tokens.map((token) => {
     if (token.id !== tokenId) return token;
@@ -54,34 +54,38 @@ function updateTokenPosition(
 }
 
 export default function App(): React.JSX.Element {
-  const [page, setPage] = useState<'board' | 'builder'>('board');
+  const [page, setPage] = useState<"board" | "builder">("board");
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
+  const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
   const [history, dispatch] = useReducer(boardHistoryReducer, undefined, () =>
-    createBoardHistory({ mapId: DEFAULT_MAP_ID, tokens: initialTokens() })
+    createBoardHistory({ mapId: DEFAULT_MAP_ID, tokens: initialTokens() }),
   );
   const { mapId: selectedMapId, tokens } = history.present;
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
-  const [heroSearch, setHeroSearch] = useState('');
+  const [heroSearch, setHeroSearch] = useState("");
   const [isHeroDragging, setIsHeroDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<TokenContextMenu | null>(null);
   const [announcement, setAnnouncement] = useState(
-    'Drag any token to explain a rotation or position.'
+    "Drag any token to explain a rotation or position.",
   );
   const selectedMap = getMap(selectedMapId);
 
   const selectedToken = tokens.find((token) => token.id === selectedTokenId);
-  const selectedHero = selectedToken ? HERO_BY_ID.get(selectedToken.heroId) : undefined;
+  const selectedHero = selectedToken
+    ? HERO_BY_ID.get(selectedToken.heroId)
+    : undefined;
   const contextToken = contextMenu
     ? tokens.find((token) => token.id === contextMenu.tokenId)
     : undefined;
-  const contextHero = contextToken ? HERO_BY_ID.get(contextToken.heroId) : undefined;
-  const allyCount = tokens.filter((token) => token.team === 'ally').length;
-  const enemyCount = tokens.filter((token) => token.team === 'enemy').length;
+  const contextHero = contextToken
+    ? HERO_BY_ID.get(contextToken.heroId)
+    : undefined;
+  const allyCount = tokens.filter((token) => token.team === "ally").length;
+  const enemyCount = tokens.filter((token) => token.team === "enemy").length;
   const normalizedHeroSearch = heroSearch.trim().toLocaleLowerCase();
   const visibleHeroes = HEROES.filter((hero) =>
-    hero.name.toLocaleLowerCase().includes(normalizedHeroSearch)
+    hero.name.toLocaleLowerCase().includes(normalizedHeroSearch),
   );
 
   useEffect(() => {
@@ -95,26 +99,33 @@ export default function App(): React.JSX.Element {
           setContextMenu(null);
           return;
         }
-        setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} selected.`);
+        setAnnouncement(
+          `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} selected.`,
+        );
       },
       onMove: (token, x, y) => {
         dispatch({
-          type: 'edit',
+          type: "edit",
           update: (board) => ({
-            ...board, tokens: updateTokenPosition(board.tokens, token.id, x, y)
-          })
+            ...board,
+            tokens: updateTokenPosition(board.tokens, token.id, x, y),
+          }),
         });
-        setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} moved to ${x}, ${y}.`);
+        setAnnouncement(
+          `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} moved to ${x}, ${y}.`,
+        );
       },
       onContextMenu: (token, clientX, clientY) => {
         setSelectedTokenId(token.id);
         setContextMenu({
           tokenId: token.id,
           x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
-          y: Math.max(8, Math.min(clientY, window.innerHeight - 52))
+          y: Math.max(8, Math.min(clientY, window.innerHeight - 52)),
         });
-        setAnnouncement(`${HERO_BY_ID.get(token.heroId)?.name ?? 'Hero'} menu opened.`);
-      }
+        setAnnouncement(
+          `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} menu opened.`,
+        );
+      },
     });
     boardRef.current = board;
     return () => {
@@ -128,9 +139,12 @@ export default function App(): React.JSX.Element {
   }, [selectedMap, tokens, selectedTokenId]);
 
   useEffect(() => {
-    setSelectedTokenId((id) => tokens.some((token) => token.id === id) ? id : null);
-    setContextMenu((menu) => menu && tokens.some((token) => token.id === menu.tokenId)
-      ? menu : null);
+    setSelectedTokenId((id) =>
+      tokens.some((token) => token.id === id) ? id : null,
+    );
+    setContextMenu((menu) =>
+      menu && tokens.some((token) => token.id === menu.tokenId) ? menu : null,
+    );
   }, [tokens]);
 
   useEffect(() => {
@@ -139,35 +153,52 @@ export default function App(): React.JSX.Element {
     }
 
     function handleKeydown(event: KeyboardEvent): void {
-      if (page !== 'board') return;
-      if (event.key === 'Escape') {
+      if (page !== "board") return;
+      if (event.key === "Escape") {
         setContextMenu(null);
         return;
       }
       const target = event.target;
-      if (event.defaultPrevented || event.isComposing ||
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
         (target instanceof HTMLElement &&
-          (target.isContentEditable || target.closest('input, textarea, select')))) return;
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z') {
+          (target.isContentEditable ||
+            target.closest("input, textarea, select")))
+      )
+        return;
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z"
+      ) {
         event.preventDefault();
-        restoreBoard(event.shiftKey ? 'redo' : 'undo');
+        restoreBoard(event.shiftKey ? "redo" : "undo");
         return;
       }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedTokenId) {
+      if (
+        (event.key === "Delete" || event.key === "Backspace") &&
+        selectedTokenId
+      ) {
         event.preventDefault();
         removeSelected();
       }
     }
 
-    window.addEventListener('click', handleClick);
-    window.addEventListener('keydown', handleKeydown);
+    window.addEventListener("click", handleClick);
+    window.addEventListener("keydown", handleKeydown);
     return () => {
-      window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("keydown", handleKeydown);
     };
   });
 
-  function placeHero(hero: HeroDefinition, x: number, y: number, team: Team): void {
+  function placeHero(
+    hero: HeroDefinition,
+    x: number,
+    y: number,
+    team: Team,
+  ): void {
     const id = `${team}-${hero.id}`;
     const boardX = clampToBoard(x, selectedMap.width);
     const boardY = clampToBoard(y, selectedMap.height);
@@ -176,22 +207,35 @@ export default function App(): React.JSX.Element {
 
     if (existingToken) {
       dispatch({
-        type: 'edit',
+        type: "edit",
         update: (board) => ({
-          ...board, tokens: updateTokenPosition(board.tokens, id, boardX, boardY)
-        })
+          ...board,
+          tokens: updateTokenPosition(board.tokens, id, boardX, boardY),
+        }),
       });
       setAnnouncement(`${hero.name} moved to ${boardX}, ${boardY}.`);
       return;
     }
 
-    const token: BoardToken = { id, heroId: hero.id, team, x: boardX, y: boardY };
-    dispatch({ type: 'edit', update: (board) => ({ ...board, tokens: [...board.tokens, token] }) });
+    const token: BoardToken = {
+      id,
+      heroId: hero.id,
+      team,
+      x: boardX,
+      y: boardY,
+    };
+    dispatch({
+      type: "edit",
+      update: (board) => ({ ...board, tokens: [...board.tokens, token] }),
+    });
     setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
   }
 
-  function handleHeroDragStart(event: React.DragEvent<HTMLDivElement>, hero: HeroDefinition): void {
-    event.dataTransfer.effectAllowed = 'copyMove';
+  function handleHeroDragStart(
+    event: React.DragEvent<HTMLDivElement>,
+    hero: HeroDefinition,
+  ): void {
+    event.dataTransfer.effectAllowed = "copyMove";
     event.dataTransfer.setData(HERO_DRAG_TYPE, hero.id);
     event.dataTransfer.setData(TEAM_DRAG_TYPE, selectedTeam);
     setIsHeroDragging(true);
@@ -214,14 +258,17 @@ export default function App(): React.JSX.Element {
   }
 
   function removeToken(token: BoardToken): void {
-    const heroName = HERO_BY_ID.get(token.heroId)?.name ?? 'Hero';
+    const heroName = HERO_BY_ID.get(token.heroId)?.name ?? "Hero";
     dispatch({
-      type: 'edit',
+      type: "edit",
       update: (board) => ({
-        ...board, tokens: board.tokens.filter((current) => current.id !== token.id)
-      })
+        ...board,
+        tokens: board.tokens.filter((current) => current.id !== token.id),
+      }),
     });
-    setSelectedTokenId((currentId) => (currentId === token.id ? null : currentId));
+    setSelectedTokenId((currentId) =>
+      currentId === token.id ? null : currentId,
+    );
     setContextMenu(null);
     setAnnouncement(`${heroName} removed from the board.`);
   }
@@ -231,63 +278,81 @@ export default function App(): React.JSX.Element {
   }
 
   function resetBoard(): void {
-    dispatch({ type: 'edit', update: (board) => ({ ...board, tokens: initialTokens() }) });
+    dispatch({
+      type: "edit",
+      update: (board) => ({ ...board, tokens: initialTokens() }),
+    });
     setSelectedTokenId(null);
-    setAnnouncement('The example formation is restored.');
+    setAnnouncement("The example formation is restored.");
   }
 
   function clearBoard(): void {
-    dispatch({ type: 'edit', update: (board) => ({ ...board, tokens: [] }) });
+    dispatch({ type: "edit", update: (board) => ({ ...board, tokens: [] }) });
     setSelectedTokenId(null);
-    setAnnouncement('The board is clear.');
+    setAnnouncement("The board is clear.");
   }
 
   function changeMap(value: string): void {
     if (!isMapId(value)) return;
     const map = getMap(value);
     dispatch({
-      type: 'edit',
+      type: "edit",
       update: (board) => ({
         mapId: value,
         tokens: board.tokens.map((token) => ({
           ...token,
           x: clampToBoard(token.x, map.width),
-          y: clampToBoard(token.y, map.height)
-        }))
-      })
+          y: clampToBoard(token.y, map.height),
+        })),
+      }),
     });
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);
   }
 
   function openCompOnBoard(comp: Comp, mapId: MapId): void {
-    if (tokens.length && !window.confirm('Replace the current Position Board placements with this comp?')) return;
+    if (
+      tokens.length &&
+      !window.confirm(
+        "Replace the current Position Board placements with this comp?",
+      )
+    )
+      return;
     const map = getMap(mapId);
     const nextTokens: BoardToken[] = [];
-    const teams: readonly Team[] = ['ally', 'enemy'];
+    const teams: readonly Team[] = ["ally", "enemy"];
     for (const team of teams) {
       comp.teams[team].forEach((slot, index) => {
         if (!slot.heroId) return;
         nextTokens.push({
-          id: `${team}-${slot.heroId}`, heroId: slot.heroId, team,
+          id: `${team}-${slot.heroId}`,
+          heroId: slot.heroId,
+          team,
           ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),
-          x: Math.round(map.width * (team === 'ally' ? 0.25 : 0.75) + (index % 2) * 65 - 32),
-          y: Math.round(map.height * 0.3 + Math.floor(index / 2) * 80)
+          x: Math.round(
+            map.width * (team === "ally" ? 0.25 : 0.75) + (index % 2) * 65 - 32,
+          ),
+          y: Math.round(map.height * 0.3 + Math.floor(index / 2) * 80),
         });
       });
     }
-    dispatch({ type: 'edit', update: () => ({ mapId, tokens: nextTokens }) });
+    dispatch({ type: "edit", update: () => ({ mapId, tokens: nextTokens }) });
     setSelectedTokenId(null);
     setContextMenu(null);
-    setPage('board');
-    setAnnouncement(`${comp.name || 'Comp'} opened on ${map.name}.`);
+    setPage("board");
+    setAnnouncement(`${comp.name || "Comp"} opened on ${map.name}.`);
   }
 
-  function restoreBoard(type: 'undo' | 'redo'): void {
-    if (type === 'undo' ? history.past.length === 0 : history.future.length === 0) return;
+  function restoreBoard(type: "undo" | "redo"): void {
+    if (
+      type === "undo" ? history.past.length === 0 : history.future.length === 0
+    )
+      return;
     dispatch({ type });
     setContextMenu(null);
-    setAnnouncement(type === 'undo' ? 'Board edit undone.' : 'Board edit restored.');
+    setAnnouncement(
+      type === "undo" ? "Board edit undone." : "Board edit restored.",
+    );
   }
 
   return (
@@ -297,18 +362,30 @@ export default function App(): React.JSX.Element {
           <strong>Rivals Lab</strong>
         </div>
         <nav className="page-navigation" aria-label="Pages">
-          <button type="button" aria-current={page === 'board' ? 'page' : undefined} onClick={() => setPage('board')}>Position Board</button>
-          <button type="button" aria-current={page === 'builder' ? 'page' : undefined} onClick={() => {
-            setContextMenu(null);
-            setPage('builder');
-          }}>Draft / Comp Builder</button>
+          <button
+            type="button"
+            aria-current={page === "board" ? "page" : undefined}
+            onClick={() => setPage("board")}
+          >
+            Position Board
+          </button>
+          <button
+            type="button"
+            aria-current={page === "builder" ? "page" : undefined}
+            onClick={() => {
+              setContextMenu(null);
+              setPage("builder");
+            }}
+          >
+            Draft / Comp Builder
+          </button>
         </nav>
-        <div className="header-actions" hidden={page !== 'board'}>
+        <div className="header-actions" hidden={page !== "board"}>
           <button
             className="secondary-button history-button"
             type="button"
             disabled={history.past.length === 0}
-            onClick={() => restoreBoard('undo')}
+            onClick={() => restoreBoard("undo")}
             title="Undo (Ctrl/Cmd+Z)"
             aria-label="Undo"
             aria-keyshortcuts="Control+z Meta+z"
@@ -319,14 +396,18 @@ export default function App(): React.JSX.Element {
             className="secondary-button history-button"
             type="button"
             disabled={history.future.length === 0}
-            onClick={() => restoreBoard('redo')}
+            onClick={() => restoreBoard("redo")}
             title="Redo (Ctrl/Cmd+Shift+Z)"
             aria-label="Redo"
             aria-keyshortcuts="Control+Shift+z Meta+Shift+z"
           >
             <Redo2 size={16} aria-hidden="true" />
           </button>
-          <button className="secondary-button" type="button" onClick={clearBoard}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={clearBoard}
+          >
             Clear
           </button>
           <button className="primary-button" type="button" onClick={resetBoard}>
@@ -335,7 +416,7 @@ export default function App(): React.JSX.Element {
         </div>
       </header>
 
-      <main className="app-main" hidden={page !== 'board'}>
+      <main className="app-main" hidden={page !== "board"}>
         <HeroPanel
           selectedTeam={selectedTeam}
           allyCount={allyCount}
@@ -360,7 +441,7 @@ export default function App(): React.JSX.Element {
         />
       </main>
 
-      <div className="builder-page" hidden={page !== 'builder'}>
+      <div className="builder-page" hidden={page !== "builder"}>
         <CompBuilder onOpenBoard={openCompOnBoard} />
       </div>
 

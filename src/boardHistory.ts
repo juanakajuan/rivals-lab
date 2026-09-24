@@ -1,5 +1,5 @@
-import type { BoardToken } from './boardCanvas';
-import type { MapId } from './maps';
+import type { BoardToken } from "./boardCanvas";
+import type { MapId } from "./maps";
 
 export interface BoardState {
   readonly mapId: MapId;
@@ -13,50 +13,63 @@ export interface BoardHistory {
 }
 
 export type BoardHistoryAction =
-  | { readonly type: 'edit'; readonly update: (board: BoardState) => BoardState }
-  | { readonly type: 'undo' }
-  | { readonly type: 'redo' };
+  | {
+      readonly type: "edit";
+      readonly update: (board: BoardState) => BoardState;
+    }
+  | { readonly type: "undo" }
+  | { readonly type: "redo" };
 
 export function createBoardHistory(present: BoardState): BoardHistory {
   return { past: [], present, future: [] };
 }
 
 function equalBoards(left: BoardState, right: BoardState): boolean {
-  return left.mapId === right.mapId && left.tokens.length === right.tokens.length &&
+  return (
+    left.mapId === right.mapId &&
+    left.tokens.length === right.tokens.length &&
     left.tokens.every((token, index) => {
       const other = right.tokens[index];
-      return other !== undefined && token.id === other.id && token.heroId === other.heroId &&
-        token.team === other.team && token.deadpoolRole === other.deadpoolRole && token.x === other.x && token.y === other.y;
-    });
+      return (
+        other !== undefined &&
+        token.id === other.id &&
+        token.heroId === other.heroId &&
+        token.team === other.team &&
+        token.deadpoolRole === other.deadpoolRole &&
+        token.x === other.x &&
+        token.y === other.y
+      );
+    })
+  );
 }
 
 /** Only committed board edits enter history. View state stays with the caller. */
 export function boardHistoryReducer(
   history: BoardHistory,
-  action: BoardHistoryAction
+  action: BoardHistoryAction,
 ): BoardHistory {
   switch (action.type) {
-    case 'edit': {
+    case "edit": {
       const present = action.update(history.present);
       if (equalBoards(history.present, present)) return history;
       return { past: [...history.past, history.present], present, future: [] };
     }
-    case 'undo': {
+    case "undo": {
       const present = history.past.at(-1);
       if (!present) return history;
       return {
         past: history.past.slice(0, -1),
         present,
-        future: [history.present, ...history.future]
+        future: [history.present, ...history.future],
       };
     }
-    case 'redo': {
+    case "redo": {
       const present = history.future[0];
       if (!present) return history;
       return {
         past: [...history.past, history.present],
         present,
-        future: history.future.slice(1)
+        future: history.future.slice(1),
       };
     }
   }

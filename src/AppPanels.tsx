@@ -1,9 +1,14 @@
-import { Fragment, type DragEvent, type RefObject } from 'react';
-import { CircleCheck, Move } from 'lucide-react';
+import { Fragment, type DragEvent, type RefObject } from "react";
+import { CircleCheck, Move } from "lucide-react";
 
-import type { BoardToken } from './boardCanvas';
-import { heroImagePath, teamLabel, type HeroDefinition, type Team } from './heroes';
-import { MAPS, type MapDefinition, type MapId } from './maps';
+import type { BoardToken } from "./boardCanvas";
+import {
+  heroImagePath,
+  teamLabel,
+  type HeroDefinition,
+  type Team,
+} from "./heroes";
+import { MAPS, type MapDefinition, type MapId } from "./maps";
 
 interface HeroPanelProps {
   readonly selectedTeam: Team;
@@ -16,7 +21,7 @@ interface HeroPanelProps {
   readonly onSearchChange: (search: string) => void;
   readonly onHeroDragStart: (
     event: DragEvent<HTMLDivElement>,
-    hero: HeroDefinition
+    hero: HeroDefinition,
   ) => void;
   readonly onHeroDragEnd: () => void;
 }
@@ -31,7 +36,7 @@ export function HeroPanel({
   onTeamChange,
   onSearchChange,
   onHeroDragStart,
-  onHeroDragEnd
+  onHeroDragEnd,
 }: HeroPanelProps): React.JSX.Element {
   return (
     <aside className="hero-panel" aria-labelledby="heroes-heading">
@@ -43,18 +48,18 @@ export function HeroPanel({
 
         <div className="team-picker" aria-label="Team for new heroes">
           <button
-            className={`team-option blue${selectedTeam === 'ally' ? ' active' : ''}`}
+            className={`team-option blue${selectedTeam === "ally" ? " active" : ""}`}
             type="button"
-            aria-pressed={selectedTeam === 'ally'}
-            onClick={() => onTeamChange('ally')}
+            aria-pressed={selectedTeam === "ally"}
+            onClick={() => onTeamChange("ally")}
           >
             Allies <span>{allyCount}</span>
           </button>
           <button
-            className={`team-option red${selectedTeam === 'enemy' ? ' active' : ''}`}
+            className={`team-option red${selectedTeam === "enemy" ? " active" : ""}`}
             type="button"
-            aria-pressed={selectedTeam === 'enemy'}
-            onClick={() => onTeamChange('enemy')}
+            aria-pressed={selectedTeam === "enemy"}
+            onClick={() => onTeamChange("enemy")}
           >
             Opponents <span>{enemyCount}</span>
           </button>
@@ -75,7 +80,7 @@ export function HeroPanel({
           {heroSearch.length > 0 ? (
             <button
               type="button"
-              onClick={() => onSearchChange('')}
+              onClick={() => onSearchChange("")}
               aria-label="Clear hero search"
             >
               Clear
@@ -116,7 +121,10 @@ interface HeroRowProps {
   readonly hero: HeroDefinition;
   readonly team: Team;
   readonly isPlaced: boolean;
-  readonly onDragStart: (event: DragEvent<HTMLDivElement>, hero: HeroDefinition) => void;
+  readonly onDragStart: (
+    event: DragEvent<HTMLDivElement>,
+    hero: HeroDefinition,
+  ) => void;
   readonly onDragEnd: () => void;
 }
 
@@ -125,11 +133,11 @@ function HeroRow({
   team,
   isPlaced,
   onDragStart,
-  onDragEnd
+  onDragEnd,
 }: HeroRowProps): React.JSX.Element {
   return (
     <div
-      className={`hero-row${isPlaced ? ' placed' : ''}`}
+      className={`hero-row${isPlaced ? " placed" : ""}`}
       data-team={team}
       draggable
       role="button"
@@ -171,11 +179,11 @@ export function BoardPanel({
   selectedToken,
   selectedHero,
   onMapChange,
-  onDrop
+  onDrop,
 }: BoardPanelProps): React.JSX.Element {
   function allowDrop(event: DragEvent<HTMLDivElement>): void {
     event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
+    event.dataTransfer.dropEffect = "move";
   }
 
   return (
@@ -203,14 +211,16 @@ export function BoardPanel({
       </div>
 
       <div
-        className={`board-shell${isHeroDragging ? ' drop-ready' : ''}`}
+        className={`board-shell${isHeroDragging ? " drop-ready" : ""}`}
         onDragOver={allowDrop}
         onDrop={onDrop}
       >
         <div
           className="stage-host"
           ref={boardHostRef}
-          style={{ aspectRatio: `${selectedMap.width} / ${selectedMap.height}` }}
+          style={{
+            aspectRatio: `${selectedMap.width} / ${selectedMap.height}`,
+          }}
           aria-label={`Overhead map of ${selectedMap.name} with draggable hero position tokens`}
         />
       </div>
@@ -233,14 +243,20 @@ interface SelectionSummaryProps {
   readonly hero: HeroDefinition;
 }
 
-function SelectionSummary({ token, hero }: SelectionSummaryProps): React.JSX.Element {
-  const teamClass = token.team === 'ally' ? 'blue-team' : 'red-team';
+function SelectionSummary({
+  token,
+  hero,
+}: SelectionSummaryProps): React.JSX.Element {
+  const teamClass = token.team === "ally" ? "blue-team" : "red-team";
 
   return (
     <div className="selection-summary">
       <span className={`selection-team ${teamClass}`} />
       <div className="selection-name">
-        <strong>{hero.name}{token.deadpoolRole ? ` · ${token.deadpoolRole}` : ''}</strong>
+        <strong>
+          {hero.name}
+          {token.deadpoolRole ? ` · ${token.deadpoolRole}` : ""}
+        </strong>
         <span>{teamLabel(token.team)} · Press Delete to remove</span>
       </div>
       <span className="coordinates">
@@ -258,7 +274,13 @@ interface TokenMenuProps {
   readonly onRemove: (token: BoardToken) => void;
 }
 
-export function TokenMenu({ x, y, token, hero, onRemove }: TokenMenuProps): React.JSX.Element {
+export function TokenMenu({
+  x,
+  y,
+  token,
+  hero,
+  onRemove,
+}: TokenMenuProps): React.JSX.Element {
   return (
     <div
       className="token-context-menu"
