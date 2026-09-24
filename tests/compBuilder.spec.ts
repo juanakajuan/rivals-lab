@@ -87,6 +87,15 @@ test('board transfer requires a supported map and confirms replacement; edits st
   await expect(page.locator('.hero-row.placed')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Allies 1', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Opponents 1', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByRole('combobox')).toHaveValue('birnin-tchalla-domination');
+  await expect(page.getByRole('button', { name: 'Allies 3', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Opponents 3', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect(page.getByRole('combobox')).toHaveValue('museum-of-contemplation-convoy');
+  await expect(page.getByRole('button', { name: 'Allies 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Opponents 1', exact: true })).toBeVisible();
   const bounds = await page.locator('.stage-host canvas').first().boundingBox();
   if (!bounds) throw new Error('Missing board bounds');
   const scale = bounds.width / 1200;
@@ -98,6 +107,8 @@ test('board transfer requires a supported map and confirms replacement; edits st
   await page.getByLabel('Allies slot 1 notes').fill('abc');
   await page.getByLabel('Allies slot 1 notes').press('Backspace');
   await expect(page.getByLabel('Allies slot 1 notes')).toHaveValue('ab');
+  await page.getByRole('button', { name: 'Position Board', exact: true }).focus();
+  await page.keyboard.press('Control+z');
   await page.getByRole('button', { name: 'Position Board', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Allies 1', exact: true })).toBeVisible();
   await openBuilder(page);

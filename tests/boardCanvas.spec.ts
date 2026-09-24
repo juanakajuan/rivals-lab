@@ -162,7 +162,7 @@ test('late map images cannot replace the current map or selection', async ({ pag
     if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Missing canvas');
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Missing context');
-    // At 0.5 scale the ring is centered on x=111; x=112 is outside it.
+    // At half scale, the selected ring spans x=109..112; sample inside it.
     return [...context.getImageData(110, 100, 1, 1).data];
   });
   expect(ringPixel).toEqual([255, 255, 255, 255]);
