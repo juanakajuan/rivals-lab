@@ -62,24 +62,20 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
     localStorage.getItem("rivals-lab.comps.v1"),
   );
   if (!exported) throw new Error("Missing saved library");
-  await page
-    .getByLabel("Import comps JSON")
-    .setInputFiles({
-      name: "comps.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(exported),
-    });
+  await page.getByLabel("Import comps JSON").setInputFiles({
+    name: "comps.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(exported),
+  });
   await expect(page.getByRole("status")).toHaveText(
     "Imported 2 comps as copies.",
   );
   await expect(page.locator(".saved-comp")).toHaveCount(4);
-  await page
-    .getByLabel("Import comps JSON")
-    .setInputFiles({
-      name: "bad.json",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"version": 99}'),
-    });
+  await page.getByLabel("Import comps JSON").setInputFiles({
+    name: "bad.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"version": 99}'),
+  });
   await expect(page.getByRole("alert")).toContainText(
     "Unsupported comp file version",
   );
@@ -125,11 +121,9 @@ test("guided bans, conflicts, joint phases and Undo enforce the draft rules", as
     .getByRole("button", { name: "Choose save · Allies", exact: true })
     .click();
   await expect(
-    page
-      .getByRole("dialog")
-      .getByRole("button", {
-        name: "Doctor Strange — Already banned for this team.",
-      }),
+    page.getByRole("dialog").getByRole("button", {
+      name: "Doctor Strange — Already banned for this team.",
+    }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -281,13 +275,11 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
     localStorage.getItem("rivals-lab.comps.v1"),
   );
   if (!exported) throw new Error("Missing saved library");
-  await page
-    .getByLabel("Import comps JSON")
-    .setInputFiles({
-      name: "deadpool.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(exported),
-    });
+  await page.getByLabel("Import comps JSON").setInputFiles({
+    name: "deadpool.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(exported),
+  });
   await expect(page.getByRole("status")).toHaveText(
     "Imported 1 comp as copies.",
   );
@@ -313,12 +305,10 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
     .click();
   for (const role of ["Vanguard", "Duelist", "Strategist"]) {
     await expect(
-      page
-        .getByRole("dialog")
-        .getByRole("button", {
-          name: `Deadpool · ${role} — Already on this team.`,
-          exact: true,
-        }),
+      page.getByRole("dialog").getByRole("button", {
+        name: `Deadpool · ${role} — Already on this team.`,
+        exact: true,
+      }),
     ).toBeDisabled();
   }
   await page.getByRole("button", { name: "Close dialog" }).click();
@@ -330,12 +320,10 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
     .click();
   for (const role of ["Vanguard", "Duelist", "Strategist"]) {
     await expect(
-      page
-        .getByRole("dialog")
-        .getByRole("button", {
-          name: `Deadpool · ${role} — Banned for this team.`,
-          exact: true,
-        }),
+      page.getByRole("dialog").getByRole("button", {
+        name: `Deadpool · ${role} — Banned for this team.`,
+        exact: true,
+      }),
     ).toBeDisabled();
   }
   await page.getByRole("button", { name: "Close dialog" }).click();
