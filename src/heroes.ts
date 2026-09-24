@@ -1,5 +1,16 @@
 export type Team = 'ally' | 'enemy';
 export type HeroRole = 'Vanguard' | 'Duelist' | 'Strategist' | 'All Roles';
+export const DEADPOOL_ROLES = ['Vanguard', 'Duelist', 'Strategist'] as const;
+export type DeadpoolRole = (typeof DEADPOOL_ROLES)[number];
+
+export interface HeroSelection {
+  readonly heroId: string;
+  readonly deadpoolRole?: DeadpoolRole;
+}
+
+export function isDeadpoolRole(value: unknown): value is DeadpoolRole {
+  return value === 'Vanguard' || value === 'Duelist' || value === 'Strategist';
+}
 
 export interface HeroDefinition {
   readonly id: string;
@@ -78,6 +89,11 @@ export const HEROES: readonly HeroDefinition[] = [
 export const HERO_BY_ID: ReadonlyMap<string, HeroDefinition> = new Map(
   HEROES.map((hero): [string, HeroDefinition] => [hero.id, hero])
 );
+
+export function selectedHeroRole(heroId: string | null, deadpoolRole?: DeadpoolRole): HeroRole | undefined {
+  if (heroId === 'deadpool' && deadpoolRole) return deadpoolRole;
+  return heroId ? HERO_BY_ID.get(heroId)?.role : undefined;
+}
 
 export function heroImagePath(heroId: string): string {
   const fileName = IMAGE_FILE_OVERRIDES[heroId] ?? heroId;

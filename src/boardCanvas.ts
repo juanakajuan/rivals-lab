@@ -5,14 +5,14 @@ import {
   HEROES,
   heroImagePath,
   type HeroDefinition,
+  type HeroSelection,
   type HeroRole,
   type Team
 } from './heroes';
 import type { MapDefinition } from './maps';
 
-export interface BoardToken {
+export interface BoardToken extends HeroSelection {
   readonly id: string;
-  readonly heroId: string;
   readonly team: Team;
   readonly x: number;
   readonly y: number;

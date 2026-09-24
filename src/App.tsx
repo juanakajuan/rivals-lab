@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { BoardPanel, HeroPanel, TokenMenu } from './AppPanels';
+import { CompBuilder } from './CompBuilder';
+import type { Comp } from './comps';
 import {
   clampToBoard,
   createBoardCanvas,
@@ -50,6 +52,7 @@ function updateTokenPosition(
 }
 
 export default function App(): React.JSX.Element {
+  const [page, setPage] = useState<'board' | 'builder'>('board');
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>('ally');
@@ -121,6 +124,9 @@ export default function App(): React.JSX.Element {
     }
 
     function handleKeydown(event: KeyboardEvent): void {
+      if (page !== 'board') return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (event.key === 'Escape') {
         setContextMenu(null);
         return;
@@ -219,14 +225,44 @@ export default function App(): React.JSX.Element {
     setAnnouncement(`${map.name} selected.`);
   }
 
+  function openCompOnBoard(comp: Comp, mapId: MapId): void {
+    if (tokens.length && !window.confirm('Replace the current Position Board placements with this comp?')) return;
+    const map = getMap(mapId);
+    const nextTokens: BoardToken[] = [];
+    const teams: readonly Team[] = ['ally', 'enemy'];
+    for (const team of teams) {
+      comp.teams[team].forEach((slot, index) => {
+        if (!slot.heroId) return;
+        nextTokens.push({
+          id: `${team}-${slot.heroId}`, heroId: slot.heroId, team,
+          ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),
+          x: Math.round(map.width * (team === 'ally' ? 0.25 : 0.75) + (index % 2) * 65 - 32),
+          y: Math.round(map.height * 0.3 + Math.floor(index / 2) * 80)
+        });
+      });
+    }
+    setSelectedMapId(mapId);
+    setTokens(nextTokens);
+    setSelectedTokenId(null);
+    setContextMenu(null);
+    setPage('board');
+    setAnnouncement(`${comp.name || 'Comp'} opened on ${map.name}.`);
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="title-group">
           <strong>Rivals Lab</strong>
-          <span>Position Board</span>
         </div>
-        <div className="header-actions">
+        <nav className="page-navigation" aria-label="Pages">
+          <button type="button" aria-current={page === 'board' ? 'page' : undefined} onClick={() => setPage('board')}>Position Board</button>
+          <button type="button" aria-current={page === 'builder' ? 'page' : undefined} onClick={() => {
+            setContextMenu(null);
+            setPage('builder');
+          }}>Draft / Comp Builder</button>
+        </nav>
+        <div className="header-actions" hidden={page !== 'board'}>
           <button className="secondary-button" type="button" onClick={clearBoard}>
             Clear
           </button>
@@ -236,7 +272,7 @@ export default function App(): React.JSX.Element {
         </div>
       </header>
 
-      <main className="app-main">
+      <main className="app-main" hidden={page !== 'board'}>
         <HeroPanel
           selectedTeam={selectedTeam}
           allyCount={allyCount}
@@ -260,6 +296,10 @@ export default function App(): React.JSX.Element {
           onDrop={handleBoardDrop}
         />
       </main>
+
+      <div className="builder-page" hidden={page !== 'builder'}>
+        <CompBuilder onOpenBoard={openCompOnBoard} />
+      </div>
 
       {contextMenu && contextToken && contextHero ? (
         <TokenMenu

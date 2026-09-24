@@ -240,7 +240,7 @@ function SelectionSummary({ token, hero }: SelectionSummaryProps): React.JSX.Ele
     <div className="selection-summary">
       <span className={`selection-team ${teamClass}`} />
       <div className="selection-name">
-        <strong>{hero.name}</strong>
+        <strong>{hero.name}{token.deadpoolRole ? ` · ${token.deadpoolRole}` : ''}</strong>
         <span>{teamLabel(token.team)} · Press Delete to remove</span>
       </div>
       <span className="coordinates">
