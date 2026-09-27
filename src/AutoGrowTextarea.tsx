@@ -1,10 +1,16 @@
-import { useLayoutEffect, useRef, type TextareaHTMLAttributes } from 'react';
+import { useLayoutEffect, useRef, type TextareaHTMLAttributes } from "react";
 
-type AutoGrowTextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & {
+type AutoGrowTextareaProps = Omit<
+  TextareaHTMLAttributes<HTMLTextAreaElement>,
+  "value"
+> & {
   readonly value: string;
 };
 
-export function AutoGrowTextarea({ value, ...props }: AutoGrowTextareaProps): React.JSX.Element {
+export function AutoGrowTextarea({
+  value,
+  ...props
+}: AutoGrowTextareaProps): React.JSX.Element {
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useLayoutEffect(() => {
@@ -13,7 +19,7 @@ export function AutoGrowTextarea({ value, ...props }: AutoGrowTextareaProps): Re
 
     function resize(): void {
       if (!textarea) return;
-      textarea.style.height = 'auto';
+      textarea.style.height = "auto";
       const borders = textarea.offsetHeight - textarea.clientHeight;
       textarea.style.height = `${textarea.scrollHeight + borders}px`;
     }

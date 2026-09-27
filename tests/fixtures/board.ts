@@ -1,5 +1,9 @@
-import { createBoardCanvas, type BoardCanvas, type BoardSnapshot } from '../../src/boardCanvas.ts';
-import { DEFAULT_MAP_ID, getMap } from '../../src/maps.ts';
+import {
+  createBoardCanvas,
+  type BoardCanvas,
+  type BoardSnapshot,
+} from "../../src/boardCanvas.ts";
+import { DEFAULT_MAP_ID, getMap } from "../../src/maps.ts";
 
 interface BoardHarness {
   readonly board: BoardCanvas;
@@ -13,13 +17,16 @@ declare global {
   }
 }
 
-const host = document.getElementById('board');
-if (!(host instanceof HTMLDivElement)) throw new Error('Missing board host');
+const host = document.getElementById("board");
+if (!(host instanceof HTMLDivElement)) throw new Error("Missing board host");
 
 const board = createBoardCanvas(host, {
   onSelect(token) {
     const harness = window.boardHarness;
-    harness.snapshot = { ...harness.snapshot, selectedTokenId: token?.id ?? null };
+    harness.snapshot = {
+      ...harness.snapshot,
+      selectedTokenId: token?.id ?? null,
+    };
     board.update(harness.snapshot);
   },
   onMove(token, x, y) {
@@ -27,21 +34,23 @@ const board = createBoardCanvas(host, {
     harness.moves.push({ x, y });
     harness.snapshot = {
       ...harness.snapshot,
-      tokens: harness.snapshot.tokens.map((current) => current.id === token.id
-        ? { ...current, x, y }
-        : current)
+      tokens: harness.snapshot.tokens.map((current) =>
+        current.id === token.id ? { ...current, x, y } : current,
+      ),
     };
     board.update(harness.snapshot);
   },
-  onContextMenu() {}
+  onContextMenu() {},
 });
 window.boardHarness = {
   board,
   snapshot: {
     map: getMap(DEFAULT_MAP_ID),
-    tokens: [{ id: 'ally-strange', heroId: 'strange', team: 'ally', x: 200, y: 200 }],
-    selectedTokenId: null
+    tokens: [
+      { id: "ally-strange", heroId: "strange", team: "ally", x: 200, y: 200 },
+    ],
+    selectedTokenId: null,
   },
-  moves: []
+  moves: [],
 };
 board.update(window.boardHarness.snapshot);
