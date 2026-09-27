@@ -161,6 +161,8 @@ function HeroRow({
 }
 
 interface BoardPanelProps {
+  readonly iconSize: number;
+  readonly onIconSizeChange: (size: number) => void;
   readonly selectedMapId: MapId;
   readonly selectedMap: MapDefinition;
   readonly isHeroDragging: boolean;
@@ -172,6 +174,8 @@ interface BoardPanelProps {
 }
 
 export function BoardPanel({
+  iconSize,
+  onIconSizeChange,
   selectedMapId,
   selectedMap,
   isHeroDragging,
@@ -226,6 +230,24 @@ export function BoardPanel({
       </div>
 
       <div className="board-toolbar">
+        <label className="icon-size-control">
+          <span>Hero icon size</span>
+          <input
+            type="range"
+            min={50}
+            max={150}
+            step={10}
+            value={iconSize}
+            aria-valuetext={`${iconSize}%`}
+            onChange={(event) => {
+              const size = event.currentTarget.valueAsNumber;
+              if (Number.isFinite(size) && size >= 50 && size <= 150) {
+                onIconSizeChange(size);
+              }
+            }}
+          />
+          <span aria-hidden="true">{iconSize}%</span>
+        </label>
         {selectedToken && selectedHero ? (
           <SelectionSummary token={selectedToken} hero={selectedHero} />
         ) : (
