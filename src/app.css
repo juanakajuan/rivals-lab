@@ -528,6 +528,7 @@ button:focus-visible {
   min-height: 48px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 48px;
   align-items: stretch;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -729,8 +730,4 @@ button:focus-visible {
 .icon-size-control input:focus-visible {
   outline: 2px solid #7882e8;
   outline-offset: 4px;
-}
-
-.board-toolbar .board-help {
-  padding-bottom: 10px;
 }
