@@ -105,13 +105,17 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
+function tokenBoundary(iconSize: number): number {
+  // Include the selected ring, which is the widest visible token outline.
+  return Math.ceil(((TOKEN_RADIUS + 2) * iconSize) / 100);
+}
+
 export function clampToBoard(
   value: number,
   maximum: number,
   iconSize = 100,
 ): number {
-  // Include the selected ring, which is the widest visible token outline.
-  const boundary = Math.ceil(((TOKEN_RADIUS + 2) * iconSize) / 100);
+  const boundary = tokenBoundary(iconSize);
   return Math.round(clamp(value, boundary, maximum - boundary));
 }
 
@@ -121,7 +125,7 @@ function boundTokenPosition(
   map: MapDefinition,
   iconSize: number,
 ): Konva.Vector2d {
-  const boundary = Math.ceil(((TOKEN_RADIUS + 2) * iconSize) / 100);
+  const boundary = tokenBoundary(iconSize);
   return {
     x: clamp(position.x, boundary * scale, (map.width - boundary) * scale),
     y: clamp(position.y, boundary * scale, (map.height - boundary) * scale),
