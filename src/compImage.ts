@@ -95,6 +95,10 @@ function wrapText(
         lines.push(line);
         line = "";
       }
+      if (context.measureText(word).width <= width) {
+        line += word;
+        continue;
+      }
       for (const character of word) {
         if (line && context.measureText(line + character).width > width) {
           lines.push(line);
@@ -168,13 +172,15 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     }
     reserve(12);
   }
-  canvas.width = (column + 1) * WIDTH;
-  canvas.height = Math.ceil(maxY + PADDING);
+  const width = (column + 1) * WIDTH;
+  const height = Math.ceil(maxY + PADDING);
   // Browser canvas limits vary. Fail clearly instead of copying a blank image.
-  if (canvas.width > 16000 || canvas.width * canvas.height > 64_000_000)
+  if (width > 16000 || width * height > 64_000_000)
     throw new Error(
       "This build is too large for one image. Shorten the notes and try again.",
     );
+  canvas.width = width;
+  canvas.height = height;
   context.fillStyle = "#111b2b";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.textBaseline = "top";
