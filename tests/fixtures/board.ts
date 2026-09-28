@@ -50,6 +50,7 @@ window.boardHarness = {
       { id: "ally-strange", heroId: "strange", team: "ally", x: 200, y: 200 },
     ],
     selectedTokenId: null,
+    iconSize: 100,
   },
   moves: [],
 };

@@ -138,16 +138,16 @@ test("map changes restore clamped positions in the same step", async ({
   await page.goto("/");
   const map = page.getByRole("combobox");
   await map.selectOption("museum-of-contemplation-convoy");
-  await dropHero(page, "strange", 500, 700);
-  await expect(page.locator(".coordinates")).toHaveText("x 500, y 636");
+  await dropHero(page, "strange", 0, 700);
+  await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
   await map.selectOption("birnin-tchalla-domination");
-  await expect(page.locator(".coordinates")).toHaveText("x 500, y 632");
+  await expect(page.locator(".coordinates")).toHaveText("x 24, y 630");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(map).toHaveValue("museum-of-contemplation-convoy");
-  await expect(page.locator(".coordinates")).toHaveText("x 500, y 636");
+  await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(map).toHaveValue("birnin-tchalla-domination");
-  await expect(page.locator(".coordinates")).toHaveText("x 500, y 632");
+  await expect(page.locator(".coordinates")).toHaveText("x 24, y 630");
 });
 
 for (const modifier of ["Control", "Meta"]) {

@@ -22,6 +22,7 @@ export interface BoardSnapshot {
   readonly map: MapDefinition;
   readonly tokens: readonly BoardToken[];
   readonly selectedTokenId: string | null;
+  readonly iconSize: number;
 }
 
 export interface BoardEvents {
@@ -104,26 +105,30 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
-export function clampToBoard(value: number, maximum: number): number {
-  return Math.round(clamp(value, TOKEN_RADIUS, maximum - TOKEN_RADIUS));
+function tokenBoundary(iconSize: number): number {
+  // Include the selected ring, which is the widest visible token outline.
+  return Math.ceil(((TOKEN_RADIUS + 2) * iconSize) / 100);
+}
+
+export function clampToBoard(
+  value: number,
+  maximum: number,
+  iconSize = 100,
+): number {
+  const boundary = tokenBoundary(iconSize);
+  return Math.round(clamp(value, boundary, maximum - boundary));
 }
 
 function boundTokenPosition(
   position: Konva.Vector2d,
   scale: number,
   map: MapDefinition,
+  iconSize: number,
 ): Konva.Vector2d {
+  const boundary = tokenBoundary(iconSize);
   return {
-    x: clamp(
-      position.x,
-      TOKEN_RADIUS * scale,
-      (map.width - TOKEN_RADIUS) * scale,
-    ),
-    y: clamp(
-      position.y,
-      TOKEN_RADIUS * scale,
-      (map.height - TOKEN_RADIUS) * scale,
-    ),
+    x: clamp(position.x, boundary * scale, (map.width - boundary) * scale),
+    y: clamp(position.y, boundary * scale, (map.height - boundary) * scale),
   };
 }
 
@@ -211,7 +216,12 @@ export function createBoardCanvas(
     );
     group.dragBoundFunc((position) =>
       snapshot
-        ? boundTokenPosition(position, stage.scaleX(), snapshot.map)
+        ? boundTokenPosition(
+            position,
+            stage.scaleX(),
+            snapshot.map,
+            snapshot.iconSize,
+          )
         : position,
     );
     group.on("click tap", (event) => {
@@ -270,8 +280,16 @@ export function createBoardCanvas(
         drawing = createDrawing(token, hero);
         drawings.set(token.id, drawing);
       }
+      drawing.group.scale({
+        x: current.iconSize / 100,
+        y: current.iconSize / 100,
+      });
       drawing.token = token;
-      if (!drawing.dragging) drawing.group.position({ x: token.x, y: token.y });
+      if (!drawing.dragging)
+        drawing.group.position({
+          x: clampToBoard(token.x, current.map.width, current.iconSize),
+          y: clampToBoard(token.y, current.map.height, current.iconSize),
+        });
       const image = heroImages.get(hero.id);
       if (image !== drawing.image) {
         drawing.portrait.destroy();
@@ -314,7 +332,10 @@ export function createBoardCanvas(
       const mapChanged = snapshot?.map !== current.map;
       // Committed edits (including history restore) cancel an unfinished gesture.
       // Selection and image updates keep the same token array and preserve it.
-      if (snapshot?.tokens !== current.tokens) {
+      if (
+        snapshot?.tokens !== current.tokens ||
+        snapshot?.iconSize !== current.iconSize
+      ) {
         for (const [id, drawing] of drawings) {
           if (!drawing.dragging) continue;
           drawing.group.off();

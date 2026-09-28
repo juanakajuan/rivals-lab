@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 
 import { BoardPanel, HeroPanel, TokenMenu } from "./AppPanels";
@@ -61,7 +61,18 @@ export default function App(): React.JSX.Element {
   const [history, dispatch] = useReducer(boardHistoryReducer, undefined, () =>
     createBoardHistory({ mapId: DEFAULT_MAP_ID, tokens: initialTokens() }),
   );
-  const { mapId: selectedMapId, tokens } = history.present;
+  const [iconSize, setIconSize] = useState(100);
+  const { mapId: selectedMapId, tokens: savedTokens } = history.present;
+  const selectedMap = getMap(selectedMapId);
+  const tokens = useMemo(
+    () =>
+      savedTokens.map((token) => ({
+        ...token,
+        x: clampToBoard(token.x, selectedMap.width, iconSize),
+        y: clampToBoard(token.y, selectedMap.height, iconSize),
+      })),
+    [savedTokens, selectedMap, iconSize],
+  );
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState("");
   const [isHeroDragging, setIsHeroDragging] = useState(false);
@@ -69,8 +80,6 @@ export default function App(): React.JSX.Element {
   const [announcement, setAnnouncement] = useState(
     "Drag any token to explain a rotation or position.",
   );
-  const selectedMap = getMap(selectedMapId);
-
   const selectedToken = tokens.find((token) => token.id === selectedTokenId);
   const selectedHero = selectedToken
     ? HERO_BY_ID.get(selectedToken.heroId)
@@ -135,8 +144,13 @@ export default function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    boardRef.current?.update({ map: selectedMap, tokens, selectedTokenId });
-  }, [selectedMap, tokens, selectedTokenId]);
+    boardRef.current?.update({
+      map: selectedMap,
+      tokens,
+      selectedTokenId,
+      iconSize,
+    });
+  }, [selectedMap, tokens, selectedTokenId, iconSize]);
 
   useEffect(() => {
     setSelectedTokenId((id) =>
@@ -200,8 +214,8 @@ export default function App(): React.JSX.Element {
     team: Team,
   ): void {
     const id = `${team}-${hero.id}`;
-    const boardX = clampToBoard(x, selectedMap.width);
-    const boardY = clampToBoard(y, selectedMap.height);
+    const boardX = clampToBoard(x, selectedMap.width, iconSize);
+    const boardY = clampToBoard(y, selectedMap.height, iconSize);
     const existingToken = tokens.find((token) => token.id === id);
     setSelectedTokenId(id);
 
@@ -301,8 +315,8 @@ export default function App(): React.JSX.Element {
         mapId: value,
         tokens: board.tokens.map((token) => ({
           ...token,
-          x: clampToBoard(token.x, map.width),
-          y: clampToBoard(token.y, map.height),
+          x: clampToBoard(token.x, map.width, iconSize),
+          y: clampToBoard(token.y, map.height, iconSize),
         })),
       }),
     });
@@ -436,6 +450,8 @@ export default function App(): React.JSX.Element {
           boardHostRef={boardHostRef}
           selectedToken={selectedToken}
           selectedHero={selectedHero}
+          iconSize={iconSize}
+          onIconSizeChange={setIconSize}
           onMapChange={changeMap}
           onDrop={handleBoardDrop}
         />
