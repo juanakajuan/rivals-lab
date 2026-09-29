@@ -344,9 +344,48 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   );
   y += GAP;
 
-  const notes: { readonly label: string; readonly value: string }[] = [
-    { label: "Comp notes", value: comp.notes || "No notes" },
-  ];
+  const compNoteWidth = WIDTH - PADDING * 2;
+  context.font = font(18);
+  let compLines = wrapText(
+    context,
+    comp.notes || "No notes",
+    compNoteWidth - 32,
+  );
+  const compColumns = compLines.length > 40 ? 3 : 1;
+  const compColumnWidth =
+    (compNoteWidth - 32 - GAP * (compColumns - 1)) / compColumns;
+  if (compColumns > 1)
+    compLines = wrapText(context, comp.notes, compColumnWidth);
+  let compPages = 0;
+  let compNotesHeight = 0;
+  for (let start = 0; start < compLines.length; start += compColumns * 200) {
+    const chunk = compLines.slice(start, start + compColumns * 200);
+    const rows = Math.ceil(chunk.length / compColumns);
+    const left = compPages * WIDTH + PADDING;
+    const height = rows * 26 + 84;
+    panel(left, y, compNoteWidth, height);
+    text(
+      `Comp notes${start ? " (continued)" : ""}`,
+      left + 16,
+      y + 16,
+      compNoteWidth - 32,
+      18,
+      COLORS.ally,
+    );
+    chunk.forEach((line, index) =>
+      text(
+        line,
+        left + 16 + Math.floor(index / rows) * (compColumnWidth + GAP),
+        y + 68 + (index % rows) * 26,
+        compColumnWidth,
+      ),
+    );
+    compNotesHeight = Math.max(compNotesHeight, height);
+    compPages++;
+  }
+  y += compNotesHeight + GAP;
+
+  const notes: { readonly label: string; readonly value: string }[] = [];
   for (const team of TEAMS)
     comp.teams[team].forEach((slot, index) => {
       if (slot.notes)
@@ -401,7 +440,8 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       columnHeights[column] = offset + blockHeight + GAP;
     }
   }
-  const width = Math.ceil(columnHeights.length / 3) * WIDTH;
+  const width =
+    Math.max(compPages, Math.ceil(columnHeights.length / 3)) * WIDTH;
   const notesHeight = Math.max(...columnHeights) - GAP;
   const height = Math.ceil(y + notesHeight + PADDING);
   if (width > 16000 || width * height > 64_000_000)
