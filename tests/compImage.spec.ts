@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
 
@@ -11,7 +12,7 @@ declare global {
   }
 }
 
-test("copies a full PNG of unsaved content without changing saved data", async ({
+test("downloads and copies the same full PNG without changing saved data", async ({
   page,
   context,
 }, testInfo) => {
@@ -82,31 +83,74 @@ test("copies a full PNG of unsaved content without changing saved data", async (
   const notes =
     "Keep the high ground.\n".repeat(270) + "FINAL NOTE BELOW THE SCROLL AREA";
   await page.getByLabel("Comp notes", { exact: true }).fill(notes);
-  await page.getByRole("button", { name: "Copy image", exact: true }).focus();
+  const downloadReady = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download & copy", exact: true })
+    .focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toHaveText(
-    "Image copied to clipboard.",
+    "Download started. Image copied to clipboard.",
   );
-  const result = await page.evaluate(async () => {
-    const items = await navigator.clipboard.read();
-    const png = items.find((item) => item.types.includes("image/png"));
-    if (!png) throw new Error("No PNG on clipboard");
-    const blob = await png.getType("image/png");
-    const bitmap = await createImageBitmap(blob);
-    const pixelContext = new OffscreenCanvas(1, 1).getContext("2d");
-    if (!pixelContext) throw new Error("Cannot inspect image background");
-    pixelContext.drawImage(bitmap, 0, 0);
-    const result = {
-      background: [...pixelContext.getImageData(0, 0, 1, 1).data],
-      width: bitmap.width,
-      height: bitmap.height,
-      bytes: [...new Uint8Array(await blob.arrayBuffer())],
-      text: window.imageCopyTest.text,
-      saved: localStorage.getItem("rivals-lab.comps.v1"),
-    };
-    bitmap.close();
-    return result;
-  });
+  const download = await downloadReady;
+  expect(download.suggestedFilename()).toBe("Unsaved-team-plan.png");
+  const path = testInfo.outputPath("build.png");
+  await download.saveAs(path);
+  const downloaded = await readFile(path);
+  const result = await page.evaluate(
+    async (downloaded) => {
+      const items = await navigator.clipboard.read();
+      const png = items.find((item) => item.types.includes("image/png"));
+      if (!png) throw new Error("No PNG on clipboard");
+      const blob = await png.getType("image/png");
+      const bitmap = await createImageBitmap(blob);
+      const pixelContext = new OffscreenCanvas(1, 1).getContext("2d");
+      if (!pixelContext) throw new Error("Cannot inspect image background");
+      pixelContext.drawImage(bitmap, 0, 0);
+      const pixelHashes: string[] = [];
+      for (const source of [
+        blob,
+        new Blob([new Uint8Array(downloaded)], { type: "image/png" }),
+      ]) {
+        const image = await createImageBitmap(source);
+        const canvas = new OffscreenCanvas(image.width, image.height);
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Cannot compare PNG images");
+        context.drawImage(image, 0, 0);
+        const pixels = context.getImageData(
+          0,
+          0,
+          image.width,
+          image.height,
+        ).data;
+        const hash = await crypto.subtle.digest(
+          "SHA-256",
+          new Uint8Array(pixels),
+        );
+        pixelHashes.push(
+          `${image.width}x${image.height}:${[...new Uint8Array(hash)].join(",")}`,
+        );
+        image.close();
+      }
+      const result = {
+        pixelHashes,
+        background: [...pixelContext.getImageData(0, 0, 1, 1).data],
+        width: bitmap.width,
+        height: bitmap.height,
+        bytes: [...new Uint8Array(await blob.arrayBuffer())],
+        text: window.imageCopyTest.text,
+        saved: localStorage.getItem("rivals-lab.comps.v1"),
+      };
+      bitmap.close();
+      return result;
+    },
+    [...downloaded],
+  );
+  expect(result.pixelHashes[0]).toBe(result.pixelHashes[1]);
+  expect(
+    result.text.filter(
+      (line) => line === "RIVALS LAB  /  DRAFT & COMP BUILDER",
+    ),
+  ).toHaveLength(1);
   expect(result.saved).toBe(saved);
   expect(result.background).toEqual([8, 9, 10, 255]);
   expect(result.width).toBeGreaterThan(1000);
@@ -134,7 +178,7 @@ test("copies a full PNG of unsaved content without changing saved data", async (
     "Saved comps",
     "Save As",
     "Choose hero",
-    "Copy image",
+    "Download & copy",
     "Reset draft",
   ])
     expect(text).not.toContain(excluded);
@@ -172,9 +216,14 @@ test("prevents repeat writes and only reports success after the write", async ({
     .getByRole("button", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page.getByLabel("Comp name", { exact: true }).fill("Keep this build");
-  await page.getByRole("button", { name: "Copy image", exact: true }).click();
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  const downloadReady = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download & copy", exact: true })
+    .click();
   const busy = page.getByRole("button", {
-    name: "Copying image…",
+    name: "Preparing image…",
     exact: true,
   });
   await expect(busy).toBeDisabled();
@@ -182,13 +231,19 @@ test("prevents repeat writes and only reports success after the write", async ({
   await expect(page.getByRole("status")).not.toHaveText(
     "Image copied to clipboard.",
   );
+  const download = await downloadReady;
+  expect(download.suggestedFilename()).toBe("Keep-this-build.png");
+  await expect(page.getByRole("status")).toHaveText(
+    "Download started. Copying image…",
+  );
+  expect(downloads).toBe(1);
   expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(1);
   await page.evaluate(() => window.imageCopyTest.rejectWrite?.());
   await expect(page.getByRole("alert")).toContainText(
     "Clipboard access was denied",
   );
   await expect(
-    page.getByRole("button", { name: "Copy image", exact: true }),
+    page.getByRole("button", { name: "Download & copy", exact: true }),
   ).toBeEnabled();
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Keep this build",
@@ -198,7 +253,9 @@ test("prevents repeat writes and only reports success after the write", async ({
   ).toBeNull();
 });
 
-test("reports unsupported image clipboard access", async ({ page }) => {
+test("downloads when image clipboard access is unsupported", async ({
+  page,
+}) => {
   await page.addInitScript(() =>
     Object.defineProperty(navigator, "clipboard", { value: undefined }),
   );
@@ -206,11 +263,58 @@ test("reports unsupported image clipboard access", async ({ page }) => {
   await page
     .getByRole("button", { name: "Draft / Comp Builder", exact: true })
     .click();
-  await page.getByRole("button", { name: "Copy image", exact: true }).click();
+  const downloadReady = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download & copy", exact: true })
+    .click();
+  expect((await downloadReady).suggestedFilename()).toBe("rivals-comp.png");
+  await expect(page.getByRole("status")).toHaveText("Download started.");
   await expect(page.getByRole("alert")).toContainText(
     "Image clipboard access is not supported",
   );
   await expect(page.getByRole("status")).not.toHaveText(
     "Image copied to clipboard.",
+  );
+});
+
+test("image generation failure produces no download or clipboard image", async ({
+  page,
+}) => {
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  await page.addInitScript(() => {
+    window.imageCopyTest = { text: [], writes: 0 };
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        write: async (items: ClipboardItem[]) => {
+          const item = items[0];
+          if (!item) throw new Error("Missing clipboard item");
+          await item.getType("image/png");
+          window.imageCopyTest.writes++;
+        },
+      },
+    });
+  });
+  await page.route("**/compImageEncoder.worker.ts*", (route) => route.abort());
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .click();
+  await page
+    .getByLabel("Comp name", { exact: true })
+    .fill("Keep failed export");
+  await page
+    .getByRole("button", { name: "Download & copy", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Could not create image.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Download & copy", exact: true }),
+  ).toBeEnabled();
+  expect(downloads).toBe(0);
+  expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(0);
+  await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
+    "Keep failed export",
   );
 });

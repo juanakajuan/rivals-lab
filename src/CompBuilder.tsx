@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
-  Copy,
   Download,
   FolderOpen,
   Plus,
@@ -15,7 +14,7 @@ import {
   TeamEditor,
 } from "./BuilderPanels";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
-import { copyCompImage } from "./compImage";
+import { downloadAndCopyCompImage } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
 import {
   COMP_STORAGE_KEY,
@@ -154,8 +153,8 @@ export function CompBuilder({
   const [boardMapId, setBoardMapId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [copyingImage, setCopyingImage] = useState(false);
-  const copyingImageRef = useRef(false);
+  const [exportingImage, setExportingImage] = useState(false);
+  const exportingImageRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const dirty = JSON.stringify(comp) !== JSON.stringify(baseline);
   const effects = draftEffects(comp.draft);
@@ -378,20 +377,36 @@ export function CompBuilder({
     });
   }
 
-  async function copyImage(): Promise<void> {
-    if (copyingImageRef.current) return;
-    copyingImageRef.current = true;
-    setCopyingImage(true);
+  async function shareImage(): Promise<void> {
+    if (exportingImageRef.current) return;
+    exportingImageRef.current = true;
+    setExportingImage(true);
     setMessage("");
     setError(null);
     try {
-      await copyCompImage(comp);
-      setMessage("Image copied to clipboard.");
+      const result = await downloadAndCopyCompImage(comp, () => {
+        setMessage("Download started. Copying image…");
+      });
+      setMessage(
+        [
+          result.downloadError === null ? "Download started." : "",
+          result.copyError === null ? "Image copied to clipboard." : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      const errors = [
+        result.downloadError
+          ? `Download could not start. ${result.downloadError}`
+          : "",
+        result.copyError ? `Image was not copied. ${result.copyError}` : "",
+      ].filter(Boolean);
+      setError(errors.length ? errors.join(" ") : null);
     } catch (cause) {
-      setError(`Could not copy image. ${errorMessage(cause)}`);
+      setError(`Could not create image. ${errorMessage(cause)}`);
     } finally {
-      copyingImageRef.current = false;
-      setCopyingImage(false);
+      exportingImageRef.current = false;
+      setExportingImage(false);
     }
   }
 
@@ -573,12 +588,12 @@ export function CompBuilder({
             <button
               type="button"
               className="secondary-button"
-              disabled={copyingImage}
-              aria-busy={copyingImage}
-              onClick={() => void copyImage()}
+              disabled={exportingImage}
+              aria-busy={exportingImage}
+              onClick={() => void shareImage()}
             >
-              <Copy size={15} />
-              {copyingImage ? "Copying image…" : "Copy image"}
+              <Download size={15} />
+              {exportingImage ? "Preparing image…" : "Download & copy"}
             </button>
             <button
               type="button"

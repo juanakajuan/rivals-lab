@@ -498,8 +498,18 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   });
 }
 
-/** Start the write during the click so browsers keep the user activation. */
-export async function copyCompImage(comp: Comp): Promise<void> {
+interface ImageShareResult {
+  readonly downloadError: string | null;
+  readonly copyError: string | null;
+}
+
+function imageError(error: unknown): string {
+  if (error instanceof DOMException && error.name === "NotAllowedError")
+    return "Clipboard access was denied. Allow clipboard access and try again.";
+  return error instanceof Error ? error.message : "The operation failed.";
+}
+
+async function copyImageToClipboard(image: Promise<Blob>): Promise<void> {
   if (
     !window.isSecureContext ||
     !navigator.clipboard?.write ||
@@ -507,21 +517,49 @@ export async function copyCompImage(comp: Comp): Promise<void> {
     (typeof ClipboardItem.supports === "function" &&
       !ClipboardItem.supports("image/png"))
   )
-    throw new Error(
-      "Image clipboard access is not supported here. Use a browser with image clipboard support on HTTPS or localhost.",
-    );
-  const image = renderCompImage(comp);
-  // A denied write can reject before rendering finishes.
-  void image.catch(() => {});
+    throw new Error("Image clipboard access is not supported here.");
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": image })]);
+}
+
+function downloadImage(image: Blob, name: string): void {
+  const stem = name
+    .normalize("NFKC")
+    .replace(/[^a-zA-Z0-9 _-]/g, "")
+    .trim()
+    .replace(/ +/g, "-")
+    .slice(0, 80);
+  const filename =
+    !stem || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)
+      ? "rivals-comp"
+      : stem;
+  const url = URL.createObjectURL(image);
   try {
-    await navigator.clipboard.write([
-      new ClipboardItem({ "image/png": image }),
-    ]);
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "NotAllowedError")
-      throw new Error(
-        "Clipboard access was denied. Allow clipboard access and try again.",
-      );
-    throw error;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filename}.png`;
+    link.click();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+}
+
+/** Start clipboard access during the click; download need not wait for it. */
+export async function downloadAndCopyCompImage(
+  comp: Comp,
+  onDownloadStarted: () => void,
+): Promise<ImageShareResult> {
+  const image = renderCompImage(comp);
+  const copyResult = copyImageToClipboard(image).then(
+    () => null,
+    (error: unknown) => imageError(error),
+  );
+  const blob = await image;
+  let downloadError: string | null = null;
+  try {
+    downloadImage(blob, comp.name);
+    onDownloadStarted();
+  } catch (error) {
+    downloadError = imageError(error);
+  }
+  return { downloadError, copyError: await copyResult };
 }
