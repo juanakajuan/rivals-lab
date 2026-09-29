@@ -790,11 +790,7 @@ button:focus-visible {
   color: var(--muted);
   cursor: default;
 }
-.drawing-list {
-  max-height: 64px;
-  overflow-y: auto;
-  margin-bottom: 6px;
-}
+
 .note-editor textarea {
   color: inherit;
   background: var(--surface);

@@ -6,6 +6,7 @@ import {
 } from "react";
 import { CircleCheck, Move } from "lucide-react";
 
+import type { BoardDrawing } from "./boardDrawings";
 import type { BoardToken } from "./boardCanvas";
 import {
   heroImagePath,
@@ -177,6 +178,7 @@ interface BoardPanelProps {
   readonly selectedHero: HeroDefinition | undefined;
   readonly onMapChange: (mapId: string) => void;
   readonly onDrop: (event: DragEvent<HTMLDivElement>) => void;
+  readonly onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 export function BoardPanel({
@@ -191,6 +193,7 @@ export function BoardPanel({
   selectedHero,
   onMapChange,
   onDrop,
+  onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
   function allowDrop(event: DragEvent<HTMLDivElement>): void {
     event.preventDefault();
@@ -229,11 +232,13 @@ export function BoardPanel({
       >
         <div
           className="stage-host"
+          tabIndex={0}
+          onKeyDown={onKeyDown}
           ref={boardHostRef}
           style={{
             aspectRatio: `${selectedMap.width} / ${selectedMap.height}`,
           }}
-          aria-label={`Overhead map of ${selectedMap.name} with draggable hero position tokens`}
+          aria-label={`Overhead map of ${selectedMap.name} with draggable heroes and drawings. Press Enter to select the next drawing, arrow keys to move it, Delete to remove it, or Shift+F10 for its menu.`}
         />
       </div>
 
@@ -324,6 +329,37 @@ export function TokenMenu({
           <path d="M3.5 5.5h13M8 3h4l1 2.5H7L8 3Zm-2.5 2.5.8 11h7.4l.8-11M8.3 8v6M11.7 8v6" />
         </svg>
         Remove {hero.name}
+      </button>
+    </div>
+  );
+}
+
+export function DrawingMenu({
+  x,
+  y,
+  drawing,
+  onRemove,
+}: {
+  readonly x: number;
+  readonly y: number;
+  readonly drawing: BoardDrawing;
+  readonly onRemove: (drawing: BoardDrawing) => void;
+}): React.JSX.Element {
+  return (
+    <div
+      className="token-context-menu"
+      style={{ left: x, top: y }}
+      role="menu"
+      aria-label={`${drawing.kind} actions`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        autoFocus
+        onClick={() => onRemove(drawing)}
+      >
+        Remove {drawing.kind}
       </button>
     </div>
   );

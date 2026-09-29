@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 
-import { BoardPanel, HeroPanel, TokenMenu } from "./AppPanels";
+import { BoardPanel, DrawingMenu, HeroPanel, TokenMenu } from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
 import {
   createDrawing,
@@ -28,11 +28,13 @@ import {
 import { boardHistoryReducer, createBoardHistory } from "./boardHistory";
 import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from "./maps";
 
-interface TokenContextMenu {
-  readonly tokenId: string;
+type BoardContextMenu = {
   readonly x: number;
   readonly y: number;
-}
+} & (
+  | { readonly kind: "token"; readonly id: string }
+  | { readonly kind: "drawing"; readonly id: string }
+);
 
 const EMPTY_DRAWINGS: readonly BoardDrawing[] = [];
 
@@ -95,7 +97,7 @@ export default function App(): React.JSX.Element {
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState("");
   const [isHeroDragging, setIsHeroDragging] = useState(false);
-  const [contextMenu, setContextMenu] = useState<TokenContextMenu | null>(null);
+  const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null);
   const [announcement, setAnnouncement] = useState(
     "Drag any token to explain a rotation or position.",
   );
@@ -103,9 +105,14 @@ export default function App(): React.JSX.Element {
   const selectedHero = selectedToken
     ? HERO_BY_ID.get(selectedToken.heroId)
     : undefined;
-  const contextToken = contextMenu
-    ? tokens.find((token) => token.id === contextMenu.tokenId)
-    : undefined;
+  const contextToken =
+    contextMenu?.kind === "token"
+      ? tokens.find((token) => token.id === contextMenu.id)
+      : undefined;
+  const contextDrawing =
+    contextMenu?.kind === "drawing"
+      ? mapDrawings.find((drawing) => drawing.id === contextMenu.id)
+      : undefined;
   const contextHero = contextToken
     ? HERO_BY_ID.get(contextToken.heroId)
     : undefined;
@@ -121,12 +128,16 @@ export default function App(): React.JSX.Element {
     if (!host) return;
 
     const board = createBoardCanvas(host, {
-      onDrawingSelect: (id) => {
-        setSelectedDrawingId(id);
+      onDrawingSelect: (drawing) => {
+        setSelectedDrawingId(drawing?.id ?? null);
+        setAnnouncement(
+          drawing ? `${drawing.kind} selected.` : "Selection cleared.",
+        );
         setSelectedTokenId(null);
         setContextMenu(null);
       },
       onDrawingEdit: editDrawing,
+      onDrawingContextMenu: openDrawingMenu,
       onSelect: (token) => {
         setSelectedDrawingId(null);
         setSelectedTokenId(token?.id ?? null);
@@ -154,7 +165,8 @@ export default function App(): React.JSX.Element {
         setSelectedDrawingId(null);
         setSelectedTokenId(token.id);
         setContextMenu({
-          tokenId: token.id,
+          kind: "token",
+          id: token.id,
           x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
           y: Math.max(8, Math.min(clientY, window.innerHeight - 52)),
         });
@@ -196,6 +208,12 @@ export default function App(): React.JSX.Element {
     setSelectedDrawingId((id) =>
       mapDrawings.some((drawing) => drawing.id === id) ? id : null,
     );
+    setContextMenu((menu) =>
+      menu?.kind === "drawing" &&
+      !mapDrawings.some((drawing) => drawing.id === menu.id)
+        ? null
+        : menu,
+    );
   }, [mapDrawings]);
 
   useEffect(() => {
@@ -203,7 +221,10 @@ export default function App(): React.JSX.Element {
       tokens.some((token) => token.id === id) ? id : null,
     );
     setContextMenu((menu) =>
-      menu && tokens.some((token) => token.id === menu.tokenId) ? menu : null,
+      menu &&
+      (menu.kind === "drawing" || tokens.some((token) => token.id === menu.id))
+        ? menu
+        : null,
     );
   }, [tokens]);
 
@@ -390,24 +411,70 @@ export default function App(): React.JSX.Element {
     setContextMenu(null);
   }
 
+  function openDrawingMenu(
+    drawing: BoardDrawing,
+    clientX: number,
+    clientY: number,
+  ): void {
+    setSelectedDrawingId(drawing.id);
+    setSelectedTokenId(null);
+    setContextMenu({
+      kind: "drawing",
+      id: drawing.id,
+      x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
+      y: Math.max(8, Math.min(clientY, window.innerHeight - 52)),
+    });
+    setAnnouncement(`${drawing.kind} menu opened.`);
+  }
+
+  function removeDrawing(drawing: BoardDrawing): void {
+    dispatch({
+      type: "edit",
+      update: (board) => ({
+        ...board,
+        drawingsByMap: {
+          ...board.drawingsByMap,
+          [board.mapId]: (board.drawingsByMap?.[board.mapId] ?? []).filter(
+            (item) => item.id !== drawing.id,
+          ),
+        },
+      }),
+    });
+    setSelectedDrawingId(null);
+    setContextMenu(null);
+    setAnnouncement("Drawing removed.");
+  }
+
   function removeSelected(): void {
-    if (selectedDrawing) {
-      dispatch({
-        type: "edit",
-        update: (board) => ({
-          ...board,
-          drawingsByMap: {
-            ...board.drawingsByMap,
-            [board.mapId]: (board.drawingsByMap?.[board.mapId] ?? []).filter(
-              (drawing) => drawing.id !== selectedDrawing.id,
-            ),
-          },
-        }),
-      });
-      setSelectedDrawingId(null);
-      setAnnouncement("Drawing removed.");
-    }
+    if (selectedDrawing) removeDrawing(selectedDrawing);
     if (selectedToken) removeToken(selectedToken);
+  }
+
+  function handleBoardKeyDown(
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter" && mapDrawings.length) {
+      event.preventDefault();
+      const next =
+        mapDrawings[
+          (mapDrawings.findIndex(
+            (drawing) => drawing.id === selectedDrawingId,
+          ) +
+            1) %
+            mapDrawings.length
+        ];
+      if (!next) return;
+      setSelectedDrawingId(next.id);
+      setSelectedTokenId(null);
+      setContextMenu(null);
+      setAnnouncement(`${next.kind} selected.`);
+    }
+    if (event.shiftKey && event.key === "F10" && selectedDrawing) {
+      event.preventDefault();
+      const bounds = event.currentTarget.getBoundingClientRect();
+      openDrawingMenu(selectedDrawing, bounds.left + 16, bounds.top + 16);
+    }
   }
 
   function resetBoard(): void {
@@ -583,18 +650,10 @@ export default function App(): React.JSX.Element {
             <DrawingTools
               tool={tool}
               color={drawingColor}
-              drawings={mapDrawings}
               selected={selectedDrawing}
               onTool={changeTool}
               onColor={setDrawingColor}
               onEdit={editDrawing}
-              onRemove={removeSelected}
-              onSelect={(id) => {
-                setSelectedDrawingId(id);
-                setSelectedTokenId(null);
-                setContextMenu(null);
-                setTool("move");
-              }}
               onAdd={() => {
                 if (tool === "move") return;
                 editDrawing(
@@ -624,6 +683,7 @@ export default function App(): React.JSX.Element {
           onIconSizeChange={setIconSize}
           onMapChange={changeMap}
           onDrop={handleBoardDrop}
+          onKeyDown={handleBoardKeyDown}
         />
       </main>
 
@@ -638,6 +698,14 @@ export default function App(): React.JSX.Element {
           token={contextToken}
           hero={contextHero}
           onRemove={removeToken}
+        />
+      ) : null}
+      {contextMenu && contextDrawing ? (
+        <DrawingMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          drawing={contextDrawing}
+          onRemove={removeDrawing}
         />
       ) : null}
       <p className="sr-only" aria-live="polite">

@@ -37,7 +37,12 @@ export interface BoardSnapshot {
 }
 
 export interface BoardEvents {
-  readonly onDrawingSelect?: (id: string | null) => void;
+  readonly onDrawingSelect?: (drawing: BoardDrawing | null) => void;
+  readonly onDrawingContextMenu?: (
+    drawing: BoardDrawing,
+    clientX: number,
+    clientY: number,
+  ) => void;
   readonly onDrawingEdit?: (drawing: BoardDrawing) => void;
   readonly onSelect: (token: BoardToken | null) => void;
   readonly onMove: (token: BoardToken, x: number, y: number) => void;
@@ -390,11 +395,21 @@ export function createBoardCanvas(
         const entry = item;
         group.on("click tap", (event) => {
           event.cancelBubble = true;
-          events.onDrawingSelect?.(entry.drawing.id);
+          if (event.evt instanceof MouseEvent && event.evt.button !== 0) return;
+          events.onDrawingSelect?.(entry.drawing);
+        });
+        group.on("contextmenu", (event) => {
+          event.evt.preventDefault();
+          event.cancelBubble = true;
+          events.onDrawingContextMenu?.(
+            entry.drawing,
+            event.evt.clientX,
+            event.evt.clientY,
+          );
         });
         group.on("dragstart", () => {
           entry.dragging = true;
-          events.onDrawingSelect?.(entry.drawing.id);
+          events.onDrawingSelect?.(entry.drawing);
         });
         group.on("dragend", () => {
           entry.dragging = false;
@@ -495,6 +510,7 @@ export function createBoardCanvas(
   }
   window.addEventListener("keydown", cancelOnEscape);
   stage.on("click tap", (event) => {
+    if (event.evt instanceof MouseEvent && event.evt.button !== 0) return;
     if (event.target !== stage) return;
     if (pointerTool === "move") {
       events.onSelect(null);

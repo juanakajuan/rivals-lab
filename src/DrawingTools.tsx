@@ -4,14 +4,11 @@ import type { BoardDrawing, BoardTool } from "./boardDrawings";
 interface DrawingToolsProps {
   readonly tool: BoardTool;
   readonly color: string;
-  readonly drawings: readonly BoardDrawing[];
   readonly selected: BoardDrawing | undefined;
   readonly onTool: (tool: BoardTool) => void;
   readonly onColor: (color: string) => void;
   readonly onAdd: () => void;
-  readonly onSelect: (id: string) => void;
   readonly onEdit: (drawing: BoardDrawing) => void;
-  readonly onRemove: () => void;
 }
 const TOOLS: readonly { readonly tool: BoardTool; readonly label: string }[] = [
   { tool: "move", label: "Move" },
@@ -56,56 +53,20 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
       </div>
       <p className="drawing-help">
         {props.tool === "move"
-          ? "Click any hero or drawing to select it. Drag to move it. Use arrow keys to move a selected drawing."
+          ? "Click any hero or drawing to select it. Drag to move it. Right-click to remove a drawing."
           : props.tool === "note"
             ? "Click empty map space to add a note. Drag existing elements to move them."
             : "Drag on empty map space to draw. Drag existing elements to move them."}
       </p>
-      <div
-        className="drawing-details"
-        hidden={
-          (props.tool !== "move" && !selected) || props.drawings.length === 0
-        }
-      >
-        {props.drawings.length > 0 ? (
-          <div
-            className="drawing-actions drawing-list"
-            role="group"
-            aria-label="Drawings on this map"
-          >
-            {props.drawings.map((drawing, index) => (
-              <button
-                key={drawing.id}
-                type="button"
-                aria-pressed={drawing.id === selected?.id}
-                onClick={() => props.onSelect(drawing.id)}
-              >
-                {drawing.kind === "note"
-                  ? `Note ${index + 1}: ${drawing.text}`
-                  : `${drawing.kind === "arrow" ? "Arrow" : "Zone"} ${index + 1}`}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {selected ? (
-          <div
-            className="drawing-actions"
-            role="group"
-            aria-label="Selected drawing actions"
-          >
-            <button type="button" onClick={props.onRemove}>
-              Remove drawing
-            </button>
-            {selected.kind === "note" ? (
-              <NoteEditor
-                key={`${selected.id}:${selected.text}`}
-                drawing={selected}
-                onEdit={props.onEdit}
-              />
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      {selected?.kind === "note" ? (
+        <div className="drawing-details" aria-label="Selected note">
+          <NoteEditor
+            key={`${selected.id}:${selected.text}`}
+            drawing={selected}
+            onEdit={props.onEdit}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -119,7 +80,7 @@ function NoteEditor({
   const [text, setText] = useState(drawing.text);
   return (
     <form
-      className="note-editor"
+      className="note-editor drawing-actions"
       onSubmit={(event) => {
         event.preventDefault();
         if (text.trim()) onEdit({ ...drawing, text: text.trim() });
