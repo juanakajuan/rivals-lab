@@ -227,6 +227,7 @@ export function BoardPanel({
       {drawingControls}
       <div
         className={`board-shell${isHeroDragging ? " drop-ready" : ""}`}
+        style={{ aspectRatio: `${selectedMap.width} / ${selectedMap.height}` }}
         onDragOver={allowDrop}
         onDrop={onDrop}
       >

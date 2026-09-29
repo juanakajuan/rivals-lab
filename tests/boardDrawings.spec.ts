@@ -159,12 +159,31 @@ test("keyboard selection and removal preserve note text editing", async ({
   await expect(text).toHaveValue("Push here");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(text).toHaveValue("New note");
-  await page.getByLabel("Drawing color", { exact: true }).fill("#00ff00");
-  await page.getByLabel("Drawing color", { exact: true }).fill("#ff0000");
+  const colorButton = page.getByRole("button", {
+    name: "Drawing color",
+    exact: true,
+  });
+  const hexColor = page.getByRole("textbox", {
+    name: "Hex color",
+    exact: true,
+  });
+  await colorButton.click();
+  await hexColor.fill("invalid");
+  await expect(
+    page.getByRole("button", { name: "Apply", exact: true }),
+  ).toBeDisabled();
+  await hexColor.fill("#00ff00");
+  await hexColor.fill("#ff0000");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.getByLabel("Drawing color", { exact: true })).toHaveValue(
-    "#ffd166",
-  );
+  await colorButton.click();
+  await expect(hexColor).toHaveValue("#ffd166");
+  await page.getByRole("button", { name: "Blue", exact: true }).click();
+  await hexColor.press("Escape");
+  await expect(colorButton).toBeFocused();
+  await colorButton.click();
+  await expect(hexColor).toHaveValue("#ffd166");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.locator(".stage-host").focus();
   await page.keyboard.press("Enter");
   await page.keyboard.press("ArrowDown");
