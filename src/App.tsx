@@ -70,7 +70,7 @@ export default function App(): React.JSX.Element {
   const [history, dispatch] = useReducer(boardHistoryReducer, undefined, () =>
     createBoardHistory({ mapId: DEFAULT_MAP_ID, tokens: initialTokens() }),
   );
-  const [tool, setTool] = useState<BoardTool>("heroes");
+  const [tool, setTool] = useState<BoardTool>("move");
   const [drawingColor, setDrawingColor] = useState("#ffd166");
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
@@ -151,6 +151,7 @@ export default function App(): React.JSX.Element {
         );
       },
       onContextMenu: (token, clientX, clientY) => {
+        setSelectedDrawingId(null);
         setSelectedTokenId(token.id);
         setContextMenu({
           tokenId: token.id,
@@ -273,7 +274,7 @@ export default function App(): React.JSX.Element {
     const boardX = clampToBoard(x, selectedMap.width, iconSize);
     const boardY = clampToBoard(y, selectedMap.height, iconSize);
     const existingToken = tokens.find((token) => token.id === id);
-    setTool("heroes");
+    setTool("move");
     setSelectedDrawingId(null);
     setSelectedTokenId(id);
 
@@ -307,7 +308,7 @@ export default function App(): React.JSX.Element {
     event: React.DragEvent<HTMLDivElement>,
     hero: HeroDefinition,
   ): void {
-    changeTool("heroes");
+    changeTool("move");
     event.dataTransfer.effectAllowed = "copyMove";
     event.dataTransfer.setData(HERO_DRAG_TYPE, hero.id);
     event.dataTransfer.setData(TEAM_DRAG_TYPE, selectedTeam);
@@ -366,7 +367,7 @@ export default function App(): React.JSX.Element {
     });
     setSelectedDrawingId(drawing.id);
     setSelectedTokenId(null);
-    setTool("select");
+    setTool("move");
     setAnnouncement(`${drawing.kind} updated.`);
   }
 
@@ -592,10 +593,10 @@ export default function App(): React.JSX.Element {
                 setSelectedDrawingId(id);
                 setSelectedTokenId(null);
                 setContextMenu(null);
-                setTool("select");
+                setTool("move");
               }}
               onAdd={() => {
-                if (tool === "heroes" || tool === "select") return;
+                if (tool === "move") return;
                 editDrawing(
                   createDrawing(
                     tool,

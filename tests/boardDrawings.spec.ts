@@ -37,7 +37,7 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   const actions = page.getByRole("group", { name: "Selected drawing actions" });
   await expect(arrow).toHaveAttribute("aria-pressed", "true");
   await expect(
-    page.getByRole("button", { name: "Select drawings", exact: true }),
+    page.getByRole("button", { name: "Move", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.setViewportSize({ width: 1000, height: 800 });
   const start = await point(page, 500, 250);
@@ -78,9 +78,9 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   await expect(
     page.getByRole("button", { name: "Zone 1", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Move heroes", exact: true }).click();
+  await page.getByRole("button", { name: "Move", exact: true }).click();
   await expect(page.locator(".drawing-help")).toContainText(
-    "Hero movement mode",
+    "Click any hero or drawing",
   );
 });
 
@@ -169,13 +169,13 @@ test("keyboard controls add and edit notes without board shortcuts", async ({
   ).toBeVisible();
 });
 
-test("drawing mode protects heroes and cancelled gestures do not enter history", async ({
+test("drawing tools move existing elements and cancelled gestures do not enter history", async ({
   page,
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Draw arrow", exact: true }).click();
-  const start = await point(page, 270, 435);
-  const end = await point(page, 500, 300);
+  const start = await point(page, 400, 200);
+  const end = await point(page, 600, 300);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 8 });
@@ -183,11 +183,22 @@ test("drawing mode protects heroes and cancelled gestures do not enter history",
   await expect(
     page.getByRole("button", { name: "Arrow 1", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Move heroes", exact: true }).click();
+  await page.getByRole("button", { name: "Move", exact: true }).click();
   const hero = await point(page, 270, 435);
   await page.mouse.click(hero.x, hero.y);
   await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
   await page.getByRole("button", { name: "Draw zone", exact: true }).click();
+  const heroEnd = await point(page, 330, 475);
+  await page.mouse.move(hero.x, hero.y);
+  await page.mouse.down();
+  await page.mouse.move(heroEnd.x, heroEnd.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator(".coordinates")).toHaveText(
+    /x (329|330|331), y (474|475|476)/,
+  );
+  await expect(page.getByRole("button", { name: /^Zone \d/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
   const zoneStart = await point(page, 400, 200);
   const zoneEnd = await point(page, 600, 300);
   await page.mouse.move(zoneStart.x, zoneStart.y);
@@ -249,5 +260,60 @@ for (const width of [1280, 360]) {
     await page.getByRole("button", { name: "Clear", exact: true }).focus();
     await page.keyboard.press("Enter");
     await expectSameBounds();
+  });
+}
+
+for (const kind of ["arrow", "zone", "note"] as const) {
+  test(`heroes and ${kind} drawings move directly without a selection tool`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    if (kind === "note") {
+      await page.getByRole("button", { name: "Add note", exact: true }).click();
+      const position = await point(page, 400, 200);
+      await page.mouse.click(position.x, position.y);
+    } else {
+      await draw(page, kind === "arrow" ? "Draw arrow" : "Draw zone");
+    }
+    await expect(
+      page.getByRole("button", { name: "Select drawings", exact: true }),
+    ).toHaveCount(0);
+    const hero = await point(page, 270, 435);
+    const heroEnd = await point(page, 330, 475);
+    await page.mouse.move(hero.x, hero.y);
+    await page.mouse.down();
+    await page.mouse.move(heroEnd.x, heroEnd.y, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.locator(".selection-name strong")).toHaveText(
+      "Doctor Strange",
+    );
+    await expect(page.locator(".coordinates")).toHaveText(
+      /x (329|330|331), y (474|475|476)/,
+    );
+    // Existing elements must also respond while a drawing tool is active.
+    await page.getByRole("button", { name: "Draw arrow", exact: true }).click();
+    const x = kind === "note" ? 420 : 500;
+    const y = kind === "note" ? 215 : 250;
+    const start = await point(page, x, y);
+    await page.mouse.click(start.x, start.y);
+    const selected = page.getByRole("group", {
+      name: "Selected drawing actions",
+    });
+    await expect(selected).toBeVisible();
+    const end = await point(page, x + 40, y + 80);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await page.mouse.up();
+    await expect(selected).toBeVisible();
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    const restored = await point(page, x, y);
+    await page.mouse.click(restored.x, restored.y);
+    await expect(selected).toBeVisible();
+    // One undo restores the drawing; the next restores the hero.
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    const restoredHero = await point(page, 270, 435);
+    await page.mouse.click(restoredHero.x, restoredHero.y);
+    await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
   });
 }

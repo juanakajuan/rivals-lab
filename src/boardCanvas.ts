@@ -204,7 +204,7 @@ export function createBoardCanvas(
   const drawings = new Map<string, TokenDrawing>();
   const heroImages = new Map<string, HTMLImageElement>();
   let snapshot: BoardSnapshot | null = null;
-  let pointerTool: BoardTool = "heroes";
+  let pointerTool: BoardTool = "move";
   let destroyed = false;
   let mapRequest = 0;
 
@@ -216,7 +216,7 @@ export function createBoardCanvas(
       id: token.id,
       x: token.x,
       y: token.y,
-      draggable: (snapshot?.tool ?? "heroes") === "heroes",
+      draggable: true,
     });
     const image = heroImages.get(hero.id);
     const portrait = createTokenPortrait(hero, image);
@@ -300,8 +300,7 @@ export function createBoardCanvas(
         drawing = createDrawing(token, hero);
         drawings.set(token.id, drawing);
       }
-      drawing.group.listening((current.tool ?? "heroes") === "heroes");
-      drawing.group.draggable((current.tool ?? "heroes") === "heroes");
+
       drawing.group.scale({
         x: current.iconSize / 100,
         y: current.iconSize / 100,
@@ -417,9 +416,7 @@ export function createBoardCanvas(
         annotationLayer.add(group);
       }
       item.drawing = drawing;
-      const enabled = current.tool === "select";
-      item.group.listening(enabled);
-      item.group.draggable(enabled);
+      item.group.draggable(true);
       if (!item.dragging) item.group.position({ x: drawing.x, y: drawing.y });
       item.group.destroyChildren();
       item.group.add(
@@ -438,9 +435,14 @@ export function createBoardCanvas(
     };
   }
   stage.on("pointerdown", (event) => {
-    pointerTool = snapshot?.tool ?? "heroes";
+    pointerTool = snapshot?.tool ?? "move";
     const tool = snapshot?.tool;
-    if (!tool || tool === "heroes" || tool === "select" || event.evt.button > 0)
+    if (
+      !tool ||
+      tool === "move" ||
+      event.evt.button > 0 ||
+      event.target !== stage
+    )
       return;
     const start = pointerPoint();
     if (!start) return;
@@ -456,15 +458,7 @@ export function createBoardCanvas(
   stage.on("pointermove", () => {
     const end = pointerPoint();
     const tool = snapshot?.tool;
-    if (
-      !snapshot ||
-      !gesture ||
-      !end ||
-      !tool ||
-      tool === "heroes" ||
-      tool === "select"
-    )
-      return;
+    if (!snapshot || !gesture || !end || !tool || tool === "move") return;
     const drawing = createAnnotation(
       tool,
       gesture.start,
@@ -479,15 +473,7 @@ export function createBoardCanvas(
   stage.on("pointerup", () => {
     const end = pointerPoint();
     const tool = snapshot?.tool;
-    if (
-      !snapshot ||
-      !gesture ||
-      !end ||
-      !tool ||
-      tool === "heroes" ||
-      tool === "select"
-    )
-      return;
+    if (!snapshot || !gesture || !end || !tool || tool === "move") return;
     const drawing = createAnnotation(
       tool,
       gesture.start,
@@ -510,8 +496,10 @@ export function createBoardCanvas(
   window.addEventListener("keydown", cancelOnEscape);
   stage.on("click tap", (event) => {
     if (event.target !== stage) return;
-    if (pointerTool === "heroes") events.onSelect(null);
-    if (pointerTool === "select") events.onDrawingSelect?.(null);
+    if (pointerTool === "move") {
+      events.onSelect(null);
+      events.onDrawingSelect?.(null);
+    }
   });
   const resizeObserver = new ResizeObserver(() => {
     if (!destroyed && snapshot) resizeStage(stage, host, snapshot.map);
@@ -566,9 +554,7 @@ export function createBoardCanvas(
       snapshot = current;
       setBoardCursor(
         stage,
-        current.tool && current.tool !== "heroes" && current.tool !== "select"
-          ? "crosshair"
-          : "default",
+        current.tool && current.tool !== "move" ? "crosshair" : "default",
       );
       if (mapChanged) {
         // A map change ends the old gesture, as stage replacement did before.

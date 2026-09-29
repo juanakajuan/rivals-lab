@@ -14,8 +14,7 @@ interface DrawingToolsProps {
   readonly onRemove: () => void;
 }
 const TOOLS: readonly { readonly tool: BoardTool; readonly label: string }[] = [
-  { tool: "heroes", label: "Move heroes" },
-  { tool: "select", label: "Select drawings" },
+  { tool: "move", label: "Move" },
   { tool: "arrow", label: "Draw arrow" },
   { tool: "zone", label: "Draw zone" },
   { tool: "note", label: "Add note" },
@@ -47,30 +46,25 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
         <button
           type="button"
           className={
-            props.tool === "heroes" || props.tool === "select"
-              ? "drawing-add-placeholder"
-              : undefined
+            props.tool === "move" ? "drawing-add-placeholder" : undefined
           }
-          disabled={props.tool === "heroes" || props.tool === "select"}
+          disabled={props.tool === "move"}
           onClick={props.onAdd}
         >
           Add at center
         </button>
       </div>
       <p className="drawing-help">
-        {props.tool === "heroes"
-          ? "Hero movement mode. Drag heroes to move them."
-          : props.tool === "select"
-            ? "Drawing selection mode. Drag a drawing to move it, or use the arrow keys."
-            : props.tool === "note"
-              ? "Note mode. Click the map to add a note, or use Add at center."
-              : "Drawing mode. Drag on the map, or use Add at center."}
+        {props.tool === "move"
+          ? "Click any hero or drawing to select it. Drag to move it. Use arrow keys to move a selected drawing."
+          : props.tool === "note"
+            ? "Click empty map space to add a note. Drag existing elements to move them."
+            : "Drag on empty map space to draw. Drag existing elements to move them."}
       </p>
       <div
         className="drawing-details"
         hidden={
-          (props.tool !== "heroes" && props.tool !== "select") ||
-          props.drawings.length === 0
+          (props.tool !== "move" && !selected) || props.drawings.length === 0
         }
       >
         {props.drawings.length > 0 ? (
@@ -110,7 +104,7 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
               />
             ) : null}
           </div>
-        ) : null}{" "}
+        ) : null}
       </div>
     </div>
   );

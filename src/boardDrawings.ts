@@ -12,7 +12,7 @@ export type BoardDrawing = DrawingBase &
     | { readonly kind: "zone"; readonly width: number; readonly height: number }
     | { readonly kind: "note"; readonly text: string }
   );
-export type BoardTool = "heroes" | "select" | BoardDrawing["kind"];
+export type BoardTool = "move" | BoardDrawing["kind"];
 export interface BoardPoint {
   readonly x: number;
   readonly y: number;
