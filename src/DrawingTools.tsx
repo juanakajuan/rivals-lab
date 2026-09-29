@@ -11,7 +11,6 @@ interface DrawingToolsProps {
   readonly onAdd: () => void;
   readonly onSelect: (id: string) => void;
   readonly onEdit: (drawing: BoardDrawing) => void;
-  readonly onMove: (dx: number, dy: number) => void;
   readonly onRemove: () => void;
 }
 const TOOLS: readonly { readonly tool: BoardTool; readonly label: string }[] = [
@@ -55,7 +54,7 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
         {props.tool === "heroes"
           ? "Hero movement mode. Drag heroes to move them."
           : props.tool === "select"
-            ? "Drawing selection mode. Drag a drawing to move it, or use the move buttons."
+            ? "Drawing selection mode. Drag a drawing to move it, or use the arrow keys."
             : props.tool === "note"
               ? "Note mode. Click the map to add a note, or use Add at center."
               : "Drawing mode. Drag on the map, or use Add at center."}
@@ -86,26 +85,6 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
           role="group"
           aria-label="Selected drawing actions"
         >
-          <span>
-            {selected.kind} · x {selected.x}, y {selected.y}
-          </span>
-          {(
-            [
-              { label: "Move drawing left", dx: -10, dy: 0 },
-              { label: "Move drawing right", dx: 10, dy: 0 },
-              { label: "Move drawing up", dx: 0, dy: -10 },
-              { label: "Move drawing down", dx: 0, dy: 10 },
-            ] as const
-          ).map(({ label, dx, dy }) => (
-            <button
-              key={label}
-              type="button"
-              aria-label={label}
-              onClick={() => props.onMove(dx, dy)}
-            >
-              {dx < 0 ? "←" : dx > 0 ? "→" : dy < 0 ? "↑" : "↓"}
-            </button>
-          ))}
           <button type="button" onClick={props.onRemove}>
             Remove drawing
           </button>

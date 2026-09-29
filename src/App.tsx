@@ -587,7 +587,6 @@ export default function App(): React.JSX.Element {
               onTool={changeTool}
               onColor={setDrawingColor}
               onEdit={editDrawing}
-              onMove={moveSelectedDrawing}
               onRemove={removeSelected}
               onSelect={(id) => {
                 setSelectedDrawingId(id);

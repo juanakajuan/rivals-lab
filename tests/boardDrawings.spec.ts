@@ -46,9 +46,16 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 8 });
   await page.mouse.up();
-  await expect(actions).toContainText(/x (459|460|461), y (239|240|241)/);
+  const oldStart = await point(page, 400, 200);
+  await page.mouse.click(oldStart.x, oldStart.y);
+  await expect(actions).toHaveCount(0);
+  const movedCenter = await point(page, 560, 290);
+  await page.mouse.click(movedCenter.x, movedCenter.y);
+  await expect(actions).toBeVisible();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(actions).toContainText("x 400, y 200");
+  const restoredCenter = await point(page, 500, 250);
+  await page.mouse.click(restoredCenter.x, restoredCenter.y);
+  await expect(actions).toBeVisible();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(arrow).toHaveCount(0);
   await expect(
@@ -56,8 +63,13 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   ).toBeDisabled();
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await arrow.click();
-  await page.keyboard.press("ArrowRight");
-  await expect(actions).toContainText("x 410, y 200");
+  for (let step = 0; step < 4; step++) await page.keyboard.press("ArrowDown");
+  const oldCenter = await point(page, 500, 250);
+  await page.mouse.click(oldCenter.x, oldCenter.y);
+  await expect(actions).toHaveCount(0);
+  const keyboardCenter = await point(page, 500, 290);
+  await page.mouse.click(keyboardCenter.x, keyboardCenter.y);
+  await expect(actions).toBeVisible();
   await page
     .getByRole("button", { name: "Remove drawing", exact: true })
     .click();
@@ -144,8 +156,9 @@ test("keyboard controls add and edit notes without board shortcuts", async ({
     "#ffd166",
   );
   await page
-    .getByRole("button", { name: "Move drawing down", exact: true })
-    .click();
+    .getByRole("button", { name: "Note 1: New note", exact: true })
+    .focus();
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Delete");
   await expect(
     page.getByRole("group", { name: "Drawings on this map" }),
