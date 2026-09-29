@@ -44,11 +44,18 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
             props.onColor(color);
           }}
         />
-        {props.tool !== "heroes" && props.tool !== "select" ? (
-          <button type="button" onClick={props.onAdd}>
-            Add at center
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className={
+            props.tool === "heroes" || props.tool === "select"
+              ? "drawing-add-placeholder"
+              : undefined
+          }
+          disabled={props.tool === "heroes" || props.tool === "select"}
+          onClick={props.onAdd}
+        >
+          Add at center
+        </button>
       </div>
       <p className="drawing-help">
         {props.tool === "heroes"
@@ -59,44 +66,52 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
               ? "Note mode. Click the map to add a note, or use Add at center."
               : "Drawing mode. Drag on the map, or use Add at center."}
       </p>
-      {props.drawings.length > 0 ? (
-        <div
-          className="drawing-actions drawing-list"
-          role="group"
-          aria-label="Drawings on this map"
-        >
-          {props.drawings.map((drawing, index) => (
-            <button
-              key={drawing.id}
-              type="button"
-              aria-pressed={drawing.id === selected?.id}
-              onClick={() => props.onSelect(drawing.id)}
-            >
-              {drawing.kind === "note"
-                ? `Note ${index + 1}: ${drawing.text}`
-                : `${drawing.kind === "arrow" ? "Arrow" : "Zone"} ${index + 1}`}
+      <div
+        className="drawing-details"
+        hidden={
+          (props.tool !== "heroes" && props.tool !== "select") ||
+          props.drawings.length === 0
+        }
+      >
+        {props.drawings.length > 0 ? (
+          <div
+            className="drawing-actions drawing-list"
+            role="group"
+            aria-label="Drawings on this map"
+          >
+            {props.drawings.map((drawing, index) => (
+              <button
+                key={drawing.id}
+                type="button"
+                aria-pressed={drawing.id === selected?.id}
+                onClick={() => props.onSelect(drawing.id)}
+              >
+                {drawing.kind === "note"
+                  ? `Note ${index + 1}: ${drawing.text}`
+                  : `${drawing.kind === "arrow" ? "Arrow" : "Zone"} ${index + 1}`}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {selected ? (
+          <div
+            className="drawing-actions"
+            role="group"
+            aria-label="Selected drawing actions"
+          >
+            <button type="button" onClick={props.onRemove}>
+              Remove drawing
             </button>
-          ))}
-        </div>
-      ) : null}
-      {selected ? (
-        <div
-          className="drawing-actions"
-          role="group"
-          aria-label="Selected drawing actions"
-        >
-          <button type="button" onClick={props.onRemove}>
-            Remove drawing
-          </button>
-          {selected.kind === "note" ? (
-            <NoteEditor
-              key={`${selected.id}:${selected.text}`}
-              drawing={selected}
-              onEdit={props.onEdit}
-            />
-          ) : null}
-        </div>
-      ) : null}
+            {selected.kind === "note" ? (
+              <NoteEditor
+                key={`${selected.id}:${selected.text}`}
+                drawing={selected}
+                onEdit={props.onEdit}
+              />
+            ) : null}
+          </div>
+        ) : null}{" "}
+      </div>
     </div>
   );
 }

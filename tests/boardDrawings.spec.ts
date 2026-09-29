@@ -214,3 +214,40 @@ test("drawing mode protects heroes and cancelled gestures do not enter history",
     page.getByRole("textbox", { name: "Note text", exact: true }),
   ).toBeVisible();
 });
+
+for (const width of [1280, 360]) {
+  test(`drawing controls keep map bounds fixed at width ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    const canvas = page.locator(".stage-host canvas").first();
+    await point(page, 0, 0);
+    const initial = await canvas.boundingBox();
+    if (!initial) throw new Error("Missing board bounds");
+    async function expectSameBounds(): Promise<void> {
+      await point(page, 0, 0);
+      expect(await canvas.boundingBox()).toEqual(initial);
+    }
+    for (const tool of ["Draw arrow", "Draw zone", "Add note"]) {
+      await page.getByRole("button", { name: tool, exact: true }).click();
+      await expectSameBounds();
+      await page
+        .getByRole("button", { name: "Add at center", exact: true })
+        .click();
+      await expectSameBounds();
+    }
+    await page
+      .getByRole("textbox", { name: "Note text", exact: true })
+      .fill("Hold this area");
+    await page.getByRole("button", { name: "Save note", exact: true }).click();
+    await expectSameBounds();
+    await page
+      .getByRole("button", { name: "Remove drawing", exact: true })
+      .click();
+    await expectSameBounds();
+    await page.getByRole("button", { name: "Clear", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expectSameBounds();
+  });
+}

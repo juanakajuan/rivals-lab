@@ -803,3 +803,45 @@ button:focus-visible {
   padding: 5px;
   font: inherit;
 }
+
+/* Dynamic drawing controls must not consume map layout space. */
+.drawing-tools {
+  position: relative;
+}
+.drawing-add-placeholder {
+  visibility: hidden;
+}
+.drawing-help {
+  height: 36px;
+  line-height: 18px;
+}
+.drawing-details {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 2;
+  width: min(260px, 100%);
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 0 0 5px 5px;
+  box-shadow: 0 4px 12px #00000066;
+}
+.drawing-details[hidden] {
+  display: none;
+}
+.drawing-details label {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.drawing-details textarea {
+  max-width: 100%;
+  resize: vertical;
+}
+@media (max-width: 760px) {
+  .drawing-help {
+    height: 54px;
+  }
+}
