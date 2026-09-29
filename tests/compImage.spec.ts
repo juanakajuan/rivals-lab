@@ -85,7 +85,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   await page.getByLabel("Comp notes", { exact: true }).fill(notes);
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & copy", exact: true })
+    .getByRole("button", { name: "Download & Copy", exact: true })
     .focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toHaveText(
@@ -178,7 +178,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Saved comps",
     "Save As",
     "Choose hero",
-    "Download & copy",
+    "Download & Copy",
     "Reset draft",
   ])
     expect(text).not.toContain(excluded);
@@ -220,7 +220,7 @@ test("prevents repeat writes and only reports success after the write", async ({
   page.on("download", () => downloads++);
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & copy", exact: true })
+    .getByRole("button", { name: "Download & Copy", exact: true })
     .click();
   const busy = page.getByRole("button", {
     name: "Preparing image…",
@@ -243,7 +243,7 @@ test("prevents repeat writes and only reports success after the write", async ({
     "Clipboard access was denied",
   );
   await expect(
-    page.getByRole("button", { name: "Download & copy", exact: true }),
+    page.getByRole("button", { name: "Download & Copy", exact: true }),
   ).toBeEnabled();
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Keep this build",
@@ -265,7 +265,7 @@ test("downloads when image clipboard access is unsupported", async ({
     .click();
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & copy", exact: true })
+    .getByRole("button", { name: "Download & Copy", exact: true })
     .click();
   expect((await downloadReady).suggestedFilename()).toBe("rivals-comp.png");
   await expect(page.getByRole("status")).toHaveText("Download started.");
@@ -304,13 +304,13 @@ test("image generation failure produces no download or clipboard image", async (
     .getByLabel("Comp name", { exact: true })
     .fill("Keep failed export");
   await page
-    .getByRole("button", { name: "Download & copy", exact: true })
+    .getByRole("button", { name: "Download & Copy", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Could not create image.",
   );
   await expect(
-    page.getByRole("button", { name: "Download & copy", exact: true }),
+    page.getByRole("button", { name: "Download & Copy", exact: true }),
   ).toBeEnabled();
   expect(downloads).toBe(0);
   expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(0);

@@ -593,7 +593,7 @@ export function CompBuilder({
               onClick={() => void shareImage()}
             >
               <Download size={15} />
-              {exportingImage ? "Preparing image…" : "Download & copy"}
+              {exportingImage ? "Preparing image…" : "Download & Copy"}
             </button>
             <button
               type="button"
