@@ -209,57 +209,74 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   const teamWidth = (WIDTH - PADDING * 2 - GAP) / 2;
   const cardWidth = (teamWidth - 40 - GAP * 2) / 3;
   const effects = draftEffects(comp.draft);
-  const teamHeight = 378;
+  const teamTop = y;
+  const teamPanels: { readonly x: number; readonly before: number }[] = [];
+  let teamHeight = 0;
   TEAMS.forEach((team, teamIndex) => {
     const x = PADDING + teamIndex * (teamWidth + GAP);
-    panel(x, y, teamWidth, teamHeight);
+    teamPanels.push({ x, before: commands.length });
     text(
       `${teamLabel(team)}  ·  ${comp.teams[team].filter((slot) => slot.heroId).length} / 6`,
       x,
-      y + 18,
+      teamTop + 18,
       teamWidth,
       22,
       COLORS[team],
       true,
     );
-    comp.teams[team].forEach((slot, index) => {
-      const left = x + 20 + (index % 3) * (cardWidth + GAP);
-      const top = y + 62 + Math.floor(index / 3) * 152;
-      panel(left, top, cardWidth, 140, true);
-      portrait(slot.heroId, left + (cardWidth - 48) / 2, top + 10, 48);
-      const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
-      text(
-        `${index + 1}. ${hero?.name ?? "Empty slot"}`,
-        left + 8,
-        top + 65,
-        cardWidth - 16,
-        18,
-        COLORS.text,
-        true,
-      );
-      const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
-      const banned = slot.heroId && effects.banned[team].has(slot.heroId);
-      text(
-        role ?? "Not selected",
-        left + 8,
-        top + 94,
-        cardWidth - 16,
-        16,
-        COLORS.muted,
-        true,
-      );
-      if (banned)
-        text(
-          "Banned for this team",
+    let rowTop = teamTop + 62;
+    for (let row = 0; row < 2; row++) {
+      let rowHeight = 140;
+      const rowPanels: { readonly x: number; readonly before: number }[] = [];
+      comp.teams[team].slice(row * 3, row * 3 + 3).forEach((slot, column) => {
+        const left = x + 20 + column * (cardWidth + GAP);
+        rowPanels.push({ x: left, before: commands.length });
+        portrait(slot.heroId, left + (cardWidth - 48) / 2, rowTop + 10, 48);
+        const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
+        let bottom = rowTop + 65;
+        bottom += text(
+          `${row * 3 + column + 1}. ${hero?.name ?? "Empty slot"}`,
           left + 8,
-          top + 116,
+          bottom,
           cardWidth - 16,
-          14,
-          COLORS.enemy,
+          18,
+          COLORS.text,
           true,
         );
-    });
+        const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
+        bottom +=
+          text(
+            role ?? "Not selected",
+            left + 8,
+            bottom + 4,
+            cardWidth - 16,
+            16,
+            COLORS.muted,
+            true,
+          ) + 4;
+        if (slot.heroId && effects.banned[team].has(slot.heroId))
+          bottom += text(
+            "Banned for this team",
+            left + 8,
+            bottom,
+            cardWidth - 16,
+            14,
+            COLORS.enemy,
+            true,
+          );
+        if (slot.notes)
+          bottom +=
+            12 + text(slot.notes, left + 12, bottom + 12, cardWidth - 24, 16);
+        rowHeight = Math.max(rowHeight, bottom - rowTop + 14);
+      });
+      for (const card of rowPanels.reverse())
+        panel(card.x, rowTop, cardWidth, rowHeight, true, card.before);
+      rowTop += rowHeight + 12;
+    }
+    teamHeight = Math.max(teamHeight, rowTop - teamTop + 12);
   });
+  for (const team of teamPanels.reverse())
+    panel(team.x, teamTop, teamWidth, teamHeight, false, team.before);
   y += teamHeight + GAP;
 
   const draftTop = y;
@@ -385,66 +402,9 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   }
   y += compNotesHeight + GAP;
 
-  const notes: { readonly label: string; readonly value: string }[] = [];
-  for (const team of TEAMS)
-    comp.teams[team].forEach((slot, index) => {
-      if (slot.notes)
-        notes.push({
-          label: `${teamLabel(team)} · ${index + 1}. ${slot.heroId ? HERO_BY_ID.get(slot.heroId)?.name : "Empty slot"}`,
-          value: slot.notes,
-        });
-    });
-  const noteWidth = (WIDTH - PADDING * 2 - GAP * 2) / 3;
-  context.font = font(18);
-  const noteBlocks = notes.map((note) => ({
-    label: note.label,
-    lines: wrapText(context, note.value, noteWidth - 32),
-  }));
-  const maxLines = Math.max(
-    5,
-    Math.min(
-      200,
-      Math.ceil(
-        noteBlocks.reduce((total, note) => total + note.lines.length + 2, 0) /
-          3,
-      ),
-    ),
-  );
-  const columnHeights = [0, 0, 0];
-  for (const note of noteBlocks) {
-    for (let start = 0; start < note.lines.length; start += maxLines) {
-      const chunk = note.lines.slice(start, start + maxLines);
-      let column = columnHeights.indexOf(Math.min(...columnHeights));
-      let offset = columnHeights[column] ?? 0;
-      const blockHeight = (chunk.length + 2) * 26 + 32;
-      if (offset + blockHeight > 6000) {
-        column = columnHeights.length;
-        columnHeights.push(0);
-        offset = 0;
-      }
-      const page = Math.floor(column / 3);
-      const x = page * WIDTH + PADDING + (column % 3) * (noteWidth + GAP);
-      const top = y + offset;
-      panel(x, top, noteWidth, blockHeight);
-      text(
-        `${note.label}${start ? " (continued)" : ""}`,
-        x + 16,
-        top + 16,
-        noteWidth - 32,
-        18,
-        COLORS.ally,
-      );
-      chunk.forEach((line, index) =>
-        text(line, x + 16, top + 68 + index * 26, noteWidth - 32),
-      );
-      columnHeights[column] = offset + blockHeight + GAP;
-    }
-  }
-  const width =
-    Math.max(compPages, Math.ceil(columnHeights.length / 3)) * WIDTH;
-  const notesHeight = Math.max(...columnHeights) - GAP;
-  const height = Math.ceil(y + notesHeight + PADDING);
-  if (width > 16000 || width * height > 64_000_000)
+  const width = compPages * WIDTH;
+  const height = Math.ceil(y + PADDING);
+  if (width > 16000 || height > 16000 || width * height > 64_000_000)
     throw new Error(
       "This build is too large for one image. Shorten the notes and try again.",
     );

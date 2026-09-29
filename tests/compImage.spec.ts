@@ -7,6 +7,11 @@ declare global {
     imageCopyTest: {
       text: string[];
       writes: number;
+      positions?: {
+        readonly text: string;
+        readonly x: number;
+        readonly y: number;
+      }[];
       rejectWrite?: () => void;
     };
   }
@@ -27,9 +32,15 @@ test("downloads and copies the same full PNG without changing saved data", async
         {
           heroId: "deadpool",
           deadpoolRole: "Strategist",
-          notes: "Hold the corner.",
+          notes:
+            "Hold the corner.\n" +
+            "W".repeat(180) +
+            "\n" +
+            "Hero line\n".repeat(25) +
+            "FINAL HERO NOTE",
         },
-        ...empty.teams.ally.slice(1),
+        { heroId: null, notes: "Empty slot note." },
+        ...empty.teams.ally.slice(2),
       ],
       enemy: [
         { heroId: "strange", notes: "Watch portal." },
@@ -59,7 +70,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   ]);
   await page.addInitScript((source) => {
     localStorage.setItem("rivals-lab.comps.v1", source);
-    window.imageCopyTest = { text: [], writes: 0 };
+    window.imageCopyTest = { text: [], writes: 0, positions: [] };
     for (const prototype of [
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
@@ -67,6 +78,7 @@ test("downloads and copies the same full PNG without changing saved data", async
       const fillText = prototype.fillText;
       prototype.fillText = function (text, x, y, maxWidth) {
         window.imageCopyTest.text.push(text);
+        window.imageCopyTest.positions?.push({ text, x, y });
         if (maxWidth === undefined) fillText.call(this, text, x, y);
         else fillText.call(this, text, x, y, maxWidth);
       };
@@ -138,6 +150,7 @@ test("downloads and copies the same full PNG without changing saved data", async
         height: bitmap.height,
         bytes: [...new Uint8Array(await blob.arrayBuffer())],
         text: window.imageCopyTest.text,
+        positions: window.imageCopyTest.positions ?? [],
         saved: localStorage.getItem("rivals-lab.comps.v1"),
       };
       bitmap.close();
@@ -155,6 +168,24 @@ test("downloads and copies the same full PNG without changing saved data", async
   expect(result.background).toEqual([8, 9, 10, 255]);
   expect(result.width).toBeGreaterThan(1000);
   expect(result.height).toBeGreaterThan(2000);
+  const finalHeroNote = result.positions.find(
+    (entry) => entry.text === "FINAL HERO NOTE",
+  );
+  const nextRow = result.positions.find(
+    (entry) => entry.text === "4. Empty slot",
+  );
+  expect(finalHeroNote).toBeDefined();
+  expect(nextRow).toBeDefined();
+  if (!finalHeroNote || !nextRow) throw new Error("Missing hero card content");
+  expect(finalHeroNote.x).toBeGreaterThan(60);
+  expect(finalHeroNote.x).toBeLessThan(280);
+  expect(finalHeroNote.y).toBeLessThan(nextRow.y - 65);
+  expect(result.text.filter((line) => line === "FINAL HERO NOTE")).toHaveLength(
+    1,
+  );
+  expect(result.text.filter((line) => /^W+$/.test(line)).join("")).toBe(
+    "W".repeat(180),
+  );
   const text = result.text.join("\n");
   for (const expected of [
     "Unsaved team plan",
@@ -167,6 +198,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Empty slot",
     "Hold the corner.",
     "Watch portal.",
+    "Empty slot note.",
     "Step 11",
     "Wolverine",
     "Pending joint ban",
