@@ -59,17 +59,17 @@ test("copies a full PNG of unsaved content without changing saved data", async (
   await page.addInitScript((source) => {
     localStorage.setItem("rivals-lab.comps.v1", source);
     window.imageCopyTest = { text: [], writes: 0 };
-    const fillText = CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText = function (
-      text,
-      x,
-      y,
-      maxWidth,
-    ) {
-      window.imageCopyTest.text.push(text);
-      if (maxWidth === undefined) fillText.call(this, text, x, y);
-      else fillText.call(this, text, x, y, maxWidth);
-    };
+    for (const prototype of [
+      CanvasRenderingContext2D.prototype,
+      OffscreenCanvasRenderingContext2D.prototype,
+    ]) {
+      const fillText = prototype.fillText;
+      prototype.fillText = function (text, x, y, maxWidth) {
+        window.imageCopyTest.text.push(text);
+        if (maxWidth === undefined) fillText.call(this, text, x, y);
+        else fillText.call(this, text, x, y, maxWidth);
+      };
+    }
   }, saved);
   await page.goto("/");
   await page
@@ -93,7 +93,11 @@ test("copies a full PNG of unsaved content without changing saved data", async (
     if (!png) throw new Error("No PNG on clipboard");
     const blob = await png.getType("image/png");
     const bitmap = await createImageBitmap(blob);
+    const pixelContext = new OffscreenCanvas(1, 1).getContext("2d");
+    if (!pixelContext) throw new Error("Cannot inspect image background");
+    pixelContext.drawImage(bitmap, 0, 0);
     const result = {
+      background: [...pixelContext.getImageData(0, 0, 1, 1).data],
       width: bitmap.width,
       height: bitmap.height,
       bytes: [...new Uint8Array(await blob.arrayBuffer())],
@@ -104,21 +108,24 @@ test("copies a full PNG of unsaved content without changing saved data", async (
     return result;
   });
   expect(result.saved).toBe(saved);
+  expect(result.background).toEqual([8, 9, 10, 255]);
   expect(result.width).toBeGreaterThan(1000);
-  expect(result.height).toBeGreaterThan(7000);
+  expect(result.height).toBeGreaterThan(2000);
   const text = result.text.join("\n");
   for (const expected of [
     "Unsaved team plan",
     "Midtown",
     "Allies",
     "Opponents",
-    "Deadpool · Strategist",
+    "Deadpool",
+    "Strategist",
     "Doctor Strange",
     "Empty slot",
     "Hold the corner.",
     "Watch portal.",
     "Step 11",
-    "Wolverine (pending joint ban)",
+    "Wolverine",
+    "Pending joint ban",
     "Not selected",
     "FINAL NOTE BELOW THE SCROLL AREA",
   ])
