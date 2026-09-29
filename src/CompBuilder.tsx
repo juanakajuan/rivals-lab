@@ -14,6 +14,7 @@ import {
   TeamEditor,
 } from "./BuilderPanels";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
+import { downloadAndCopyCompImage } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
 import {
   COMP_STORAGE_KEY,
@@ -152,6 +153,8 @@ export function CompBuilder({
   const [boardMapId, setBoardMapId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [exportingImage, setExportingImage] = useState(false);
+  const exportingImageRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const dirty = JSON.stringify(comp) !== JSON.stringify(baseline);
   const effects = draftEffects(comp.draft);
@@ -374,6 +377,39 @@ export function CompBuilder({
     });
   }
 
+  async function shareImage(): Promise<void> {
+    if (exportingImageRef.current) return;
+    exportingImageRef.current = true;
+    setExportingImage(true);
+    setMessage("");
+    setError(null);
+    try {
+      const result = await downloadAndCopyCompImage(comp, () => {
+        setMessage("Download started. Copying image…");
+      });
+      setMessage(
+        [
+          result.downloadError === null ? "Download started." : "",
+          result.copyError === null ? "Image copied to clipboard." : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      const errors = [
+        result.downloadError
+          ? `Download could not start. ${result.downloadError}`
+          : "",
+        result.copyError ? `Image was not copied. ${result.copyError}` : "",
+      ].filter(Boolean);
+      setError(errors.length ? errors.join(" ") : null);
+    } catch (cause) {
+      setError(`Could not create image. ${errorMessage(cause)}`);
+    } finally {
+      exportingImageRef.current = false;
+      setExportingImage(false);
+    }
+  }
+
   function openBoard(): void {
     if (selectedMap?.boardMapId) {
       onOpenBoard(comp, selectedMap.boardMapId);
@@ -548,18 +584,30 @@ export function CompBuilder({
             <h1>Draft / Comp Builder</h1>
             <p>Set your bans. Build your six. Keep the plan.</p>
           </div>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={openBoard}
-            disabled={
-              !TEAMS.some((team) =>
-                comp.teams[team].some((slot) => slot.heroId),
-              )
-            }
-          >
-            Open on Position Board <ArrowUpRight size={15} />
-          </button>
+          <div className="builder-heading-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={exportingImage}
+              aria-busy={exportingImage}
+              onClick={() => void shareImage()}
+            >
+              <Download size={15} />
+              {exportingImage ? "Preparing image…" : "Download & Copy"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={openBoard}
+              disabled={
+                !TEAMS.some((team) =>
+                  comp.teams[team].some((slot) => slot.heroId),
+                )
+              }
+            >
+              Open on Position Board <ArrowUpRight size={15} />
+            </button>
+          </div>
         </div>
         {library.error && (
           <div className="builder-error" role="alert">

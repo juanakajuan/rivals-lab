@@ -280,8 +280,11 @@
   flex: 1;
 }
 .comp-name-row .status-tag {
-  align-self: flex-end;
-  margin-bottom: 7px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 .comp-settings label,
 .dialog-form label {
@@ -787,4 +790,10 @@
   .hero-choice-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.builder-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
