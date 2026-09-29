@@ -280,8 +280,11 @@
   flex: 1;
 }
 .comp-name-row .status-tag {
-  align-self: flex-end;
-  margin-bottom: 7px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 .comp-settings label,
 .dialog-form label {
