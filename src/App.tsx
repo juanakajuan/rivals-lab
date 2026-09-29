@@ -388,7 +388,6 @@ export default function App(): React.JSX.Element {
     });
     setSelectedDrawingId(drawing.id);
     setSelectedTokenId(null);
-    setTool("move");
     setAnnouncement(`${drawing.kind} updated.`);
   }
 

@@ -64,6 +64,8 @@ async function expectSelection(
   x = 500,
   y = 250,
 ): Promise<void> {
+  if (kind === null)
+    await page.getByRole("button", { name: "Move", exact: true }).click();
   await click(page, x, y);
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     kind ? `${kind} selected.` : "Selection cleared.",
@@ -263,6 +265,27 @@ for (const kind of ["arrow", "zone", "note"] as const) {
   }) => {
     await page.goto("/");
     await draw(page, kind);
+    const toolButton = page.getByRole("button", {
+      name:
+        kind === "note"
+          ? "Add note"
+          : kind === "arrow"
+            ? "Draw arrow"
+            : "Draw zone",
+      exact: true,
+    });
+    await expect(toolButton).toHaveAttribute("aria-pressed", "true");
+    if (kind === "note") await click(page, 700, 100);
+    else await drag(page, 700, 100, 850, 150);
+    await expect(toolButton).toHaveAttribute("aria-pressed", "true");
+    await expectSelection(
+      page,
+      kind,
+      kind === "note" ? 720 : 775,
+      kind === "note" ? 115 : 125,
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(toolButton).toHaveAttribute("aria-pressed", "true");
     await expect(
       page.getByRole("group", { name: "Drawings on this map" }),
     ).toHaveCount(0);
