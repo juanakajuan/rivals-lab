@@ -1,4 +1,9 @@
-import { Fragment, type DragEvent, type RefObject } from "react";
+import {
+  Fragment,
+  type DragEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { CircleCheck, Move } from "lucide-react";
 
 import type { BoardToken } from "./boardCanvas";
@@ -161,6 +166,7 @@ function HeroRow({
 }
 
 interface BoardPanelProps {
+  readonly drawingControls: ReactNode;
   readonly iconSize: number;
   readonly onIconSizeChange: (size: number) => void;
   readonly selectedMapId: MapId;
@@ -174,6 +180,7 @@ interface BoardPanelProps {
 }
 
 export function BoardPanel({
+  drawingControls,
   iconSize,
   onIconSizeChange,
   selectedMapId,
@@ -214,6 +221,7 @@ export function BoardPanel({
         </div>
       </div>
 
+      {drawingControls}
       <div
         className={`board-shell${isHeroDragging ? " drop-ready" : ""}`}
         onDragOver={allowDrop}

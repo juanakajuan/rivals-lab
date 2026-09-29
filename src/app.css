@@ -731,3 +731,75 @@ button:focus-visible {
   outline: 2px solid #7882e8;
   outline-offset: 4px;
 }
+
+.drawing-tools {
+  flex: 0 0 auto;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+.drawing-actions,
+.note-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.drawing-actions button {
+  padding: 5px 8px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drawing-actions button[aria-pressed="true"] {
+  border-color: #ffd166;
+  color: #ffd166;
+}
+.drawing-actions label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drawing-actions input[type="color"] {
+  width: 36px;
+  height: 28px;
+}
+.drawing-help {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.note-editor textarea {
+  width: 200px;
+  height: 48px;
+}
+.drawing-tools {
+  font-size: 12px;
+}
+.drawing-actions button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.drawing-actions button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.drawing-actions button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.drawing-list {
+  max-height: 64px;
+  overflow-y: auto;
+  margin-bottom: 6px;
+}
+.note-editor textarea {
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px;
+  font: inherit;
+}
