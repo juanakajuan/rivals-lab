@@ -1,5 +1,5 @@
 import { COMP_MAPS } from "./compMaps";
-import { compStatus, type Comp } from "./comps";
+import { type Comp } from "./comps";
 import { draftEffects, draftPhases } from "./draft";
 import {
   HERO_BY_ID,
@@ -84,6 +84,21 @@ function wrapText(
 
 /** Render a read-only snapshot, independent of editor scroll and input sizes. */
 export async function renderCompImage(comp: Comp): Promise<Blob> {
+  const teams = TEAMS.filter((team) =>
+    comp.teams[team].some((slot) => slot.heroId || slot.notes.trim()),
+  );
+  const cards = draftCards(comp).filter((card) => card.heroId);
+  const map = COMP_MAPS.find((entry) => entry.id === comp.mapId);
+  if (
+    !comp.name.trim() &&
+    !map &&
+    !teams.length &&
+    !cards.length &&
+    !comp.notes.trim()
+  )
+    throw new Error(
+      "Add a title, map, hero, draft choice, or note before exporting.",
+    );
   await document.fonts.ready;
   const canvas =
     typeof OffscreenCanvas === "undefined"
@@ -95,7 +110,6 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       : canvas.getContext("2d");
   if (!drawingContext) throw new Error("This browser cannot create an image.");
   const context = drawingContext;
-  const cards = draftCards(comp);
   const heroIds = new Set([
     ...TEAMS.flatMap((team) =>
       comp.teams[team].flatMap((slot) => (slot.heroId ? [slot.heroId] : [])),
@@ -181,38 +195,31 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     COLORS.muted,
     true,
   );
-  let y =
-    62 +
-    text(
-      comp.name || "Untitled comp",
-      PADDING,
-      62,
-      WIDTH - PADDING * 2,
-      32,
-      COLORS.text,
-      true,
-    );
-  const map = COMP_MAPS.find((entry) => entry.id === comp.mapId);
-  y +=
-    10 +
-    text(
-      `Map: ${map ? `${map.name} · ${map.mode}` : "Not selected"}   /   ${compStatus(comp)}`,
-      PADDING,
-      y + 10,
-      WIDTH - PADDING * 2,
-      18,
-      COLORS.muted,
-      true,
-    );
-  y += 28;
+  let y = 62;
+  if (comp.name.trim())
+    y +=
+      text(comp.name, PADDING, y, WIDTH - PADDING * 2, 32, COLORS.text, true) +
+      10;
+  if (map)
+    y +=
+      text(
+        `Map: ${map.name} · ${map.mode}`,
+        PADDING,
+        y,
+        WIDTH - PADDING * 2,
+        18,
+        COLORS.muted,
+        true,
+      ) + 10;
+  y += 18;
 
-  const teamWidth = (WIDTH - PADDING * 2 - GAP) / 2;
-  const cardWidth = (teamWidth - 40 - GAP * 2) / 3;
+  const teamWidth =
+    teams.length === 1 ? WIDTH - PADDING * 2 : (WIDTH - PADDING * 2 - GAP) / 2;
   const effects = draftEffects(comp.draft);
   const teamTop = y;
   const teamPanels: { readonly x: number; readonly before: number }[] = [];
   let teamHeight = 0;
-  TEAMS.forEach((team, teamIndex) => {
+  teams.forEach((team, teamIndex) => {
     const x = PADDING + teamIndex * (teamWidth + GAP);
     teamPanels.push({ x, before: commands.length });
     text(
@@ -224,51 +231,62 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       COLORS[team],
       true,
     );
+    const slots = comp.teams[team]
+      .map((slot, index) => ({ slot, index }))
+      .filter(({ slot }) => slot.heroId || slot.notes.trim());
+    const columns =
+      teams.length === 1
+        ? Math.min(slots.length, 6)
+        : Math.min(slots.length, 3);
+    const cardWidth = (teamWidth - 40 - GAP * (columns - 1)) / columns;
     let rowTop = teamTop + 62;
-    for (let row = 0; row < 2; row++) {
+    for (let row = 0; row < Math.ceil(slots.length / columns); row++) {
       let rowHeight = 140;
       const rowPanels: { readonly x: number; readonly before: number }[] = [];
-      comp.teams[team].slice(row * 3, row * 3 + 3).forEach((slot, column) => {
-        const left = x + 20 + column * (cardWidth + GAP);
-        rowPanels.push({ x: left, before: commands.length });
-        portrait(slot.heroId, left + (cardWidth - 48) / 2, rowTop + 10, 48);
-        const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
-        let bottom = rowTop + 65;
-        bottom += text(
-          `${row * 3 + column + 1}. ${hero?.name ?? "Empty slot"}`,
-          left + 8,
-          bottom,
-          cardWidth - 16,
-          18,
-          COLORS.text,
-          true,
-        );
-        const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
-        bottom +=
-          text(
-            role ?? "Not selected",
-            left + 8,
-            bottom + 4,
-            cardWidth - 16,
-            16,
-            COLORS.muted,
-            true,
-          ) + 4;
-        if (slot.heroId && effects.banned[team].has(slot.heroId))
+      slots
+        .slice(row * columns, (row + 1) * columns)
+        .forEach(({ slot, index }, column) => {
+          const left = x + 20 + column * (cardWidth + GAP);
+          rowPanels.push({ x: left, before: commands.length });
+          portrait(slot.heroId, left + (cardWidth - 48) / 2, rowTop + 10, 48);
+          const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
+          let bottom = rowTop + 65;
           bottom += text(
-            "Banned for this team",
+            `${index + 1}. ${hero?.name ?? "Empty slot"}`,
             left + 8,
             bottom,
             cardWidth - 16,
-            14,
-            COLORS.enemy,
+            18,
+            COLORS.text,
             true,
           );
-        if (slot.notes)
-          bottom +=
-            12 + text(slot.notes, left + 12, bottom + 12, cardWidth - 24, 16);
-        rowHeight = Math.max(rowHeight, bottom - rowTop + 14);
-      });
+          const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
+          if (role)
+            bottom +=
+              text(
+                role,
+                left + 8,
+                bottom + 4,
+                cardWidth - 16,
+                16,
+                COLORS.muted,
+                true,
+              ) + 4;
+          if (slot.heroId && effects.banned[team].has(slot.heroId))
+            bottom += text(
+              "Banned for this team",
+              left + 8,
+              bottom,
+              cardWidth - 16,
+              14,
+              COLORS.enemy,
+              true,
+            );
+          if (slot.notes.trim())
+            bottom +=
+              12 + text(slot.notes, left + 12, bottom + 12, cardWidth - 24, 16);
+          rowHeight = Math.max(rowHeight, bottom - rowTop + 14);
+        });
       for (const card of rowPanels.reverse())
         panel(card.x, rowTop, cardWidth, rowHeight, true, card.before);
       rowTop += rowHeight + 12;
@@ -277,131 +295,133 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   });
   for (const team of teamPanels.reverse())
     panel(team.x, teamTop, teamWidth, teamHeight, false, team.before);
-  y += teamHeight + GAP;
+  if (teams.length) y += teamHeight + GAP;
 
-  const draftTop = y;
-  const draftHeader = comp.draft
-    ? `${comp.draft.format.toUpperCase()} DRAFT · ${teamLabel(comp.draft.firstTeam)} first`
-    : "FREE BUILD";
-  // Draw this panel before its content once its measured height is known.
-  const panelIndex = commands.length;
-  y += 20;
-  y +=
-    text(draftHeader, PADDING, y, WIDTH - PADDING * 2, 20, COLORS.text, true) +
-    8;
-  y +=
-    text(
-      comp.draft
-        ? comp.draft.format === "mrc"
-          ? "Bans and saves apply to both teams."
-          : "Ban for the opponent. Save for your team."
-        : "No draft selected",
-      PADDING,
-      y,
-      WIDTH - PADDING * 2,
-      16,
-      COLORS.muted,
-      true,
-    ) + 18;
-  for (const team of TEAMS) {
-    const teamCards = cards.filter((card) => card.team === team);
-    if (!teamCards.length) continue;
-    text(teamLabel(team), PADDING + 16, y + 50, 112, 18, COLORS[team], true);
-    const left = PADDING + 140;
-    const width =
-      (WIDTH - PADDING - left - 16 - 12 * (teamCards.length - 1)) /
-      teamCards.length;
-    let rowHeight = 0;
-    teamCards.forEach((card, index) => {
-      const x = left + index * (width + 12);
-      portrait(card.heroId, x + (width - 44) / 2, y + 28, 44);
-      text(card.step, x, y, width, 14, COLORS.muted, true);
+  if (cards.length && comp.draft) {
+    const draftTop = y;
+    const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT · ${teamLabel(comp.draft.firstTeam)} first`;
+    // Draw this panel before its content once its measured height is known.
+    const panelIndex = commands.length;
+    y += 20;
+    y +=
       text(
-        card.action,
-        x,
-        y + 78,
-        width,
-        15,
-        card.action === "Save" ? COLORS.ally : COLORS.enemy,
-        true,
-      );
-      const nameHeight = text(
-        card.heroId
-          ? (HERO_BY_ID.get(card.heroId)?.name ?? "Unknown hero")
-          : "Not selected",
-        x + 4,
-        y + 100,
-        width - 8,
-        17,
+        draftHeader,
+        PADDING,
+        y,
+        WIDTH - PADDING * 2,
+        20,
         COLORS.text,
         true,
-      );
-      let height = 104 + nameHeight;
-      if (card.pending && card.heroId)
-        height += text(
-          "Pending joint ban",
+      ) + 8;
+    y +=
+      text(
+        comp.draft.format === "mrc"
+          ? "Bans and saves apply to both teams."
+          : "Ban for the opponent. Save for your team.",
+        PADDING,
+        y,
+        WIDTH - PADDING * 2,
+        16,
+        COLORS.muted,
+        true,
+      ) + 18;
+    for (const team of TEAMS) {
+      const teamCards = cards.filter((card) => card.team === team);
+      if (!teamCards.length) continue;
+      text(teamLabel(team), PADDING + 16, y + 50, 112, 18, COLORS[team], true);
+      const left = PADDING + 140;
+      const width =
+        (WIDTH - PADDING - left - 16 - 12 * (teamCards.length - 1)) /
+        teamCards.length;
+      let rowHeight = 0;
+      teamCards.forEach((card, index) => {
+        const x = left + index * (width + 12);
+        portrait(card.heroId, x + (width - 44) / 2, y + 28, 44);
+        text(card.step, x, y, width, 14, COLORS.muted, true);
+        text(
+          card.action,
           x,
-          y + height,
+          y + 78,
           width,
-          14,
-          COLORS.muted,
+          15,
+          card.action === "Save" ? COLORS.ally : COLORS.enemy,
           true,
         );
-      rowHeight = Math.max(rowHeight, height);
-    });
-    y += rowHeight + 18;
-  }
-  panel(
-    PADDING,
-    draftTop,
-    WIDTH - PADDING * 2,
-    y - draftTop,
-    false,
-    panelIndex,
-  );
-  y += GAP;
-
-  const compNoteWidth = WIDTH - PADDING * 2;
-  context.font = font(18);
-  let compLines = wrapText(
-    context,
-    comp.notes || "No notes",
-    compNoteWidth - 32,
-  );
-  const compColumns = compLines.length > 40 ? 3 : 1;
-  const compColumnWidth =
-    (compNoteWidth - 32 - GAP * (compColumns - 1)) / compColumns;
-  if (compColumns > 1)
-    compLines = wrapText(context, comp.notes, compColumnWidth);
-  let compPages = 0;
-  let compNotesHeight = 0;
-  for (let start = 0; start < compLines.length; start += compColumns * 200) {
-    const chunk = compLines.slice(start, start + compColumns * 200);
-    const rows = Math.ceil(chunk.length / compColumns);
-    const left = compPages * WIDTH + PADDING;
-    const height = rows * 26 + 84;
-    panel(left, y, compNoteWidth, height);
-    text(
-      `Comp notes${start ? " (continued)" : ""}`,
-      left + 16,
-      y + 16,
-      compNoteWidth - 32,
-      18,
-      COLORS.ally,
+        const nameHeight = text(
+          card.heroId
+            ? (HERO_BY_ID.get(card.heroId)?.name ?? "Unknown hero")
+            : "Not selected",
+          x + 4,
+          y + 100,
+          width - 8,
+          17,
+          COLORS.text,
+          true,
+        );
+        let height = 104 + nameHeight;
+        if (card.pending && card.heroId)
+          height += text(
+            "Pending joint ban",
+            x,
+            y + height,
+            width,
+            14,
+            COLORS.muted,
+            true,
+          );
+        rowHeight = Math.max(rowHeight, height);
+      });
+      y += rowHeight + 18;
+    }
+    panel(
+      PADDING,
+      draftTop,
+      WIDTH - PADDING * 2,
+      y - draftTop,
+      false,
+      panelIndex,
     );
-    chunk.forEach((line, index) =>
+    y += GAP;
+  }
+  let compPages = 1;
+  if (comp.notes.trim()) {
+    const compNoteWidth = WIDTH - PADDING * 2;
+    context.font = font(18);
+    let compLines = wrapText(context, comp.notes, compNoteWidth - 32);
+    const compColumns = compLines.length > 40 ? 3 : 1;
+    const compColumnWidth =
+      (compNoteWidth - 32 - GAP * (compColumns - 1)) / compColumns;
+    if (compColumns > 1)
+      compLines = wrapText(context, comp.notes, compColumnWidth);
+    compPages = 0;
+    let compNotesHeight = 0;
+    for (let start = 0; start < compLines.length; start += compColumns * 200) {
+      const chunk = compLines.slice(start, start + compColumns * 200);
+      const rows = Math.ceil(chunk.length / compColumns);
+      const left = compPages * WIDTH + PADDING;
+      const height = rows * 26 + 84;
+      panel(left, y, compNoteWidth, height);
       text(
-        line,
-        left + 16 + Math.floor(index / rows) * (compColumnWidth + GAP),
-        y + 68 + (index % rows) * 26,
-        compColumnWidth,
-      ),
-    );
-    compNotesHeight = Math.max(compNotesHeight, height);
-    compPages++;
+        `Comp notes${start ? " (continued)" : ""}`,
+        left + 16,
+        y + 16,
+        compNoteWidth - 32,
+        18,
+        COLORS.ally,
+      );
+      chunk.forEach((line, index) =>
+        text(
+          line,
+          left + 16 + Math.floor(index / rows) * (compColumnWidth + GAP),
+          y + 68 + (index % rows) * 26,
+          compColumnWidth,
+        ),
+      );
+      compNotesHeight = Math.max(compNotesHeight, height);
+      compPages++;
+    }
+    y += compNotesHeight + GAP;
   }
-  y += compNotesHeight + GAP;
-
   const width = compPages * WIDTH;
   const height = Math.ceil(y + PADDING);
   if (width > 16000 || height > 16000 || width * height > 64_000_000)

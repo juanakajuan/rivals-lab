@@ -40,7 +40,9 @@ test("downloads and copies the same full PNG without changing saved data", async
             "FINAL HERO NOTE",
         },
         { heroId: null, notes: "Empty slot note." },
-        ...empty.teams.ally.slice(2),
+        { heroId: "groot", notes: "" },
+        { heroId: "hulk", notes: "" },
+        ...empty.teams.ally.slice(4),
       ],
       enemy: [
         { heroId: "strange", notes: "Watch portal." },
@@ -171,9 +173,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   const finalHeroNote = result.positions.find(
     (entry) => entry.text === "FINAL HERO NOTE",
   );
-  const nextRow = result.positions.find(
-    (entry) => entry.text === "4. Empty slot",
-  );
+  const nextRow = result.positions.find((entry) => entry.text === "4. Hulk");
   expect(finalHeroNote).toBeDefined();
   expect(nextRow).toBeDefined();
   if (!finalHeroNote || !nextRow) throw new Error("Missing hero card content");
@@ -202,7 +202,6 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Step 11",
     "Wolverine",
     "Pending joint ban",
-    "Not selected",
     "FINAL NOTE BELOW THE SCROLL AREA",
   ])
     expect(text).toContain(expected);
@@ -295,6 +294,7 @@ test("downloads when image clipboard access is unsupported", async ({
   await page
     .getByRole("button", { name: "Draft / Comp Builder", exact: true })
     .click();
+  await page.getByLabel("Comp notes", { exact: true }).fill("Notes only.");
   const downloadReady = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Download & Copy", exact: true })
@@ -349,4 +349,105 @@ test("image generation failure produces no download or clipboard image", async (
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Keep failed export",
   );
+});
+
+test("sparse export omits empty sections and rejects an empty build", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.imageCopyTest = { text: [], writes: 0 };
+    Object.defineProperty(navigator, "clipboard", { value: undefined });
+    for (const prototype of [
+      CanvasRenderingContext2D.prototype,
+      OffscreenCanvasRenderingContext2D.prototype,
+    ]) {
+      const fillText = prototype.fillText;
+      prototype.fillText = function (text, x, y, maxWidth) {
+        window.imageCopyTest.text.push(text);
+        if (maxWidth === undefined) fillText.call(this, text, x, y);
+        else fillText.call(this, text, x, y, maxWidth);
+      };
+    }
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .click();
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  await page.getByLabel("Comp notes", { exact: true }).fill("   ");
+  await page
+    .getByRole("button", { name: "Download & Copy", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Add a title, map, hero, draft choice, or note before exporting.",
+  );
+  expect(downloads).toBe(0);
+  await page.getByLabel("Comp notes", { exact: true }).fill("Only the plan.");
+  const downloadReady = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download & Copy", exact: true })
+    .click();
+  await downloadReady;
+  await expect(page.getByRole("status")).toHaveText("Download started.");
+  const text = await page.evaluate(() => window.imageCopyTest.text.join("\n"));
+  expect(text).toContain("Only the plan.");
+  for (const excluded of [
+    "Allies",
+    "Opponents",
+    "Empty slot",
+    "Not selected",
+    "Untitled comp",
+    "Incomplete",
+    "FREE BUILD",
+    "DRAFT ·",
+    "No notes",
+  ])
+    expect(text).not.toContain(excluded);
+  const empty = emptyComp();
+  const sparse: Comp = {
+    ...empty,
+    name: "Sparse",
+    teams: {
+      ally: [
+        {
+          heroId: "deadpool",
+          deadpoolRole: "Strategist",
+          notes: "Stay close.",
+        },
+        ...empty.teams.ally.slice(1),
+      ],
+      enemy: [{ heroId: null, notes: "  \n " }, ...empty.teams.enemy.slice(1)],
+    },
+    draft: { format: "mrc", firstTeam: "ally", choices: [] },
+  };
+  await page.evaluate(
+    (source) => localStorage.setItem("rivals-lab.comps.v1", source),
+    serializeCompLibrary([
+      { id: "sparse", updatedAt: "2026-09-28T00:00:00Z", comp: sparse },
+    ]),
+  );
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Load Sparse", exact: true }).click();
+  const sparseDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download & Copy", exact: true })
+    .click();
+  await sparseDownload;
+  const sparseText = await page.evaluate(() =>
+    window.imageCopyTest.text.join("\n"),
+  );
+  for (const included of ["Allies", "Deadpool", "Strategist", "Stay close."])
+    expect(sparseText).toContain(included);
+  for (const excluded of [
+    "Opponents",
+    "Empty slot",
+    "Not selected",
+    "Comp notes",
+    "DRAFT ·",
+  ])
+    expect(sparseText).not.toContain(excluded);
 });
