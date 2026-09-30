@@ -19,5 +19,11 @@
     "skipLibCheck": true,
     "types": ["vite/client", "node", "react", "react-dom"]
   },
-  "include": ["src", "tests", "vite.config.ts", "playwright.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "vite.config.ts",
+    "playwright.config.ts",
+    "cloudflare.config.ts"
+  ]
 }

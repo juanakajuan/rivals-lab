@@ -3,6 +3,7 @@
 /dist
 /.svelte-kit
 /.wrangler
+/.cloudflare
 .env*
 .DS_Store
 npm-debug.log*
@@ -12,3 +13,7 @@ pnpm-debug.log*
 
 /test-results
 /playwright-report
+
+.dev.vars*
+!.dev.vars.example
+!.env.example
