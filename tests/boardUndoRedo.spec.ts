@@ -165,7 +165,7 @@ for (const modifier of ["Control", "Meta"]) {
     await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
       "Allies 4",
     );
-    // Both shortcuts must remain uncancelled in all text-editing surfaces.
+    // History shortcuts must remain uncancelled in text-editing surfaces.
     const prevented = await page.evaluate((key) => {
       const input = document.querySelector("input");
       if (!input) throw new Error("Missing search");
@@ -176,9 +176,13 @@ for (const modifier of ["Control", "Meta"]) {
       editable.append(child);
       document.body.append(textarea, editable);
       const results = [input, textarea, child].flatMap((target) =>
-        [false, true].map((shiftKey) => {
+        [
+          { key: "z", shiftKey: false },
+          { key: "z", shiftKey: true },
+          { key: "y", shiftKey: false },
+        ].map(({ key: shortcut, shiftKey }) => {
           const event = new KeyboardEvent("keydown", {
-            key: "z",
+            key: shortcut,
             ctrlKey: key === "Control",
             metaKey: key === "Meta",
             shiftKey,
@@ -193,7 +197,7 @@ for (const modifier of ["Control", "Meta"]) {
       editable.remove();
       return results;
     }, modifier);
-    expect(prevented).toEqual([false, false, false, false, false, false]);
+    expect(prevented).toEqual(Array<boolean>(9).fill(false));
     await search.fill("Hulk");
     await page.getByRole("button", { name: /^Opponents/ }).click();
     await page.keyboard.press(`${modifier}+z`);
@@ -242,4 +246,27 @@ test("undo during a drag cancels the gesture without adding an edit", async ({
   await expect(page.locator(".selection-name strong")).toHaveText(
     "Doctor Strange",
   );
+});
+
+test("Ctrl+Y redoes a board edit and preserves native text history", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await dropHero(page, "hulk", 500, 250);
+  const allies = page.getByRole("button", { name: /^Allies/ });
+  await page.keyboard.press("Control+z");
+  await expect(allies).toHaveText("Allies 3");
+  const search = page.getByRole("searchbox");
+  await search.pressSequentially("H");
+  await search.press("Control+z");
+  await expect(search).toHaveValue("");
+  await search.press("Control+y");
+  await expect(search).toHaveValue("H");
+  await expect(allies).toHaveText("Allies 3");
+  await page.getByRole("button", { name: /^Opponents/ }).click();
+  await page.keyboard.press("Control+y");
+  await expect(allies).toHaveText("Allies 4");
+  await expect(
+    page.getByRole("button", { name: "Redo", exact: true }),
+  ).toBeDisabled();
 });
