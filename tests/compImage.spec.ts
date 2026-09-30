@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { emptyDraft, setDraftHero } from "../src/draft";
 import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
 
 declare global {
@@ -49,26 +50,30 @@ test("downloads and copies the same full PNG without changing saved data", async
         ...empty.teams.enemy.slice(1),
       ],
     },
-    draft: {
-      format: "mrc",
-      firstTeam: "ally",
-      choices: [
-        "angela",
-        "captain-america",
-        "groot",
-        "hulk",
-        "magneto",
-        "peni-parker",
-        "rogue",
-        "the-hood",
-        "the-thing",
-        "thor",
+    draft: setDraftHero(
+      setDraftHero(
+        emptyDraft("mrc"),
+        { team: "ally", kind: "ban", index: 3 },
         "wolverine",
-      ],
-    },
+      ),
+      { team: "enemy", kind: "save", index: 1 },
+      "luna",
+    ),
+  };
+  const phasedComp = {
+    ...comp,
+    draft: setDraftHero(
+      setDraftHero(
+        comp.draft ?? emptyDraft("mrc"),
+        { team: "ally", kind: "save", index: 0 },
+        "groot",
+      ),
+      { team: "ally", kind: "ban", index: 1 },
+      "angela",
+    ),
   };
   const saved = serializeCompLibrary([
-    { id: "image-test", updatedAt: "2026-09-28T00:00:00Z", comp },
+    { id: "image-test", updatedAt: "2026-09-28T00:00:00Z", comp: phasedComp },
   ]);
   await page.addInitScript((source) => {
     localStorage.setItem("rivals-lab.comps.v1", source);
@@ -186,6 +191,13 @@ test("downloads and copies the same full PNG without changing saved data", async
   expect(result.text.filter((line) => /^W+$/.test(line)).join("")).toBe(
     "W".repeat(180),
   );
+  const save1 = result.positions.find((entry) => entry.text === "Save 1");
+  const ban2 = result.positions.find((entry) => entry.text === "Ban 2");
+  const ban4 = result.positions.find((entry) => entry.text === "Ban 4");
+  if (!save1 || !ban2 || !ban4) throw new Error("Missing draft phase labels");
+  expect(save1.y).toBe(ban2.y);
+  expect(save1.x).toBeLessThan(ban2.x);
+  expect(ban2.x).toBeLessThan(ban4.x);
   const text = result.text.join("\n");
   for (const expected of [
     "Unsaved team plan",
@@ -199,9 +211,10 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Hold the corner.",
     "Watch portal.",
     "Empty slot note.",
-    "Step 11",
+    "Ban 4",
     "Wolverine",
-    "Pending joint ban",
+    "Save 2",
+    "Luna Snow",
     "FINAL NOTE BELOW THE SCROLL AREA",
   ])
     expect(text).toContain(expected);
@@ -211,6 +224,9 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Choose hero",
     "Download & Copy",
     "Reset draft",
+    "Pending joint ban",
+    "Step 11",
+    "Ban 1",
   ])
     expect(text).not.toContain(excluded);
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
@@ -419,7 +435,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
       ],
       enemy: [{ heroId: null, notes: "  \n " }, ...empty.teams.enemy.slice(1)],
     },
-    draft: { format: "mrc", firstTeam: "ally", choices: [] },
+    draft: emptyDraft("mrc"),
   };
   await page.evaluate(
     (source) => localStorage.setItem("rivals-lab.comps.v1", source),
@@ -446,7 +462,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
     "Opponents",
     "Empty slot",
     "Not selected",
-    "Comp notes",
+    "Comp Notes",
     "DRAFT ·",
   ])
     expect(sparseText).not.toContain(excluded);

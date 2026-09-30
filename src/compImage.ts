@@ -1,6 +1,6 @@
 import { COMP_MAPS } from "./compMaps";
 import { type Comp } from "./comps";
-import { draftEffects, draftPhases } from "./draft";
+import { draftEffects, draftSlots, type DraftActionKind } from "./draft";
 import {
   HERO_BY_ID,
   heroImagePath,
@@ -22,33 +22,25 @@ const COLORS = {
   muted: "#8a8f98",
   ally: "#6872d9",
   enemy: "#df6670",
+  ban: "#e28a78",
+  save: "#5e6ad2",
 };
 
 interface DraftCard {
   readonly team: Team;
   readonly step: string;
-  readonly action: string;
-  readonly heroId: string | undefined;
-  readonly pending: boolean;
+  readonly kind: DraftActionKind;
+  readonly heroId: string | null;
 }
 
 function draftCards(comp: Comp): readonly DraftCard[] {
   if (!comp.draft) return [];
-  const draft = comp.draft;
-  let choiceIndex = 0;
-  return draftPhases(draft).flatMap((phase, phaseIndex) => {
-    const pending =
-      phase.length > 1 &&
-      draft.choices.length > choiceIndex &&
-      draft.choices.length < choiceIndex + phase.length;
-    return phase.map((action) => ({
-      team: action.team,
-      step: `Step ${phaseIndex + 1}${phase.length > 1 ? " · Both ban" : ""}`,
-      action: action.kind === "ban" ? "Ban" : "Save",
-      heroId: draft.choices[choiceIndex++],
-      pending,
-    }));
-  });
+  return draftSlots(comp.draft).map((slot) => ({
+    team: slot.team,
+    step: `${slot.kind === "ban" ? "Ban" : "Save"} ${slot.index + 1}`,
+    kind: slot.kind,
+    heroId: slot.heroId,
+  }));
 }
 
 /** Wrap without losing newlines or clipping long words and pasted URLs. */
@@ -186,6 +178,64 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     else text("—", x, y + size / 4, size, 22, COLORS.muted, true);
   }
 
+  function draftPortrait(
+    heroId: string | null,
+    kind: DraftActionKind,
+    x: number,
+    y: number,
+  ): void {
+    portrait(heroId, x, y, 44);
+    commands.push(() => {
+      context.save();
+      context.strokeStyle = COLORS[kind];
+      context.lineWidth = 2;
+      context.strokeRect(x, y, 44, 44);
+      if (kind === "ban") {
+        context.globalAlpha = 0.75;
+        context.lineWidth = 3;
+        context.beginPath();
+        context.moveTo(x + 2, y + 42);
+        context.lineTo(x + 42, y + 2);
+        context.stroke();
+        context.globalAlpha = 1;
+      }
+      const badgeX = x + 43;
+      const badgeY = y + 43;
+      context.fillStyle = COLORS[kind];
+      context.strokeStyle = COLORS.panel;
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(badgeX, badgeY, 10, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.lineWidth = 1.5;
+      context.beginPath();
+      if (kind === "ban") {
+        context.arc(badgeX, badgeY, 5, 0, Math.PI * 2);
+        context.moveTo(badgeX - 3.5, badgeY + 3.5);
+        context.lineTo(badgeX + 3.5, badgeY - 3.5);
+      } else {
+        context.moveTo(badgeX, badgeY - 5);
+        context.lineTo(badgeX + 4, badgeY - 3);
+        context.lineTo(badgeX + 4, badgeY + 1);
+        context.quadraticCurveTo(badgeX + 3, badgeY + 4, badgeX, badgeY + 5);
+        context.quadraticCurveTo(
+          badgeX - 3,
+          badgeY + 4,
+          badgeX - 4,
+          badgeY + 1,
+        );
+        context.lineTo(badgeX - 4, badgeY - 3);
+        context.closePath();
+        context.moveTo(badgeX - 2, badgeY);
+        context.lineTo(badgeX, badgeY + 2);
+        context.lineTo(badgeX + 2, badgeY - 1);
+      }
+      context.stroke();
+      context.restore();
+    });
+  }
+
   text(
     "RIVALS LAB  /  DRAFT & COMP BUILDER",
     PADDING,
@@ -299,7 +349,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
 
   if (cards.length && comp.draft) {
     const draftTop = y;
-    const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT · ${teamLabel(comp.draft.firstTeam)} first`;
+    const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT`;
     // Draw this panel before its content once its measured height is known.
     const panelIndex = commands.length;
     y += 20;
@@ -336,15 +386,15 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       let rowHeight = 0;
       teamCards.forEach((card, index) => {
         const x = left + index * (width + 12);
-        portrait(card.heroId, x + (width - 44) / 2, y + 28, 44);
-        text(card.step, x, y, width, 14, COLORS.muted, true);
+        draftPortrait(card.heroId, card.kind, x + (width - 44) / 2, y + 28);
+        text(card.step, x, y, width, 14, COLORS[card.kind], true);
         text(
-          card.action,
+          card.kind === "save" ? "Save" : "Ban",
           x,
-          y + 78,
+          y + 88,
           width,
           15,
-          card.action === "Save" ? COLORS.ally : COLORS.enemy,
+          COLORS[card.kind],
           true,
         );
         const nameHeight = text(
@@ -352,23 +402,13 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
             ? (HERO_BY_ID.get(card.heroId)?.name ?? "Unknown hero")
             : "Not selected",
           x + 4,
-          y + 100,
+          y + 110,
           width - 8,
           17,
           COLORS.text,
           true,
         );
-        let height = 104 + nameHeight;
-        if (card.pending && card.heroId)
-          height += text(
-            "Pending joint ban",
-            x,
-            y + height,
-            width,
-            14,
-            COLORS.muted,
-            true,
-          );
+        const height = 114 + nameHeight;
         rowHeight = Math.max(rowHeight, height);
       });
       y += rowHeight + 18;
@@ -402,7 +442,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       const height = rows * 26 + 84;
       panel(left, y, compNoteWidth, height);
       text(
-        `Comp notes${start ? " (continued)" : ""}`,
+        `Comp Notes${start ? " (Continued)" : ""}`,
         left + 16,
         y + 16,
         compNoteWidth - 32,

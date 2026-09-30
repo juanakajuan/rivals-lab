@@ -1,10 +1,14 @@
 import { expect, test } from "@playwright/test";
 import {
-  chooseDraftHero,
-  draftChoiceError,
-  draftEffects,
+  chooseLegacyDraftHero as chooseDraftHero,
+  legacyDraftChoiceError as draftChoiceError,
+  legacyDraftEffects as draftEffects,
+  draftEffects as slotEffects,
+  emptyDraft,
+  setDraftHero,
+  migrateLegacyDraft,
   draftProgress,
-  type DraftState,
+  type LegacyDraftState as DraftState,
 } from "../src/draft";
 import {
   compStatus,
@@ -99,7 +103,11 @@ test("saved comps validate external data and preserve partial drafts and conflic
     comp: {
       ...comp,
       name: "Dive",
-      draft: { format: "ignite", firstTeam: "ally", choices: ["strange"] },
+      draft: setDraftHero(
+        emptyDraft("ignite"),
+        { team: "ally", kind: "ban", index: 0 },
+        "strange",
+      ),
     },
   };
   expect(parseCompLibrary(serializeCompLibrary([entry]))).toEqual([entry]);
@@ -153,7 +161,11 @@ test("saved comps validate external data and preserve partial drafts and conflic
     expect(() => parseCompLibrary(JSON.stringify(value))).toThrow();
   const conflict = {
     ...entry.comp,
-    draft: { format: "mrc", firstTeam: "ally", choices: ["strange"] } as const,
+    draft: setDraftHero(
+      emptyDraft("mrc"),
+      { team: "ally", kind: "ban", index: 0 },
+      "strange",
+    ),
     teams: {
       ...comp.teams,
       ally: comp.teams.ally.map((slot, index) =>
@@ -222,5 +234,94 @@ test("Deadpool roles round-trip, legacy saves load, and invalid role data is rej
     expect(() =>
       parseCompLibrary(JSON.stringify({ version: 1, comps: [invalid] })),
     ).toThrow("Invalid Deadpool role");
+  }
+});
+
+test("direct slots apply at once and allow replace, clear, and legal cross-team bans", () => {
+  for (const format of ["mrc", "ignite"] as const) {
+    const allyBan = {
+      team: "ally",
+      kind: "ban",
+      index: format === "mrc" ? 3 : 4,
+    } as const;
+    const enemyBan = { team: "enemy", kind: "ban", index: 0 } as const;
+    let draft = setDraftHero(emptyDraft(format), allyBan, "hulk");
+    expect(slotEffects(draft).banned.enemy.has("hulk")).toBe(true);
+    expect(slotEffects(draft).banned.ally.has("hulk")).toBe(format === "mrc");
+    draft = setDraftHero(draft, enemyBan, "hulk");
+    expect(() => setDraftHero(draft, { ...allyBan, index: 0 }, "hulk")).toThrow(
+      "Already selected",
+    );
+    expect(() =>
+      setDraftHero(draft, { team: "ally", kind: "save", index: 1 }, "hulk"),
+    ).toThrow("Already banned");
+    draft = setDraftHero(draft, allyBan, "luna");
+    expect(slotEffects(draft).banned.enemy.has("luna")).toBe(true);
+    draft = setDraftHero(draft, enemyBan, null);
+    expect(slotEffects(draft).banned.ally.has("hulk")).toBe(false);
+    const saved = setDraftHero(
+      draft,
+      { team: "ally", kind: "save", index: 1 },
+      "strange",
+    );
+    expect(() => setDraftHero(saved, enemyBan, "strange")).toThrow("Protected");
+    const comp = { ...emptyComp(), name: "Direct", draft: saved };
+    const entry = { id: "direct", updatedAt: "2026-09-29T12:00:00Z", comp };
+    expect(parseCompLibrary(serializeCompLibrary([entry]))).toEqual([entry]);
+    for (const invalid of [
+      {
+        ...saved,
+        teams: { ...saved.teams, ally: { ...saved.teams.ally, ban: [] } },
+      },
+      {
+        ...saved,
+        teams: {
+          ...saved.teams,
+          ally: { ...saved.teams.ally, save: ["strange", "strange"] },
+        },
+      },
+      {
+        ...saved,
+        teams: {
+          ...saved.teams,
+          enemy: { ...saved.teams.enemy, save: ["luna", null] },
+        },
+      },
+    ])
+      expect(() =>
+        parseCompLibrary(
+          JSON.stringify({
+            version: 1,
+            comps: [{ ...entry, comp: { ...comp, draft: invalid } }],
+          }),
+        ),
+      ).toThrow();
+  }
+});
+
+test("legacy partial drafts migrate by team, including reversed first team and saves after bans", () => {
+  for (const firstTeam of ["ally", "enemy"] as const) {
+    const legacy: DraftState = {
+      format: "ignite",
+      firstTeam,
+      choices: ["strange", "hulk", "luna", "rocket", "magneto", "luna"],
+    };
+    const entry = {
+      id: "legacy",
+      updatedAt: "2026-09-29T12:00:00Z",
+      comp: { ...emptyComp(), name: "Legacy", draft: legacy },
+    };
+    const migrated = parseCompLibrary(
+      JSON.stringify({ version: 1, comps: [entry] }),
+    )[0]?.comp.draft;
+    expect(migrated).toEqual(migrateLegacyDraft(legacy));
+    expect(slotEffects(migrated ?? null)).toEqual(draftEffects(legacy));
+    const partial = { ...legacy, choices: ["strange"] };
+    const pending = migrateLegacyDraft(partial);
+    expect(
+      slotEffects(pending).banned[firstTeam === "ally" ? "enemy" : "ally"].has(
+        "strange",
+      ),
+    ).toBe(true);
   }
 });

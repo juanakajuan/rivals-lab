@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Search, ShieldCheck, Swords, X } from "lucide-react";
+import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
-import { draftPhases, draftProgress, type DraftState } from "./draft";
+import {
+  draftSlots,
+  emptyDraft,
+  setDraftHero,
+  type DraftState,
+  type DraftSlot,
+} from "./draft";
 import {
   DEADPOOL_ROLES,
   HEROES,
@@ -156,36 +162,11 @@ export function DraftPanel({
 }: {
   readonly draft: DraftState;
   readonly onChange: (draft: DraftState) => void;
-  readonly onChoose: () => void;
+  readonly onChoose: (slot: DraftSlot) => void;
 }): React.JSX.Element {
-  const progress = draftProgress(draft);
-  const phases = draftPhases(draft);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const rows = timelineRef.current?.querySelectorAll(".draft-team-steps");
-    rows?.forEach((row) => {
-      const current = row.querySelector('[aria-current="step"]');
-      if (!(row instanceof HTMLElement) || !(current instanceof HTMLElement))
-        return;
-      row.scrollLeft +=
-        current.getBoundingClientRect().left -
-        row.getBoundingClientRect().left -
-        (row.clientWidth - current.offsetWidth) / 2;
-    });
-  }, [progress.phaseIndex]);
+  const slots = draftSlots(draft);
+  const filled = slots.filter((slot) => slot.heroId !== null).length;
   const teams: readonly Team[] = ["ally", "enemy"];
-  let offset = 0;
-  const steps = phases.flatMap((phase, phaseIndex) => {
-    const start = offset;
-    offset += phase.length;
-    return phase.map((action, actionIndex) => ({
-      ...action,
-      phaseIndex,
-      heroId: draft.choices[start + actionIndex],
-      simultaneous: phase.length > 1,
-      done: draft.choices.length >= offset,
-    }));
-  });
   return (
     <section
       className="builder-card draft-panel"
@@ -196,24 +177,19 @@ export function DraftPanel({
           <p className="eyebrow">
             {draft.format === "mrc" ? "MRC" : "Ignite"} draft
           </p>
-          <h2 id="draft-heading">
-            {progress.action
-              ? `${teamLabel(progress.action.team)} ${progress.action.kind}`
-              : "Draft complete"}
-          </h2>
+          <h2 id="draft-heading">Bans And Saves</h2>
         </div>
         <span className="status-tag">
-          {progress.action
-            ? `Step ${progress.phaseIndex + 1} / ${phases.length}`
-            : "All choices set"}
+          {filled} / {slots.length} choices set
         </span>
       </div>
       <p className="muted-copy">
         {draft.format === "mrc"
           ? "4 bans + 2 saves per team. Bans and saves apply to both teams."
-          : "5 bans + 2 saves per team. Ban for the opponent. Save for your team."}
+          : "5 bans + 2 saves per team. Ban for the opponent. Save for your team."}{" "}
+        Fill any slot. Each choice takes effect at once.
       </p>
-      <div ref={timelineRef} className="draft-timeline">
+      <div className="draft-timeline">
         {teams.map((team) => (
           <section
             className="draft-team-row"
@@ -227,88 +203,95 @@ export function DraftPanel({
             </h3>
             <ol
               className="draft-team-steps"
-              aria-label={`${teamLabel(team)} draft steps`}
+              aria-label={`${teamLabel(team)} draft slots`}
             >
-              {steps
-                .filter((step) => step.team === team)
-                .map((step) => (
-                  <li
-                    key={step.phaseIndex}
-                    className={`draft-step ${step.phaseIndex === progress.phaseIndex ? "current" : ""} ${step.done ? "done" : ""}`}
-                    aria-current={
-                      step.phaseIndex === progress.phaseIndex
-                        ? "step"
-                        : undefined
-                    }
-                  >
-                    <span className="step-number">
-                      Step {step.phaseIndex + 1}
-                      {step.simultaneous ? " · Both ban" : ""}
-                    </span>
-                    <div className="draft-step-choice" data-team={team}>
-                      {step.heroId ? (
-                        <img src={heroImagePath(step.heroId)} alt="" />
-                      ) : (
-                        <span className="draft-placeholder">
-                          {step.kind === "save" ? (
-                            <ShieldCheck size={15} />
-                          ) : (
-                            <Swords size={15} />
-                          )}
+              {slots
+                .filter((slot) => slot.team === team)
+                .map((slot) => {
+                  const label = `${teamLabel(team)} ${slot.kind} ${slot.index + 1}`;
+                  const hero = slot.heroId
+                    ? HERO_BY_ID.get(slot.heroId)
+                    : undefined;
+                  return (
+                    <li
+                      key={`${slot.kind}-${slot.index}`}
+                      className={`draft-step${hero ? " done" : ""}`}
+                      data-action={slot.kind}
+                    >
+                      <button
+                        type="button"
+                        className="draft-slot-button"
+                        aria-label={`${label}: ${hero?.name ?? "Choose hero"}`}
+                        onClick={() => onChoose(slot)}
+                      >
+                        <span className="step-number">
+                          {slot.kind === "ban" ? "Ban" : "Save"}{" "}
+                          {slot.index + 1}
                         </span>
+                        <span className="draft-step-choice" data-team={team}>
+                          <span
+                            className={`draft-portrait${hero ? " has-hero" : ""}`}
+                          >
+                            {hero ? (
+                              <img src={heroImagePath(hero.id)} alt="" />
+                            ) : (
+                              <span className="draft-placeholder">
+                                {slot.kind === "save" ? (
+                                  <ShieldCheck size={22} />
+                                ) : (
+                                  <Ban size={22} />
+                                )}
+                              </span>
+                            )}
+                            {hero && (
+                              <span
+                                className="draft-action-badge"
+                                aria-hidden="true"
+                              >
+                                {slot.kind === "save" ? (
+                                  <ShieldCheck size={12} />
+                                ) : (
+                                  <Ban size={12} />
+                                )}
+                              </span>
+                            )}
+                          </span>
+                          <span>
+                            <strong>{hero?.name ?? "Choose hero"}</strong>
+                          </span>
+                        </span>
+                      </button>
+                      {hero && (
+                        <button
+                          type="button"
+                          className="draft-clear icon-button"
+                          aria-label={`Clear ${label}`}
+                          onClick={() =>
+                            onChange(setDraftHero(draft, slot, null))
+                          }
+                        >
+                          <X size={14} />
+                        </button>
                       )}
-                      <span>
-                        <small>{step.kind === "ban" ? "Ban" : "Save"}</small>
-                        <strong>
-                          {step.heroId
-                            ? HERO_BY_ID.get(step.heroId)?.name
-                            : "—"}
-                        </strong>
-                      </span>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
             </ol>
           </section>
         ))}
       </div>
-      {progress.phase.length > 1 && (
-        <p className="joint-note">
-          Simultaneous bans · {progress.pendingChoices.length} / 2 choices
-          entered. Both bans take effect together.
-          {draft.format === "mrc"
-            ? " Both teams may select the same hero."
-            : ""}
-        </p>
-      )}
       <div className="draft-controls">
-        {progress.action && (
-          <button type="button" className="primary-button" onClick={onChoose}>
-            {progress.action.kind === "ban" ? "Choose ban" : "Choose save"} ·{" "}
-            {teamLabel(progress.action.team)}
-          </button>
-        )}
         <button
           type="button"
           className="secondary-button"
-          disabled={!draft.choices.length}
-          onClick={() =>
-            onChange({ ...draft, choices: draft.choices.slice(0, -1) })
-          }
-        >
-          Undo
-        </button>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={!draft.choices.length}
+          disabled={!filled}
           onClick={() => {
             if (
               window.confirm(
                 "Reset all bans and saves? Comp heroes and notes will stay.",
               )
             )
-              onChange({ ...draft, choices: [] });
+              onChange(emptyDraft(draft.format));
           }}
         >
           Reset draft

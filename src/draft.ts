@@ -8,7 +8,7 @@ export interface DraftAction {
   readonly kind: DraftActionKind;
 }
 
-export interface DraftState {
+export interface LegacyDraftState {
   readonly format: DraftFormat;
   readonly firstTeam: Team;
   /** Choices follow phase order. A joint phase takes effect only when complete. */
@@ -37,7 +37,7 @@ function actionTarget(format: DraftFormat, action: DraftAction): Team {
 }
 
 export function draftPhases(
-  draft: Pick<DraftState, "format" | "firstTeam">,
+  draft: Pick<LegacyDraftState, "format" | "firstTeam">,
 ): readonly (readonly DraftAction[])[] {
   const t1 = draft.firstTeam;
   const t2 = otherTeam(t1);
@@ -73,7 +73,7 @@ export function draftPhases(
       ];
 }
 
-export function draftProgress(draft: DraftState): DraftProgress {
+export function draftProgress(draft: LegacyDraftState): DraftProgress {
   const phases = draftPhases(draft);
   let offset = 0;
   for (const [phaseIndex, phase] of phases.entries()) {
@@ -96,7 +96,9 @@ export function draftProgress(draft: DraftState): DraftProgress {
   };
 }
 
-export function draftEffects(draft: DraftState | null): DraftEffects {
+export function legacyDraftEffects(
+  draft: LegacyDraftState | null,
+): DraftEffects {
   const banned: Record<Team, Set<string>> = {
     ally: new Set(),
     enemy: new Set(),
@@ -126,23 +128,172 @@ export function draftEffects(draft: DraftState | null): DraftEffects {
 }
 
 /** Returns an explanation for an unavailable choice, or null when legal. */
-export function draftChoiceError(
-  draft: DraftState,
+export function legacyDraftChoiceError(
+  draft: LegacyDraftState,
   heroId: string,
 ): string | null {
   if (!HERO_BY_ID.has(heroId)) return "Unknown hero.";
   const { action } = draftProgress(draft);
   if (!action) return "The draft is complete.";
   const target = actionTarget(draft.format, action);
-  const effects = draftEffects(draft);
+  const effects = legacyDraftEffects(draft);
   if (effects.banned[target].has(heroId))
     return "Already banned for this team.";
   if (effects.saved[target].has(heroId)) return "Protected for this team.";
   return null;
 }
 
-export function chooseDraftHero(draft: DraftState, heroId: string): DraftState {
-  const error = draftChoiceError(draft, heroId);
+export function chooseLegacyDraftHero(
+  draft: LegacyDraftState,
+  heroId: string,
+): LegacyDraftState {
+  const error = legacyDraftChoiceError(draft, heroId);
   if (error) throw new Error(error);
   return { ...draft, choices: [...draft.choices, heroId] };
+}
+
+export interface DraftTeamSlots {
+  readonly ban: readonly (string | null)[];
+  readonly save: readonly (string | null)[];
+}
+
+export interface DraftState {
+  readonly format: DraftFormat;
+  readonly teams: Readonly<Record<Team, DraftTeamSlots>>;
+}
+
+export interface DraftSlot extends DraftAction {
+  readonly index: number;
+}
+
+export function emptyDraft(format: DraftFormat): DraftState {
+  const slots = (): DraftTeamSlots => ({
+    ban: Array.from({ length: format === "mrc" ? 4 : 5 }, () => null),
+    save: [null, null],
+  });
+  return { format, teams: { ally: slots(), enemy: slots() } };
+}
+
+function orderedDraftSlots(
+  draft: Pick<LegacyDraftState, "format" | "firstTeam">,
+): readonly DraftSlot[] {
+  const counts: Record<Team, Record<DraftActionKind, number>> = {
+    ally: { ban: 0, save: 0 },
+    enemy: { ban: 0, save: 0 },
+  };
+  return draftPhases(draft)
+    .flat()
+    .map((action) => ({
+      ...action,
+      index: counts[action.team][action.kind]++,
+    }));
+}
+
+/** Display phase positions without requiring users to enter choices in order. */
+export function draftSlots(
+  draft: DraftState,
+): readonly (DraftSlot & { readonly heroId: string | null })[] {
+  return orderedDraftSlots({ format: draft.format, firstTeam: "ally" }).map(
+    (slot) => ({
+      ...slot,
+      heroId: draft.teams[slot.team][slot.kind][slot.index] ?? null,
+    }),
+  );
+}
+
+export function draftEffects(draft: DraftState | null): DraftEffects {
+  const banned: Record<Team, Set<string>> = {
+    ally: new Set(),
+    enemy: new Set(),
+  };
+  const saved: Record<Team, Set<string>> = {
+    ally: new Set(),
+    enemy: new Set(),
+  };
+  if (draft)
+    for (const slot of draftSlots(draft)) {
+      if (!slot.heroId) continue;
+      const targets: readonly Team[] =
+        draft.format === "mrc"
+          ? ["ally", "enemy"]
+          : [actionTarget(draft.format, slot)];
+      for (const target of targets)
+        (slot.kind === "ban" ? banned : saved)[target].add(slot.heroId);
+    }
+  return { banned, saved };
+}
+
+function validDraftSlot(draft: DraftState, slot: DraftSlot): boolean {
+  return (
+    Number.isInteger(slot.index) &&
+    slot.index >= 0 &&
+    slot.index < draft.teams[slot.team][slot.kind].length
+  );
+}
+
+export function draftChoiceError(
+  draft: DraftState,
+  slot: DraftSlot,
+  heroId: string,
+): string | null {
+  if (!HERO_BY_ID.has(heroId)) return "Unknown hero.";
+  if (!validDraftSlot(draft, slot)) return "Invalid draft slot.";
+  const target = actionTarget(draft.format, slot);
+  for (const existing of draftSlots(draft)) {
+    if (
+      existing.heroId !== heroId ||
+      (existing.team === slot.team &&
+        existing.kind === slot.kind &&
+        existing.index === slot.index)
+    )
+      continue;
+    if (existing.kind === slot.kind) {
+      if (
+        existing.team === slot.team ||
+        (slot.kind === "save" && draft.format === "mrc")
+      )
+        return "Already selected for this team.";
+      continue;
+    }
+    if (
+      draft.format === "mrc" ||
+      actionTarget(draft.format, existing) === target
+    )
+      return slot.kind === "ban"
+        ? "Protected for this team."
+        : "Already banned for this team.";
+  }
+  return null;
+}
+
+export function setDraftHero(
+  draft: DraftState,
+  slot: DraftSlot,
+  heroId: string | null,
+): DraftState {
+  if (!validDraftSlot(draft, slot)) throw new Error("Invalid draft slot.");
+  const error = heroId === null ? null : draftChoiceError(draft, slot, heroId);
+  if (error) throw new Error(error);
+  return {
+    ...draft,
+    teams: {
+      ...draft.teams,
+      [slot.team]: {
+        ...draft.teams[slot.team],
+        [slot.kind]: draft.teams[slot.team][slot.kind].map((hero, index) =>
+          index === slot.index ? heroId : hero,
+        ),
+      },
+    },
+  };
+}
+
+export function migrateLegacyDraft(draft: LegacyDraftState): DraftState {
+  let result = emptyDraft(draft.format);
+  for (const [index, slot] of orderedDraftSlots(draft).entries()) {
+    const heroId = draft.choices[index];
+    if (!heroId) break;
+    result = setDraftHero(result, slot, heroId);
+  }
+  return result;
 }
