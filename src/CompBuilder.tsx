@@ -27,6 +27,7 @@ import {
   updateCompLibrary,
   type Comp,
   type CompSlot,
+  type CompLibrary,
   type SavedComp,
 } from "./comps";
 import {
@@ -58,6 +59,7 @@ type NameRequest =
 interface LibraryState {
   readonly entries: readonly SavedComp[];
   readonly error: string | null;
+  readonly unavailableCount: number;
 }
 
 const TEAMS: readonly Team[] = ["ally", "enemy"];
@@ -66,12 +68,23 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
 }
 
+function libraryState(library: CompLibrary): LibraryState {
+  return {
+    entries: library.entries,
+    unavailableCount: library.unavailable.length,
+    error: library.unavailable.length
+      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${library.errors.join(" ")}`
+      : null,
+  };
+}
+
 function loadLibrary(): LibraryState {
   try {
-    return { entries: readCompLibrary(), error: null };
+    return libraryState(readCompLibrary());
   } catch (error) {
     return {
       entries: [],
+      unavailableCount: 0,
       error: `Saved comps could not be read: ${errorMessage(error)}`,
     };
   }
@@ -193,8 +206,7 @@ export function CompBuilder({
     update: (current: readonly SavedComp[]) => readonly SavedComp[],
   ): boolean {
     try {
-      const entries = updateCompLibrary(update);
-      setLibrary({ entries, error: null });
+      setLibrary(libraryState(updateCompLibrary(update)));
       setError(null);
       return true;
     } catch (cause) {
@@ -550,10 +562,11 @@ export function CompBuilder({
             <button
               type="button"
               className="secondary-button"
-              disabled={!library.entries.length}
+              disabled={!library.entries.length && !library.error}
               onClick={() =>
                 downloadJson(
-                  serializeCompLibrary(library.entries),
+                  localStorage.getItem(COMP_STORAGE_KEY) ??
+                    serializeCompLibrary([]),
                   "rivals-comps.json",
                 )
               }
@@ -613,7 +626,12 @@ export function CompBuilder({
         </div>
         {library.error && (
           <div className="builder-error" role="alert">
-            <p>{library.error} Existing data will not be overwritten.</p>
+            <p>
+              {library.error}{" "}
+              {library.unavailableCount
+                ? "Entries that cannot be loaded stay stored for recovery."
+                : "Existing data will not be overwritten."}
+            </p>
             <button
               type="button"
               className="secondary-button"
