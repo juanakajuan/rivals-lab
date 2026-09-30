@@ -9,6 +9,8 @@ Use Node.js 22.18.0 or later. Install dependencies with `npm ci`.
 - `npm run build`: create the production build.
 - `npm run deploy`: build and deploy to Cloudflare Workers.
 - `npm test`: run browser tests. See [test setup](tests/README.md).
+- `npm run test:production`: build and test the production preview in Chromium,
+  Firefox, and WebKit. See [browser support and test setup](tests/README.md).
 
 ## Formatting
 
@@ -31,6 +33,22 @@ through `.prettierignore`.
 
 Before a pull request, run `npm run format:check`, `npm run check`, and
 `npm run build`.
+The Release checks workflow runs these checks, the development regressions, and
+the production browser flows for pull requests and pushes to `main`. Check both
+jobs on the pull request before merge or release. Failed browser runs include
+reports, traces, and downloaded images in the `browser-results` Actions artifact.
+
+## Browser support
+
+The app supports current desktop Chrome, Edge, and Firefox. Release checks use
+the Chromium, Firefox, and WebKit versions supplied by the locked Playwright
+dependency. Image download must work in all three engines. Image clipboard copy
+depends on browser support, permissions, and a secure context. A clipboard limit
+must not prevent a PNG download.
+
+WebKit is an automated engine check. It does not verify Safari on a physical Mac
+or iOS device. Safari and iOS support remains unverified until manual device
+testing is complete.
 
 ## Board history
 

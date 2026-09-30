@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
+    "test:production": "playwright test --config playwright.production.config.ts",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
