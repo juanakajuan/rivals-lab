@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function openBuilder(page: Page): Promise<void> {
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
 }
 
@@ -280,13 +280,9 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await page.getByLabel("Allies slot 1 notes").fill("abc");
   await page.getByLabel("Allies slot 1 notes").press("Backspace");
   await expect(page.getByLabel("Allies slot 1 notes")).toHaveValue("ab");
-  await page
-    .getByRole("button", { name: "Position Board", exact: true })
-    .focus();
+  await page.getByRole("link", { name: "Position Board", exact: true }).focus();
   await page.keyboard.press("Control+z");
-  await page
-    .getByRole("button", { name: "Position Board", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Position Board", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Allies 1", exact: true }),
   ).toBeVisible();

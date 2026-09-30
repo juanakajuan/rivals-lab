@@ -93,7 +93,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   }, saved);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page
     .getByRole("button", { name: "Load Saved build", exact: true })
@@ -260,7 +260,7 @@ test("prevents repeat writes and only reports success after the write", async ({
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page.getByLabel("Comp name", { exact: true }).fill("Keep this build");
   let downloads = 0;
@@ -308,7 +308,7 @@ test("downloads when image clipboard access is unsupported", async ({
   );
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page.getByLabel("Comp notes", { exact: true }).fill("Notes only.");
   const downloadReady = page.waitForEvent("download");
@@ -346,7 +346,7 @@ test("image generation failure produces no download or clipboard image", async (
   await page.route("**/compImageEncoder.worker.ts*", (route) => route.abort());
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page
     .getByLabel("Comp name", { exact: true })
@@ -387,7 +387,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   let downloads = 0;
   page.on("download", () => downloads++);
@@ -445,7 +445,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   );
   await page.reload();
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page.getByRole("button", { name: "Load Sparse", exact: true }).click();
   const sparseDownload = page.waitForEvent("download");
