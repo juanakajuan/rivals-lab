@@ -333,11 +333,6 @@ button:focus-visible,
   border-color: var(--team-color);
 }
 
-.row-action:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: 1px;
-}
-
 .hero-row:active {
   cursor: grabbing;
 }
