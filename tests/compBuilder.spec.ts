@@ -529,3 +529,144 @@ test("mixed saved data stays recoverable through valid library changes", async (
     expect(await readFile(path, "utf8")).toBe(source);
   }
 });
+
+for (const renameBeforeSave of [false, true]) {
+  test(`stale tab preserves newer notes${renameBeforeSave ? " after library rename" : " with the same save timestamp"}`, async ({
+    page,
+    context,
+  }) => {
+    // Timestamp equality must not hide a content change.
+    const time = new Date("2026-09-30T12:00:00Z");
+    await page.clock.setFixedTime(time);
+    await page.goto("/builder");
+    await page.getByLabel("Comp name", { exact: true }).fill("Shared comp");
+    await pickHero(page, "Allies slot 1: Choose hero", "Deadpool · Strategist");
+    await page.getByLabel("Comp notes", { exact: true }).fill("Original notes");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const stale = await context.newPage();
+    await stale.clock.setFixedTime(time);
+    await stale.goto("/builder");
+    await stale
+      .getByRole("button", { name: "Load Shared comp", exact: true })
+      .click();
+    await page
+      .getByLabel("Comp notes", { exact: true })
+      .fill("New notes from tab A");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("Saved Shared comp.");
+    if (renameBeforeSave) {
+      await stale
+        .getByRole("button", { name: "Rename Shared comp", exact: true })
+        .click();
+      await stale
+        .getByRole("dialog")
+        .getByLabel("Comp name")
+        .fill("Renamed comp");
+      await stale
+        .getByRole("button", { name: "Save name", exact: true })
+        .click();
+    } else {
+      await stale.getByLabel("Comp name", { exact: true }).fill("Renamed comp");
+    }
+    const storedBefore = await page.evaluate(() =>
+      localStorage.getItem("rivals-lab.comps.v1"),
+    );
+    await stale.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(stale.getByRole("alert")).toContainText(
+      "This comp changed in another tab",
+    );
+    await expect(stale.getByLabel("Comp name", { exact: true })).toHaveValue(
+      "Renamed comp",
+    );
+    await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      "Original notes",
+    );
+    expect(
+      await page.evaluate(() => localStorage.getItem("rivals-lab.comps.v1")),
+    ).toBe(storedBefore);
+    await stale.getByRole("button", { name: "Save As", exact: true }).click();
+    await stale
+      .getByRole("dialog")
+      .getByLabel("Comp name")
+      .fill("Recovered copy");
+    await stale.getByRole("button", { name: "Save name", exact: true }).click();
+    await expect(stale.getByRole("status")).toHaveText("Saved Recovered copy.");
+    await expect(stale.locator(".saved-comp")).toHaveCount(2);
+    await stale
+      .getByRole("button", {
+        name: `Load ${renameBeforeSave ? "Renamed comp" : "Shared comp"}`,
+        exact: true,
+      })
+      .click();
+    await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      "New notes from tab A",
+    );
+    await stale
+      .getByRole("button", { name: "Load Recovered copy", exact: true })
+      .click();
+    await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      "Original notes",
+    );
+    await stale
+      .getByRole("button", { name: "Rename Recovered copy", exact: true })
+      .click();
+    await stale.getByRole("dialog").getByLabel("Comp name").fill("My copy");
+    await stale.getByRole("button", { name: "Save name", exact: true }).click();
+    await stale
+      .getByLabel("Comp notes", { exact: true })
+      .fill("Safe further edits");
+    await stale.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(stale.getByRole("status")).toHaveText("Saved My copy.");
+  });
+}
+
+test("stale tab cannot restore a deleted comp and can save its edits as a new copy", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/builder");
+  await page.getByLabel("Comp name", { exact: true }).fill("Deleted comp");
+  await page.getByLabel("Comp notes", { exact: true }).fill("Original notes");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const stale = await context.newPage();
+  await stale.goto("/builder");
+  await stale
+    .getByRole("button", { name: "Load Deleted comp", exact: true })
+    .click();
+  await stale
+    .getByLabel("Comp notes", { exact: true })
+    .fill("Edits from tab B");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "Delete Deleted comp", exact: true })
+    .click();
+  const storedBefore = await page.evaluate(() =>
+    localStorage.getItem("rivals-lab.comps.v1"),
+  );
+  await stale.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(stale.getByRole("alert")).toContainText(
+    "This comp was deleted in another tab",
+  );
+  await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Edits from tab B",
+  );
+  expect(
+    await page.evaluate(() => localStorage.getItem("rivals-lab.comps.v1")),
+  ).toBe(storedBefore);
+  await expect(stale.locator(".saved-comp")).toHaveCount(0);
+  await stale.getByRole("button", { name: "Save As", exact: true }).click();
+  await stale
+    .getByRole("dialog")
+    .getByLabel("Comp name")
+    .fill("Recovered comp");
+  await stale.getByRole("button", { name: "Save name", exact: true }).click();
+  await expect(stale.getByRole("status")).toHaveText("Saved Recovered comp.");
+  await stale.reload();
+  await stale
+    .getByRole("button", { name: "Load Recovered comp", exact: true })
+    .click();
+  await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Edits from tab B",
+  );
+  await expect(stale.locator(".saved-comp")).toHaveCount(1);
+});
