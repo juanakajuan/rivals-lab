@@ -40,3 +40,26 @@ oldest saved entries when needed and clear redo. Unchanged actions preserve hist
 
 Use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo. Ctrl+Y also redoes on
 Windows/Linux. These shortcuts leave editable fields to native text editing.
+
+## Saved comp compatibility
+
+Map, hero, and saved comp IDs are persistent storage keys. Keep these IDs when
+names, images, or map pools change. Do not reuse a removed ID for another item.
+
+The version 1 library validates each stored entry separately. Valid comps can
+load and save while entries with obsolete IDs, draft rules, or malformed data
+stay stored for recovery. These entries count toward storage limits. Both
+Export all and the recovery export include them. Imports reject a file if any
+entry cannot load; storage does not change.
+
+The current legacy migration is explicit: `decodeDraft` validates sequential
+`firstTeam`/`choices` data, then calls `migrateLegacyDraft` to produce team slots.
+It keeps the saved comp ID. Valid migrations are saved when the library changes.
+Entries without a Deadpool role stay editable; no role is guessed.
+
+For a format or rule change, add an explicit migration at the decode boundary
+before current validation. For a new envelope version, add a version-specific
+migration in `decodeCompLibrary`. Keep the old decoder or rule definition needed
+to validate the source. Add a regression for the old data and the migrated result.
+Do not map retired IDs without a known replacement or guess lost draft choices.
+If migration cannot preserve meaning, keep the raw entry unavailable for recovery.

@@ -217,6 +217,17 @@ export function CompBuilder({
     }
   }
 
+  function exportStoredData(filename: string): void {
+    try {
+      downloadJson(
+        localStorage.getItem(COMP_STORAGE_KEY) ?? serializeCompLibrary([]),
+        filename,
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }
+
   function canDiscard(): boolean {
     return !dirty || window.confirm("Discard unsaved comp edits?");
   }
@@ -563,13 +574,7 @@ export function CompBuilder({
               type="button"
               className="secondary-button"
               disabled={!library.entries.length && !library.error}
-              onClick={() =>
-                downloadJson(
-                  localStorage.getItem(COMP_STORAGE_KEY) ??
-                    serializeCompLibrary([]),
-                  "rivals-comps.json",
-                )
-              }
+              onClick={() => exportStoredData("rivals-comps.json")}
             >
               <Download size={14} />
               Export all
@@ -635,16 +640,7 @@ export function CompBuilder({
             <button
               type="button"
               className="secondary-button"
-              onClick={() => {
-                try {
-                  downloadJson(
-                    localStorage.getItem(COMP_STORAGE_KEY) ?? "",
-                    "rivals-comps-recovery.json",
-                  );
-                } catch (cause) {
-                  setError(errorMessage(cause));
-                }
-              }}
+              onClick={() => exportStoredData("rivals-comps-recovery.json")}
             >
               Export stored data for recovery
             </button>

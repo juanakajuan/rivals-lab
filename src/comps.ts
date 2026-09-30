@@ -248,10 +248,10 @@ export function updateCompLibrary(
   for (const item of current.unavailable)
     if (isRecord(item) && next.some((entry) => entry.id === item.id))
       throw new Error("A comp ID belongs to an unavailable entry.");
-  parseCompLibrary(serializeCompLibrary(next));
   const comps = [...next, ...current.unavailable];
   if (comps.length > MAX_SAVED_COMPS)
     throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
+  parseCompLibrary(serializeCompLibrary(next));
   const source = JSON.stringify({ ...current.envelope, comps }, null, 2);
   if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES) {
     throw new Error(

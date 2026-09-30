@@ -1,4 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { emptyComp } from "../src/comps";
+import { emptyDraft } from "../src/draft";
+import { readFile } from "node:fs/promises";
 
 async function openBuilder(page: Page): Promise<void> {
   await page
@@ -410,4 +413,119 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved Deadpool support.");
   await expect(page.getByLabel("Allies slot 1 Deadpool role")).toHaveCount(0);
+});
+
+test("mixed saved data stays recoverable through valid library changes", async ({
+  page,
+}) => {
+  const comp = { ...emptyComp(), name: "Valid comp" };
+  const saved = { id: "valid", updatedAt: "2026-09-30T12:00:00Z", comp };
+  const unavailable = [
+    { ...saved, id: "obsolete-map", comp: { ...comp, mapId: "retired-map" } },
+    {
+      ...saved,
+      id: "obsolete-hero",
+      comp: {
+        ...comp,
+        teams: {
+          ...comp.teams,
+          ally: comp.teams.ally.map((slot, index) =>
+            index === 0 ? { ...slot, heroId: "retired-hero" } : slot,
+          ),
+        },
+      },
+    },
+    {
+      ...saved,
+      id: "obsolete-rules",
+      comp: {
+        ...comp,
+        draft: {
+          ...emptyDraft("mrc"),
+          teams: { ...emptyDraft("mrc").teams, ally: { ban: [], save: [] } },
+        },
+      },
+    },
+  ];
+  await page.goto("/");
+  await page.evaluate(
+    (comps) =>
+      localStorage.setItem(
+        "rivals-lab.comps.v1",
+        JSON.stringify({
+          version: 1,
+          comps,
+          recoveryNote: "Keep envelope metadata",
+        }),
+      ),
+    [saved, ...unavailable],
+  );
+  await page.reload();
+  await openBuilder(page);
+  await expect(page.getByRole("alert")).toContainText(
+    "3 saved comp(s) cannot be loaded",
+  );
+  await page
+    .getByRole("button", { name: "Load Valid comp", exact: true })
+    .click();
+  await page.getByLabel("Comp notes", { exact: true }).fill("Still editable");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved Valid comp.");
+  await page
+    .getByRole("button", { name: "Rename Valid comp", exact: true })
+    .click();
+  await page.getByRole("dialog").getByLabel("Comp name").fill("Renamed valid");
+  await page.getByRole("button", { name: "Save name", exact: true }).click();
+  await page.getByRole("button", { name: "New comp", exact: true }).click();
+  await page.getByLabel("Comp name", { exact: true }).fill("New valid");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved New valid.");
+  await page.getByLabel("Import comps JSON").setInputFiles({
+    name: "valid.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({ version: 1, comps: [saved] })),
+  });
+  await expect(page.getByRole("status")).toHaveText(
+    "Imported 1 comp as copies.",
+  );
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "Delete New valid", exact: true })
+    .click();
+  await page.reload();
+  await openBuilder(page);
+  await page
+    .getByRole("button", { name: "Load Renamed valid", exact: true })
+    .click();
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Still editable",
+  );
+  const source = await page.evaluate(() =>
+    localStorage.getItem("rivals-lab.comps.v1"),
+  );
+  if (!source) throw new Error("Missing saved library");
+  // Compare external JSON as unknown; no cast can hide malformed stored data.
+  const actual: unknown = JSON.parse(source);
+  expect(actual).toMatchObject({
+    version: 1,
+    recoveryNote: "Keep envelope metadata",
+    comps: expect.arrayContaining(unavailable),
+  });
+  expect(actual).toMatchObject({
+    comps: expect.arrayContaining([
+      {
+        ...saved,
+        comp: { ...comp, name: "Renamed valid", notes: "Still editable" },
+        updatedAt: expect.any(String),
+      },
+    ]),
+  });
+  for (const name of ["Export all", "Export stored data for recovery"]) {
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name, exact: true }).click();
+    const download = await downloadPromise;
+    const path = await download.path();
+    if (!path) throw new Error("Missing download");
+    expect(await readFile(path, "utf8")).toBe(source);
+  }
 });
