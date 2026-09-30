@@ -369,6 +369,37 @@ export default function App(): React.JSX.Element {
     setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
   }
 
+  function addHero(hero: HeroDefinition): void {
+    if (tokens.some((token) => token.id === `${selectedTeam}-${hero.id}`))
+      return;
+
+    const boundary = clampToBoard(0, selectedMap.width, iconSize);
+    const spacing = boundary * 2 + 4;
+    const halfWidth = Math.floor(selectedMap.width / 2);
+    const preferredStart = selectedTeam === "ally" ? 0 : halfWidth;
+    const maximumY = selectedMap.height - boundary;
+    for (const startX of [preferredStart, halfWidth - preferredStart]) {
+      const maximumX = startX + halfWidth - boundary;
+      for (let y = spacing; y <= maximumY; y += spacing) {
+        for (let x = startX + spacing; x <= maximumX; x += spacing) {
+          if (
+            tokens.some(
+              (token) =>
+                Math.abs(token.x - x) < spacing &&
+                Math.abs(token.y - y) < spacing,
+            )
+          )
+            continue;
+          placeHero(hero, x, y, selectedTeam);
+          return;
+        }
+      }
+    }
+    setAnnouncement(
+      `No free position for ${hero.name}. Move or remove a hero first.`,
+    );
+  }
+
   function handleHeroDragStart(
     event: React.DragEvent<HTMLDivElement>,
     hero: HeroDefinition,
@@ -684,6 +715,7 @@ export default function App(): React.JSX.Element {
           onSearchChange={setHeroSearch}
           onHeroDragStart={handleHeroDragStart}
           onHeroDragEnd={() => setIsHeroDragging(false)}
+          onHeroAdd={addHero}
         />
         <BoardPanel
           drawingControls={
