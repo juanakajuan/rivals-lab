@@ -173,47 +173,92 @@ function decodeComp(value: unknown): Comp {
   };
 }
 
-/** All browser storage and imported files enter through this validator. */
-export function parseCompLibrary(source: string): readonly SavedComp[] {
+export interface CompLibrary {
+  readonly entries: readonly SavedComp[];
+  readonly unavailable: readonly unknown[];
+  readonly errors: readonly string[];
+  readonly envelope: Readonly<Record<string, unknown>>;
+}
+
+function decodeSavedComp(value: unknown): SavedComp {
+  const saved = record(value);
+  const id = text(saved.id, 100);
+  if (!id) throw new Error("Invalid comp ID.");
+  const updatedAt = text(saved.updatedAt, 40);
+  if (!Number.isFinite(Date.parse(updatedAt)))
+    throw new Error("Invalid comp date.");
+  return { id, updatedAt, comp: decodeComp(saved.comp) };
+}
+
+/** Validate the envelope first, then isolate entries that cannot be loaded. */
+export function decodeCompLibrary(source: string): CompLibrary {
   const data: unknown = JSON.parse(source);
   const envelope = record(data);
   if (envelope.version !== 1) throw new Error("Unsupported comp file version.");
-  const ids = new Set<string>();
-  return items(envelope.comps, MAX_SAVED_COMPS).map((item) => {
-    const saved = record(item);
-    const id = text(saved.id, 100);
-    if (!id || ids.has(id)) throw new Error("Invalid or duplicate comp ID.");
-    ids.add(id);
-    const updatedAt = text(saved.updatedAt, 40);
-    if (!Number.isFinite(Date.parse(updatedAt)))
-      throw new Error("Invalid comp date.");
-    return { id, updatedAt, comp: decodeComp(saved.comp) };
-  });
+  const raw = items(envelope.comps, MAX_SAVED_COMPS);
+  const idCounts = new Map<string, number>();
+  for (const item of raw)
+    if (isRecord(item) && typeof item.id === "string")
+      idCounts.set(item.id, (idCounts.get(item.id) ?? 0) + 1);
+  const entries: SavedComp[] = [];
+  const unavailable: unknown[] = [];
+  const errors: string[] = [];
+  for (const item of raw) {
+    try {
+      if (
+        isRecord(item) &&
+        typeof item.id === "string" &&
+        (idCounts.get(item.id) ?? 0) > 1
+      )
+        throw new Error("Duplicate comp ID.");
+      entries.push(decodeSavedComp(item));
+    } catch (error) {
+      unavailable.push(item);
+      errors.push(
+        error instanceof Error ? error.message : "Invalid comp data.",
+      );
+    }
+  }
+  return { entries, unavailable, errors, envelope };
+}
+
+/** Imports are atomic: reject files with unavailable entries without changing storage. */
+export function parseCompLibrary(source: string): readonly SavedComp[] {
+  const library = decodeCompLibrary(source);
+  if (library.errors.length) throw new Error(library.errors.join(" "));
+  return library.entries;
 }
 
 export function serializeCompLibrary(comps: readonly SavedComp[]): string {
   return JSON.stringify({ version: 1, comps }, null, 2);
 }
 
-export function readCompLibrary(): readonly SavedComp[] {
+export function readCompLibrary(): CompLibrary {
   const source = localStorage.getItem(COMP_STORAGE_KEY);
-  return source === null ? [] : parseCompLibrary(source);
+  return decodeCompLibrary(source ?? serializeCompLibrary([]));
 }
 
 /** Re-read before each write to preserve changes made in other tabs. */
 export function updateCompLibrary(
   update: (current: readonly SavedComp[]) => readonly SavedComp[],
-): readonly SavedComp[] {
-  const next = update(readCompLibrary());
-  if (next.length > MAX_SAVED_COMPS)
+): CompLibrary {
+  const current = readCompLibrary();
+  const next = update(current.entries);
+  // Reserve IDs even when their entries cannot be decoded.
+  for (const item of current.unavailable)
+    if (isRecord(item) && next.some((entry) => entry.id === item.id))
+      throw new Error("A comp ID belongs to an unavailable entry.");
+  const comps = [...next, ...current.unavailable];
+  if (comps.length > MAX_SAVED_COMPS)
     throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
-  const source = serializeCompLibrary(next);
+  parseCompLibrary(serializeCompLibrary(next));
+  const source = JSON.stringify({ ...current.envelope, comps }, null, 2);
   if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES) {
     throw new Error(
       "The library limit is 2 MB. Export and remove older comps to make space.",
     );
   }
-  parseCompLibrary(source);
+  const result = decodeCompLibrary(source);
   localStorage.setItem(COMP_STORAGE_KEY, source);
-  return next;
+  return result;
 }
