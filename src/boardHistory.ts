@@ -11,6 +11,9 @@ export interface BoardState {
   >;
 }
 
+/** Maximum saved edits across undo and redo; the current board is separate. */
+export const BOARD_HISTORY_LIMIT = 100;
+
 export interface BoardHistory {
   readonly past: readonly BoardState[];
   readonly present: BoardState;
@@ -63,7 +66,11 @@ export function boardHistoryReducer(
     case "edit": {
       const present = action.update(history.present);
       if (equalBoards(history.present, present)) return history;
-      return { past: [...history.past, history.present], present, future: [] };
+      return {
+        past: [...history.past, history.present].slice(-BOARD_HISTORY_LIMIT),
+        present,
+        future: [],
+      };
     }
     case "undo": {
       const present = history.past.at(-1);
@@ -78,7 +85,7 @@ export function boardHistoryReducer(
       const present = history.future[0];
       if (!present) return history;
       return {
-        past: [...history.past, history.present],
+        past: [...history.past, history.present].slice(-BOARD_HISTORY_LIMIT),
         present,
         future: history.future.slice(1),
       };
