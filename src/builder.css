@@ -408,7 +408,7 @@
   padding: 10px 10px 42px;
   text-align: left;
   background: #121316;
-  border: 1px solid #343741;
+  border: 1px dashed #484d5d;
   border-radius: 6px;
   color: inherit;
   cursor: pointer;
@@ -417,7 +417,7 @@
     background-color 120ms;
 }
 .draft-step.done .draft-slot-button {
-  border-color: #484d5d;
+  border-style: solid;
 }
 .draft-step .draft-slot-button:hover {
   border-color: #7a85ed;
@@ -427,12 +427,6 @@
   outline: 2px solid #9ba6ff;
   outline-offset: -3px;
   background: #1c2033;
-}
-.draft-click-cue {
-  display: block;
-  margin-top: 12px;
-  color: #aab3ed;
-  font-size: 10px;
 }
 .draft-clear {
   position: absolute;

@@ -187,8 +187,7 @@ export function DraftPanel({
         {draft.format === "mrc"
           ? "4 bans + 2 saves per team. Bans and saves apply to both teams."
           : "5 bans + 2 saves per team. Ban for the opponent. Save for your team."}{" "}
-        Click a box to choose a ban or save. Fill any slot. Each choice takes
-        effect at once.
+        Fill any slot. Each choice takes effect at once.
       </p>
       <div className="draft-timeline">
         {teams.map((team) => (
@@ -243,11 +242,6 @@ export function DraftPanel({
                           <span>
                             <strong>{hero?.name ?? "Choose hero"}</strong>
                           </span>
-                        </span>
-                        <span className="draft-click-cue">
-                          {hero
-                            ? "Click to change hero"
-                            : `Click to choose ${slot.kind}`}
                         </span>
                       </button>
                       {hero && (

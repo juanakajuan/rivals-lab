@@ -115,7 +115,10 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   const firstBox = page
     .locator('.draft-team-row[data-team="ally"] .draft-step')
     .first();
-  await expect(firstBox).toContainText("Click to choose ban");
+  await expect(firstBox.locator(".draft-slot-button")).toHaveCSS(
+    "border-top-style",
+    "dashed",
+  );
   const boxBounds = await firstBox.boundingBox();
   const buttonBounds = await firstBox
     .locator(".draft-slot-button")
@@ -140,7 +143,10 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   ).toBeDisabled();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await pickHero(page, "Allies ban 1: Choose hero", "Hulk");
-  await expect(firstBox).toContainText("Click to change hero");
+  await expect(firstBox.locator(".draft-slot-button")).toHaveCSS(
+    "border-top-style",
+    "solid",
+  );
   const filledBounds = await firstBox.boundingBox();
   if (!filledBounds) throw new Error("Missing draft box");
   await firstBox.click({ position: { x: 2, y: filledBounds.height - 2 } });
