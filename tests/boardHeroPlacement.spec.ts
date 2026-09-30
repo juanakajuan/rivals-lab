@@ -13,13 +13,17 @@ async function boardPoint(
 }
 
 for (const key of ["Enter", "Space"]) {
-  test(`${key} adds a hero through the keyboard and records one history edit`, async ({
+  test(`${key} adds and removes a hero through the keyboard with one history edit per action`, async ({
     page,
   }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Clear", exact: true }).click();
     const add = page.getByRole("button", {
       name: "Add Angela to Allies",
+      exact: true,
+    });
+    const remove = page.getByRole("button", {
+      name: "Remove Angela from Allies",
       exact: true,
     });
     const allies = page.getByRole("button", { name: /^Allies/ });
@@ -35,19 +39,38 @@ for (const key of ["Enter", "Space"]) {
     await expect(opponents).toHaveText("Opponents 0");
     await expect(page.locator(".selection-name strong")).toHaveText("Angela");
     await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
-    await expect(
-      page.getByRole("button", { name: "Added Angela to Allies", exact: true }),
-    ).toBeDisabled();
+    await expect(remove).toBeEnabled();
+    await expect(remove).toHaveText("Remove");
     await undo.click();
     await expect(allies).toHaveText("Allies 0");
     await expect(add).toBeEnabled();
     await redo.click();
     await expect(allies).toHaveText("Allies 1");
     await expect(redo).toBeDisabled();
+    await remove.focus();
+    await page.keyboard.press(key);
+    await expect(allies).toHaveText("Allies 0");
+    await expect(add).toBeEnabled();
+    await expect(add).toBeFocused();
+    await expect(page.locator(".selection-summary")).toHaveCount(0);
+    const point = await boardPoint(page, 52, 52);
+    await page.mouse.click(point.x, point.y);
+    await expect(page.locator(".selection-summary")).toHaveCount(0);
+    await undo.click();
+    await expect(allies).toHaveText("Allies 1");
+    await expect(remove).toBeEnabled();
+    await page.mouse.click(point.x, point.y);
+    await expect(page.locator(".selection-name strong")).toHaveText("Angela");
+    await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+    await redo.click();
+    await expect(allies).toHaveText("Allies 0");
+    await expect(add).toBeEnabled();
+    await expect(redo).toBeDisabled();
+    await expect(page.locator(".selection-summary")).toHaveCount(0);
   });
 }
 
-test("Add leaves other tokens in place, spaces new tokens, and preserves native row dragging", async ({
+test("Add and Remove preserve other tokens and native row dragging", async ({
   page,
 }) => {
   await page.goto("/");
@@ -79,9 +102,11 @@ test("Add leaves other tokens in place, spaces new tokens, and preserves native 
     /^x (499|500|501), y (249|250|251)$/,
   );
   const moved = await page.locator(".coordinates").innerText();
-  await expect(
-    page.getByRole("button", { name: "Added Hulk to Allies", exact: true }),
-  ).toBeDisabled();
+  const removeHulk = page.getByRole("button", {
+    name: "Remove Hulk from Allies",
+    exact: true,
+  });
+  await expect(removeHulk).toBeEnabled();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.locator(".coordinates")).toHaveText("x 104, y 52");
   await page.getByRole("button", { name: "Redo", exact: true }).click();
@@ -93,6 +118,28 @@ test("Add leaves other tokens in place, spaces new tokens, and preserves native 
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
+  await page.mouse.click(angela.x, angela.y);
+  await expect(page.locator(".selection-name strong")).toHaveText("Angela");
+  await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+  await removeHulk.click();
+  await expect(allies).toHaveText("Allies 1");
+  await expect(
+    page.getByRole("button", { name: "Add Hulk to Allies", exact: true }),
+  ).toBeEnabled();
+  await expect(page.locator(".selection-name strong")).toHaveText("Angela");
+  await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+  const hulk = await boardPoint(page, 500, 250);
+  await page.mouse.click(hulk.x, hulk.y);
+  await expect(page.locator(".selection-summary")).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(allies).toHaveText("Allies 2");
+  await expect(removeHulk).toBeEnabled();
+  await page.mouse.click(hulk.x, hulk.y);
+  await expect(page.locator(".selection-name strong")).toHaveText("Hulk");
+  await expect(page.locator(".coordinates")).toHaveText(moved);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(allies).toHaveText("Allies 1");
+  await expect(page.locator(".selection-summary")).toHaveCount(0);
   await page.mouse.click(angela.x, angela.y);
   await expect(page.locator(".selection-name strong")).toHaveText("Angela");
   await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
@@ -171,7 +218,7 @@ test.describe("touch placement", () => {
     viewport: { width: 390, height: 844 },
   });
 
-  test("tap adds the same hero independently for each team and works with history", async ({
+  test("tap adds and removes the same hero independently for each team with history", async ({
     page,
   }) => {
     await page.goto("/");
@@ -191,27 +238,45 @@ test.describe("touch placement", () => {
     await expect(allies).toHaveText("Allies 4");
     await expect(opponents).toHaveText("Opponents 4");
     await expect(page.locator(".coordinates")).toHaveText("x 676, y 76");
-    await expect(
-      page.getByRole("button", {
-        name: "Added Angela to Opponents",
-        exact: true,
-      }),
-    ).toBeDisabled();
-    await page.keyboard.press("Control+z");
+    const removeOpponent = page.getByRole("button", {
+      name: "Remove Angela from Opponents",
+      exact: true,
+    });
+    await expect(removeOpponent).toBeEnabled();
+    await removeOpponent.tap();
     await expect(allies).toHaveText("Allies 4");
     await expect(opponents).toHaveText("Opponents 3");
+    await expect(page.locator(".selection-summary")).toHaveCount(0);
     await expect(
       page.getByRole("button", {
         name: "Add Angela to Opponents",
         exact: true,
       }),
     ).toBeEnabled();
-    await page.keyboard.press("Control+Shift+z");
+    await page.keyboard.press("Control+z");
+    await expect(allies).toHaveText("Allies 4");
     await expect(opponents).toHaveText("Opponents 4");
+    await expect(removeOpponent).toBeEnabled();
+    await page.keyboard.press("Control+Shift+z");
+    await expect(allies).toHaveText("Allies 4");
+    await expect(opponents).toHaveText("Opponents 3");
+    for (const hero of ["Magneto", "Magik", "Rocket Raccoon"]) {
+      await expect(
+        page.getByRole("button", {
+          name: `Remove ${hero} from Opponents`,
+          exact: true,
+        }),
+      ).toBeEnabled();
+    }
     await allies.tap();
-    await expect(
-      page.getByRole("button", { name: "Added Angela to Allies", exact: true }),
-    ).toBeDisabled();
+    for (const hero of ["Angela", "Doctor Strange", "Psylocke", "Luna Snow"]) {
+      await expect(
+        page.getByRole("button", {
+          name: `Remove ${hero} from Allies`,
+          exact: true,
+        }),
+      ).toBeEnabled();
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(390);
