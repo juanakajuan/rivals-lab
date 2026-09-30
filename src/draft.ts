@@ -213,18 +213,21 @@ export function draftEffects(draft: DraftState | null): DraftEffects {
   return { banned, saved };
 }
 
+function validDraftSlot(draft: DraftState, slot: DraftSlot): boolean {
+  return (
+    Number.isInteger(slot.index) &&
+    slot.index >= 0 &&
+    slot.index < draft.teams[slot.team][slot.kind].length
+  );
+}
+
 export function draftChoiceError(
   draft: DraftState,
   slot: DraftSlot,
   heroId: string,
 ): string | null {
   if (!HERO_BY_ID.has(heroId)) return "Unknown hero.";
-  if (
-    !Number.isInteger(slot.index) ||
-    slot.index < 0 ||
-    slot.index >= draft.teams[slot.team][slot.kind].length
-  )
-    return "Invalid draft slot.";
+  if (!validDraftSlot(draft, slot)) return "Invalid draft slot.";
   const target = actionTarget(draft.format, slot);
   for (const existing of draftSlots(draft)) {
     if (
@@ -258,12 +261,7 @@ export function setDraftHero(
   slot: DraftSlot,
   heroId: string | null,
 ): DraftState {
-  if (
-    !Number.isInteger(slot.index) ||
-    slot.index < 0 ||
-    slot.index >= draft.teams[slot.team][slot.kind].length
-  )
-    throw new Error("Invalid draft slot.");
+  if (!validDraftSlot(draft, slot)) throw new Error("Invalid draft slot.");
   const error = heroId === null ? null : draftChoiceError(draft, slot, heroId);
   if (error) throw new Error(error);
   return {

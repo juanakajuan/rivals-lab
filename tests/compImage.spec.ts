@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { emptyDraft, migrateLegacyDraft } from "../src/draft";
+import { emptyDraft, setDraftHero } from "../src/draft";
 import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
 
 declare global {
@@ -50,23 +50,15 @@ test("downloads and copies the same full PNG without changing saved data", async
         ...empty.teams.enemy.slice(1),
       ],
     },
-    draft: migrateLegacyDraft({
-      format: "mrc",
-      firstTeam: "ally",
-      choices: [
-        "angela",
-        "captain-america",
-        "groot",
-        "hulk",
-        "magneto",
-        "peni-parker",
-        "rogue",
-        "the-hood",
-        "the-thing",
-        "thor",
+    draft: setDraftHero(
+      setDraftHero(
+        emptyDraft("mrc"),
+        { team: "ally", kind: "ban", index: 3 },
         "wolverine",
-      ],
-    }),
+      ),
+      { team: "enemy", kind: "save", index: 1 },
+      "luna",
+    ),
   };
   const saved = serializeCompLibrary([
     { id: "image-test", updatedAt: "2026-09-28T00:00:00Z", comp },
@@ -202,6 +194,8 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Empty slot note.",
     "Ban 4",
     "Wolverine",
+    "Save 2",
+    "Luna Snow",
     "FINAL NOTE BELOW THE SCROLL AREA",
   ])
     expect(text).toContain(expected);
@@ -213,6 +207,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Reset draft",
     "Pending joint ban",
     "Step 11",
+    "Ban 1",
   ])
     expect(text).not.toContain(excluded);
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(

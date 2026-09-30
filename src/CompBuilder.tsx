@@ -422,10 +422,11 @@ export function CompBuilder({
     setBoardMapOpen(true);
   }
 
-  const pickerTitle =
-    picker?.kind === "slot"
-      ? `Choose hero · ${teamLabel(picker.team)} · Slot ${picker.index + 1}`
-      : `${picker?.kind === "draft" && picker.slot.kind === "save" ? "Save" : "Ban"} hero · ${picker?.kind === "draft" ? teamLabel(picker.slot.team) : ""}`;
+  let pickerTitle = "Choose hero";
+  if (picker?.kind === "slot")
+    pickerTitle = `Choose hero · ${teamLabel(picker.team)} · Slot ${picker.index + 1}`;
+  if (picker?.kind === "draft")
+    pickerTitle = `${picker.slot.kind === "save" ? "Save" : "Ban"} hero · ${teamLabel(picker.slot.team)} · ${picker.slot.index + 1}`;
 
   return (
     <main className="builder-layout">

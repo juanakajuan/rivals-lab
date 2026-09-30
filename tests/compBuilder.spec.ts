@@ -24,6 +24,9 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await pickHero(page, "Allies slot 1: Choose hero", "Doctor Strange");
   await pickHero(page, "Opponents slot 1: Choose hero", "Doctor Strange");
   await page.getByLabel("Allies slot 1 notes").fill("Hold the corner.");
+  await page.getByLabel("Draft format").selectOption("mrc");
+  await pickHero(page, "Allies ban 4: Choose hero", "Hulk");
+  await pickHero(page, "Opponents save 2: Choose hero", "Luna Snow");
   await page
     .getByLabel("Comp notes", { exact: true })
     .fill("Take high ground.\nSave portals for the rotation.");
@@ -40,6 +43,21 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await expect(page.getByLabel("Allies slot 1 notes")).toHaveValue(
     "Hold the corner.",
   );
+  await expect(
+    page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Allies ban 1: Choose hero",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Opponents save 2: Luna Snow",
+      exact: true,
+    }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Allies slot 2: Choose hero", exact: true })
     .click();
