@@ -146,6 +146,7 @@ export function CompBuilder({
   const [comp, setComp] = useState<Comp>(emptyComp);
   const [baseline, setBaseline] = useState<Comp>(emptyComp);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedRevision, setSavedRevision] = useState<string | null>(null);
   const [library, setLibrary] = useState<LibraryState>(loadLibrary);
   const [librarySearch, setLibrarySearch] = useState("");
   const [picker, setPicker] = useState<Picker | null>(null);
@@ -215,13 +216,14 @@ export function CompBuilder({
     setError(null);
   }
 
-  function load(compToLoad: Comp, id: string | null): void {
+  function load(compToLoad: Comp, entry: SavedComp | null): void {
     if (!canDiscard()) return;
     setComp(compToLoad);
     setBaseline(compToLoad);
-    setSavedId(id);
+    setSavedId(entry?.id ?? null);
+    setSavedRevision(entry ? JSON.stringify(entry) : null);
     setPicker(null);
-    setMessage(id ? `Loaded ${compToLoad.name}.` : "New comp.");
+    setMessage(entry ? `Loaded ${compToLoad.name}.` : "New comp.");
     setError(null);
   }
 
@@ -239,29 +241,47 @@ export function CompBuilder({
       updatedAt: new Date().toISOString(),
     };
     if (
-      !commit((current) => [entry, ...current.filter((item) => item.id !== id)])
+      !commit((current) => {
+        if (!asCopy && savedId !== null) {
+          const stored = current.find((item) => item.id === savedId);
+          if (!stored || JSON.stringify(stored) !== savedRevision)
+            throw new Error(
+              stored
+                ? "This comp changed in another tab. Your edits were kept. Use Save As to save a copy, or load the saved comp to use that version."
+                : "This comp was deleted in another tab. Your edits were kept. Use Save As to save a copy.",
+            );
+        }
+        return [entry, ...current.filter((item) => item.id !== id)];
+      })
     )
       return;
     setComp(nextComp);
     setBaseline(nextComp);
     setSavedId(id);
+    setSavedRevision(JSON.stringify(entry));
     setNameRequest(null);
     setMessage(`Saved ${trimmed}.`);
   }
 
   function rename(id: string, name: string): void {
+    let renamedRevision = savedRevision;
     const renamed = commit((current) =>
       current.map((entry) => {
         if (entry.id !== id) return entry;
-        return {
+        const nextEntry: SavedComp = {
           ...entry,
           comp: { ...entry.comp, name },
           updatedAt: new Date().toISOString(),
         };
+        // A rename must not make stale editor content safe to overwrite.
+        if (savedId === id && JSON.stringify(entry) === savedRevision)
+          renamedRevision = JSON.stringify(nextEntry);
+        return nextEntry;
       }),
     );
     if (!renamed) return;
     if (savedId === id) {
+      setSavedRevision(renamedRevision);
       setComp((current) => ({ ...current, name }));
       setBaseline((current) => ({ ...current, name }));
     }
@@ -276,6 +296,7 @@ export function CompBuilder({
       return;
     if (savedId === entry.id) {
       setSavedId(null);
+      setSavedRevision(null);
       setBaseline(emptyComp());
     }
     setMessage(`Deleted ${entry.comp.name}.`);
@@ -463,7 +484,7 @@ export function CompBuilder({
               <button
                 type="button"
                 className="load-comp"
-                onClick={() => load(entry.comp, entry.id)}
+                onClick={() => load(entry.comp, entry)}
                 aria-label={`Load ${entry.comp.name}`}
               >
                 <strong>{entry.comp.name}</strong>
