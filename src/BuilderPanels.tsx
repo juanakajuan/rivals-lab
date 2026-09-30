@@ -233,9 +233,9 @@ export function DraftPanel({
                           ) : (
                             <span className="draft-placeholder">
                               {slot.kind === "save" ? (
-                                <ShieldCheck size={15} />
+                                <ShieldCheck size={22} />
                               ) : (
-                                <Swords size={15} />
+                                <Swords size={22} />
                               )}
                             </span>
                           )}
@@ -247,13 +247,13 @@ export function DraftPanel({
                       {hero && (
                         <button
                           type="button"
-                          className="draft-clear secondary-button"
+                          className="draft-clear icon-button"
                           aria-label={`Clear ${label}`}
                           onClick={() =>
                             onChange(setDraftHero(draft, slot, null))
                           }
                         >
-                          Clear
+                          <X size={14} />
                         </button>
                       )}
                     </li>
