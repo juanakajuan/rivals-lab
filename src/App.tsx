@@ -716,6 +716,7 @@ export default function App(): React.JSX.Element {
           onHeroDragStart={handleHeroDragStart}
           onHeroDragEnd={() => setIsHeroDragging(false)}
           onHeroAdd={addHero}
+          onHeroRemove={removeToken}
         />
         <BoardPanel
           drawingControls={

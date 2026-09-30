@@ -4,7 +4,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { CircleCheck } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import type { BoardDrawing } from "./boardDrawings";
 import type { BoardToken } from "./boardCanvas";
@@ -31,6 +31,7 @@ interface HeroPanelProps {
   ) => void;
   readonly onHeroDragEnd: () => void;
   readonly onHeroAdd: (hero: HeroDefinition) => void;
+  readonly onHeroRemove: (token: BoardToken) => void;
 }
 
 export function HeroPanel({
@@ -45,6 +46,7 @@ export function HeroPanel({
   onHeroDragStart,
   onHeroDragEnd,
   onHeroAdd,
+  onHeroRemove,
 }: HeroPanelProps): React.JSX.Element {
   return (
     <aside className="hero-panel" aria-labelledby="heroes-heading">
@@ -100,7 +102,7 @@ export function HeroPanel({
       <div className="hero-list">
         {visibleHeroes.map((hero, index) => {
           const tokenId = `${selectedTeam}-${hero.id}`;
-          const isPlaced = tokens.some((token) => token.id === tokenId);
+          const token = tokens.find((token) => token.id === tokenId);
 
           return (
             <Fragment key={hero.id}>
@@ -110,10 +112,11 @@ export function HeroPanel({
               <HeroRow
                 hero={hero}
                 team={selectedTeam}
-                isPlaced={isPlaced}
+                token={token}
                 onDragStart={onHeroDragStart}
                 onDragEnd={onHeroDragEnd}
                 onAdd={onHeroAdd}
+                onRemove={onHeroRemove}
               />
             </Fragment>
           );
@@ -129,26 +132,32 @@ export function HeroPanel({
 interface HeroRowProps {
   readonly hero: HeroDefinition;
   readonly team: Team;
-  readonly isPlaced: boolean;
+  readonly token: BoardToken | undefined;
   readonly onDragStart: (
     event: DragEvent<HTMLDivElement>,
     hero: HeroDefinition,
   ) => void;
   readonly onDragEnd: () => void;
   readonly onAdd: (hero: HeroDefinition) => void;
+  readonly onRemove: (token: BoardToken) => void;
 }
 
 function HeroRow({
   hero,
   team,
-  isPlaced,
+  token,
   onDragStart,
   onDragEnd,
   onAdd,
+  onRemove,
 }: HeroRowProps): React.JSX.Element {
+  const actionLabel = token
+    ? `Remove ${hero.name} from ${teamLabel(team)}`
+    : `Add ${hero.name} to ${teamLabel(team)}`;
+
   return (
     <div
-      className={`hero-row${isPlaced ? " placed" : ""}`}
+      className={`hero-row${token ? " placed" : ""}`}
       data-team={team}
       draggable
       onDragStart={(event) => onDragStart(event, hero)}
@@ -164,12 +173,15 @@ function HeroRow({
       <button
         className="row-action"
         type="button"
-        disabled={isPlaced}
-        aria-label={`${isPlaced ? "Added" : "Add"} ${hero.name} to ${teamLabel(team)}`}
-        onClick={() => onAdd(hero)}
+        aria-label={actionLabel}
+        title={actionLabel}
+        onClick={() => (token ? onRemove(token) : onAdd(hero))}
       >
-        {isPlaced ? <CircleCheck aria-hidden="true" /> : null}
-        {isPlaced ? "Added" : "Add"}
+        {token ? (
+          <Trash2 size={18} aria-hidden="true" />
+        ) : (
+          <Plus size={18} aria-hidden="true" />
+        )}
       </button>
     </div>
   );
