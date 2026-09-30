@@ -12,6 +12,16 @@ Use Node.js 22.18.0 or later. Install dependencies with `npm ci`.
 - `npm run test:production`: build and test the production preview in Chromium,
   Firefox, and WebKit. See [browser support and test setup](tests/README.md).
 
+The cf CLI and Vite plugin beta pins require Miniflare `5.20260926.0-alpha`.
+The version-scoped override in `package.json` selects the
+[patched Miniflare release](https://github.com/cloudflare/workers-sdk/releases/tag/miniflare@5.20260926.1-alpha),
+which installs Undici `7.29.1`. This keeps the cf configuration and deploy workflow.
+Remove the override when both tools and their dependencies use patched Miniflare.
+
+On 2026-09-30, `npm audit --json` changed from five affected development packages
+(one high, four moderate) to zero. `npm audit --omit=dev --json` reported zero
+before and after the update. No findings remain in this audit.
+
 ## Formatting
 
 - `npm run format`: format supported project files with Prettier.
