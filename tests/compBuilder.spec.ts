@@ -108,6 +108,23 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   await pickHero(page, "Allies slot 1: Choose hero", "Doctor Strange");
   await page.getByLabel("Draft format").selectOption("mrc");
   await expect(page.getByRole("button", { name: /Choose ban/ })).toHaveCount(0);
+  for (const team of ["ally", "enemy"])
+    await expect(
+      page.locator(`.draft-team-row[data-team="${team}"] .step-number`),
+    ).toHaveText(["Ban 1", "Save 1", "Ban 2", "Save 2", "Ban 3", "Ban 4"]);
+  const firstBox = page
+    .locator('.draft-team-row[data-team="ally"] .draft-step')
+    .first();
+  await expect(firstBox).toContainText("Click to choose ban");
+  const boxBounds = await firstBox.boundingBox();
+  const buttonBounds = await firstBox
+    .locator(".draft-slot-button")
+    .boundingBox();
+  expect(buttonBounds).toEqual(boxBounds);
+  await firstBox.click({ position: { x: 2, y: 2 } });
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+
   await pickHero(page, "Opponents ban 4: Choose hero", "Doctor Strange");
   await expect(page.locator(".has-conflict")).toHaveCount(1);
   await pickHero(page, "Opponents ban 4: Doctor Strange", "Hulk");
@@ -123,9 +140,17 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   ).toBeDisabled();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await pickHero(page, "Allies ban 1: Choose hero", "Hulk");
+  await expect(firstBox).toContainText("Click to change hero");
+  const filledBounds = await firstBox.boundingBox();
+  if (!filledBounds) throw new Error("Missing draft box");
+  await firstBox.click({ position: { x: 2, y: filledBounds.height - 2 } });
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+
   await page
     .getByRole("button", { name: "Clear Allies ban 1", exact: true })
     .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Opponents ban 4: Hulk", exact: true }),
   ).toBeVisible();
@@ -136,6 +161,29 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
     .getByRole("button", { name: "Clear Allies save 2", exact: true })
     .click();
   await page.getByLabel("Draft format").selectOption("ignite");
+  await expect(
+    page.locator('.draft-team-row[data-team="ally"] .step-number'),
+  ).toHaveText([
+    "Ban 1",
+    "Save 1",
+    "Ban 2",
+    "Ban 3",
+    "Ban 4",
+    "Save 2",
+    "Ban 5",
+  ]);
+  await expect(
+    page.locator('.draft-team-row[data-team="enemy"] .step-number'),
+  ).toHaveText([
+    "Ban 1",
+    "Ban 2",
+    "Save 1",
+    "Ban 3",
+    "Save 2",
+    "Ban 4",
+    "Ban 5",
+  ]);
+
   await pickHero(page, "Opponents ban 5: Choose hero", "Doctor Strange");
   await expect(page.locator(".has-conflict")).toHaveCount(1);
   await page

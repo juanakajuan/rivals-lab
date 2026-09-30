@@ -60,8 +60,20 @@ test("downloads and copies the same full PNG without changing saved data", async
       "luna",
     ),
   };
+  const phasedComp = {
+    ...comp,
+    draft: setDraftHero(
+      setDraftHero(
+        comp.draft ?? emptyDraft("mrc"),
+        { team: "ally", kind: "save", index: 0 },
+        "groot",
+      ),
+      { team: "ally", kind: "ban", index: 1 },
+      "angela",
+    ),
+  };
   const saved = serializeCompLibrary([
-    { id: "image-test", updatedAt: "2026-09-28T00:00:00Z", comp },
+    { id: "image-test", updatedAt: "2026-09-28T00:00:00Z", comp: phasedComp },
   ]);
   await page.addInitScript((source) => {
     localStorage.setItem("rivals-lab.comps.v1", source);
@@ -179,6 +191,13 @@ test("downloads and copies the same full PNG without changing saved data", async
   expect(result.text.filter((line) => /^W+$/.test(line)).join("")).toBe(
     "W".repeat(180),
   );
+  const save1 = result.positions.find((entry) => entry.text === "Save 1");
+  const ban2 = result.positions.find((entry) => entry.text === "Ban 2");
+  const ban4 = result.positions.find((entry) => entry.text === "Ban 4");
+  if (!save1 || !ban2 || !ban4) throw new Error("Missing draft phase labels");
+  expect(save1.y).toBe(ban2.y);
+  expect(save1.x).toBeLessThan(ban2.x);
+  expect(ban2.x).toBeLessThan(ban4.x);
   const text = result.text.join("\n");
   for (const expected of [
     "Unsaved team plan",

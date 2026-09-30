@@ -174,20 +174,30 @@ export function emptyDraft(format: DraftFormat): DraftState {
   return { format, teams: { ally: slots(), enemy: slots() } };
 }
 
+function orderedDraftSlots(
+  draft: Pick<LegacyDraftState, "format" | "firstTeam">,
+): readonly DraftSlot[] {
+  const counts: Record<Team, Record<DraftActionKind, number>> = {
+    ally: { ban: 0, save: 0 },
+    enemy: { ban: 0, save: 0 },
+  };
+  return draftPhases(draft)
+    .flat()
+    .map((action) => ({
+      ...action,
+      index: counts[action.team][action.kind]++,
+    }));
+}
+
+/** Display phase positions without requiring users to enter choices in order. */
 export function draftSlots(
   draft: DraftState,
 ): readonly (DraftSlot & { readonly heroId: string | null })[] {
-  const teams: readonly Team[] = ["ally", "enemy"];
-  const kinds: readonly DraftActionKind[] = ["ban", "save"];
-  return teams.flatMap((team) =>
-    kinds.flatMap((kind) =>
-      draft.teams[team][kind].map((heroId, index) => ({
-        team,
-        kind,
-        index,
-        heroId,
-      })),
-    ),
+  return orderedDraftSlots({ format: draft.format, firstTeam: "ally" }).map(
+    (slot) => ({
+      ...slot,
+      heroId: draft.teams[slot.team][slot.kind][slot.index] ?? null,
+    }),
   );
 }
 
@@ -280,14 +290,9 @@ export function setDraftHero(
 
 export function migrateLegacyDraft(draft: LegacyDraftState): DraftState {
   let result = emptyDraft(draft.format);
-  const counts: Record<Team, Record<DraftActionKind, number>> = {
-    ally: { ban: 0, save: 0 },
-    enemy: { ban: 0, save: 0 },
-  };
-  for (const [index, action] of draftPhases(draft).flat().entries()) {
+  for (const [index, slot] of orderedDraftSlots(draft).entries()) {
     const heroId = draft.choices[index];
     if (!heroId) break;
-    const slot = { ...action, index: counts[action.team][action.kind]++ };
     result = setDraftHero(result, slot, heroId);
   }
   return result;
