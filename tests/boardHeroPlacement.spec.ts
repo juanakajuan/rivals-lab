@@ -45,7 +45,7 @@ for (const key of ["Enter", "Space"]) {
     await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
     await expect(remove).toBeEnabled();
     await expect(remove).toHaveText("");
-    await expect(remove.locator("svg.lucide-minus")).toHaveAttribute(
+    await expect(remove.locator("svg.lucide-trash-2")).toHaveAttribute(
       "aria-hidden",
       "true",
     );

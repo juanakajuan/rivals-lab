@@ -4,7 +4,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import type { BoardDrawing } from "./boardDrawings";
 import type { BoardToken } from "./boardCanvas";
@@ -178,9 +178,9 @@ function HeroRow({
         onClick={() => (token ? onRemove(token) : onAdd(hero))}
       >
         {token ? (
-          <Minus size={16} aria-hidden="true" />
+          <Trash2 size={18} aria-hidden="true" />
         ) : (
-          <Plus size={16} aria-hidden="true" />
+          <Plus size={18} aria-hidden="true" />
         )}
       </button>
     </div>
