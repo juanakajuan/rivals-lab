@@ -1,9 +1,14 @@
 import { COMP_MAPS } from "./compMaps";
 import {
-  chooseDraftHero,
+  chooseLegacyDraftHero,
   draftEffects,
-  draftProgress,
+  draftSlots,
+  emptyDraft,
+  migrateLegacyDraft,
+  setDraftHero,
   type DraftState,
+  type LegacyDraftState,
+  type DraftActionKind,
 } from "./draft";
 import {
   HERO_BY_ID,
@@ -61,7 +66,7 @@ export function compStatus(comp: Comp): "Conflict" | "Incomplete" | "Ready" {
     return "Conflict";
   if (
     comp.teams.ally.some((slot) => !slot.heroId) ||
-    (comp.draft && draftProgress(comp.draft).action)
+    (comp.draft && draftSlots(comp.draft).some((slot) => slot.heroId === null))
   )
     return "Incomplete";
   return "Ready";
@@ -118,16 +123,37 @@ function decodeDraft(value: unknown): DraftState | null {
   const draft = record(value);
   if (draft.format !== "mrc" && draft.format !== "ignite")
     throw new Error("Unknown draft format.");
+  if (draft.teams !== undefined) {
+    const teams = record(draft.teams);
+    let result = emptyDraft(draft.format);
+    const teamIds: readonly Team[] = ["ally", "enemy"];
+    const kinds: readonly DraftActionKind[] = ["ban", "save"];
+    for (const team of teamIds) {
+      const slots = record(teams[team]);
+      for (const kind of kinds) {
+        const heroes = items(slots[kind], result.teams[team][kind].length);
+        if (heroes.length !== result.teams[team][kind].length)
+          throw new Error("Invalid draft slot count.");
+        for (const [index, hero] of heroes.entries())
+          result = setDraftHero(
+            result,
+            { team, kind, index },
+            hero === null ? null : text(hero, 100),
+          );
+      }
+    }
+    return result;
+  }
   if (draft.firstTeam !== "ally" && draft.firstTeam !== "enemy")
     throw new Error("Invalid first team.");
-  let result: DraftState = {
+  let result: LegacyDraftState = {
     format: draft.format,
     firstTeam: draft.firstTeam,
     choices: [],
   };
   for (const hero of items(draft.choices, 14))
-    result = chooseDraftHero(result, text(hero, 100));
-  return result;
+    result = chooseLegacyDraftHero(result, text(hero, 100));
+  return migrateLegacyDraft(result);
 }
 
 function decodeComp(value: unknown): Comp {

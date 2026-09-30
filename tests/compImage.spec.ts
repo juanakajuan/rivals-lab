@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { emptyDraft, migrateLegacyDraft } from "../src/draft";
 import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
 
 declare global {
@@ -49,7 +50,7 @@ test("downloads and copies the same full PNG without changing saved data", async
         ...empty.teams.enemy.slice(1),
       ],
     },
-    draft: {
+    draft: migrateLegacyDraft({
       format: "mrc",
       firstTeam: "ally",
       choices: [
@@ -65,7 +66,7 @@ test("downloads and copies the same full PNG without changing saved data", async
         "thor",
         "wolverine",
       ],
-    },
+    }),
   };
   const saved = serializeCompLibrary([
     { id: "image-test", updatedAt: "2026-09-28T00:00:00Z", comp },
@@ -199,9 +200,8 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Hold the corner.",
     "Watch portal.",
     "Empty slot note.",
-    "Step 11",
+    "Ban 4",
     "Wolverine",
-    "Pending joint ban",
     "FINAL NOTE BELOW THE SCROLL AREA",
   ])
     expect(text).toContain(expected);
@@ -211,6 +211,8 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Choose hero",
     "Download & Copy",
     "Reset draft",
+    "Pending joint ban",
+    "Step 11",
   ])
     expect(text).not.toContain(excluded);
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
@@ -419,7 +421,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
       ],
       enemy: [{ heroId: null, notes: "  \n " }, ...empty.teams.enemy.slice(1)],
     },
-    draft: { format: "mrc", firstTeam: "ally", choices: [] },
+    draft: emptyDraft("mrc"),
   };
   await page.evaluate(
     (source) => localStorage.setItem("rivals-lab.comps.v1", source),

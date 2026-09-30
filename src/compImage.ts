@@ -1,6 +1,6 @@
 import { COMP_MAPS } from "./compMaps";
 import { type Comp } from "./comps";
-import { draftEffects, draftPhases } from "./draft";
+import { draftEffects, draftSlots } from "./draft";
 import {
   HERO_BY_ID,
   heroImagePath,
@@ -28,27 +28,17 @@ interface DraftCard {
   readonly team: Team;
   readonly step: string;
   readonly action: string;
-  readonly heroId: string | undefined;
-  readonly pending: boolean;
+  readonly heroId: string | null;
 }
 
 function draftCards(comp: Comp): readonly DraftCard[] {
   if (!comp.draft) return [];
-  const draft = comp.draft;
-  let choiceIndex = 0;
-  return draftPhases(draft).flatMap((phase, phaseIndex) => {
-    const pending =
-      phase.length > 1 &&
-      draft.choices.length > choiceIndex &&
-      draft.choices.length < choiceIndex + phase.length;
-    return phase.map((action) => ({
-      team: action.team,
-      step: `Step ${phaseIndex + 1}${phase.length > 1 ? " · Both ban" : ""}`,
-      action: action.kind === "ban" ? "Ban" : "Save",
-      heroId: draft.choices[choiceIndex++],
-      pending,
-    }));
-  });
+  return draftSlots(comp.draft).map((slot) => ({
+    team: slot.team,
+    step: `${slot.kind === "ban" ? "Ban" : "Save"} ${slot.index + 1}`,
+    action: slot.kind === "ban" ? "Ban" : "Save",
+    heroId: slot.heroId,
+  }));
 }
 
 /** Wrap without losing newlines or clipping long words and pasted URLs. */
@@ -299,7 +289,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
 
   if (cards.length && comp.draft) {
     const draftTop = y;
-    const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT · ${teamLabel(comp.draft.firstTeam)} first`;
+    const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT`;
     // Draw this panel before its content once its measured height is known.
     const panelIndex = commands.length;
     y += 20;
@@ -358,17 +348,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
           COLORS.text,
           true,
         );
-        let height = 104 + nameHeight;
-        if (card.pending && card.heroId)
-          height += text(
-            "Pending joint ban",
-            x,
-            y + height,
-            width,
-            14,
-            COLORS.muted,
-            true,
-          );
+        const height = 104 + nameHeight;
         rowHeight = Math.max(rowHeight, height);
       });
       y += rowHeight + 18;

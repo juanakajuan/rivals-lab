@@ -5,7 +5,7 @@ To use an installed Chromium, run
 Tests use real browser events and the board interface. They cover drag updates,
 late images, resize, map changes, cleanup, and the React caller.
 
-Draft tests cover ban scope, saves, simultaneous choices, Undo, and imported data.
+Draft tests cover direct slot edits, team scope, conflicts, and legacy imports.
 Builder tests cover browser saves, notes, copies, imports, conflicts, board transfer,
 unsaved edits, and recovery when stored data is invalid.
 History tests cover edit order, redo invalidation, unchanged edits, grouped map

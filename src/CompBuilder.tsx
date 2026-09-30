@@ -30,16 +30,17 @@ import {
   type SavedComp,
 } from "./comps";
 import {
-  chooseDraftHero,
+  setDraftHero,
+  emptyDraft,
+  draftSlots,
+  type DraftSlot,
   draftChoiceError,
   draftEffects,
-  draftProgress,
   type DraftState,
 } from "./draft";
 import {
   HERO_BY_ID,
   heroImagePath,
-  isTeam,
   teamLabel,
   type HeroSelection,
   type Team,
@@ -48,7 +49,7 @@ import { MAPS, isMapId, type MapId } from "./maps";
 import "./builder.css";
 
 type Picker =
-  | { readonly kind: "draft" }
+  | { readonly kind: "draft"; readonly slot: DraftSlot }
   | { readonly kind: "slot"; readonly team: Team; readonly index: number };
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
@@ -322,7 +323,7 @@ export function CompBuilder({
     if (!picker) return "No selection.";
     if (picker.kind === "draft")
       return comp.draft
-        ? draftChoiceError(comp.draft, heroId)
+        ? draftChoiceError(comp.draft, picker.slot, heroId)
         : "No draft selected.";
     if (effects.banned[picker.team].has(heroId)) return "Banned for this team.";
     if (
@@ -338,7 +339,7 @@ export function CompBuilder({
     const { heroId } = selection;
     if (!picker || choiceError(heroId)) return;
     if (picker.kind === "draft" && comp.draft)
-      edit({ ...comp, draft: chooseDraftHero(comp.draft, heroId) });
+      edit({ ...comp, draft: setDraftHero(comp.draft, picker.slot, heroId) });
     else if (picker.kind === "slot") {
       const slot = comp.teams[picker.team][picker.index];
       if (slot)
@@ -352,7 +353,8 @@ export function CompBuilder({
 
   function changeDraft(next: DraftState | null): void {
     if (
-      comp.draft?.choices.length &&
+      comp.draft &&
+      draftSlots(comp.draft).some((slot) => slot.heroId !== null) &&
       !window.confirm(
         "Change draft settings and reset all bans and saves? Heroes and notes will stay.",
       )
@@ -364,7 +366,8 @@ export function CompBuilder({
   function changeMap(mapId: string): void {
     if (mapId !== "" && !COMP_MAPS.some((map) => map.id === mapId)) return;
     if (
-      comp.draft?.choices.length &&
+      comp.draft &&
+      draftSlots(comp.draft).some((slot) => slot.heroId !== null) &&
       !window.confirm(
         "Change map and reset its draft? Heroes and notes will stay.",
       )
@@ -373,7 +376,7 @@ export function CompBuilder({
     edit({
       ...comp,
       mapId: mapId || null,
-      draft: comp.draft ? { ...comp.draft, choices: [] } : null,
+      draft: comp.draft ? emptyDraft(comp.draft.format) : null,
     });
   }
 
@@ -419,11 +422,10 @@ export function CompBuilder({
     setBoardMapOpen(true);
   }
 
-  const draftAction = comp.draft ? draftProgress(comp.draft).action : undefined;
   const pickerTitle =
     picker?.kind === "slot"
       ? `Choose hero · ${teamLabel(picker.team)} · Slot ${picker.index + 1}`
-      : `${draftAction?.kind === "save" ? "Save" : "Ban"} hero · ${draftAction ? teamLabel(draftAction.team) : ""}`;
+      : `${picker?.kind === "draft" && picker.slot.kind === "save" ? "Save" : "Ban"} hero · ${picker?.kind === "draft" ? teamLabel(picker.slot.team) : ""}`;
 
   return (
     <main className="builder-layout">
@@ -702,11 +704,7 @@ export function CompBuilder({
                   const format = event.currentTarget.value;
                   if (format === "free") changeDraft(null);
                   else if (format === "mrc" || format === "ignite")
-                    changeDraft({
-                      format,
-                      firstTeam: comp.draft?.firstTeam ?? "ally",
-                      choices: [],
-                    });
+                    changeDraft(emptyDraft(format));
                 }}
               >
                 <option value="free">Free build</option>
@@ -714,34 +712,13 @@ export function CompBuilder({
                 <option value="ignite">Ignite · 5 bans / 2 saves</option>
               </select>
             </label>
-            {comp.draft && (
-              <label>
-                Team 1
-                <select
-                  aria-label="Team 1"
-                  value={comp.draft.firstTeam}
-                  onChange={(event) => {
-                    const team = event.currentTarget.value;
-                    if (comp.draft && isTeam(team))
-                      changeDraft({
-                        ...comp.draft,
-                        firstTeam: team,
-                        choices: [],
-                      });
-                  }}
-                >
-                  <option value="ally">Allies</option>
-                  <option value="enemy">Opponents</option>
-                </select>
-              </label>
-            )}
           </div>
         </section>
         {comp.draft && (
           <DraftPanel
             draft={comp.draft}
             onChange={(draft) => edit({ ...comp, draft })}
-            onChoose={() => setPicker({ kind: "draft" })}
+            onChoose={(slot) => setPicker({ kind: "draft", slot })}
           />
         )}
         {status === "Conflict" && (

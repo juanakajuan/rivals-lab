@@ -82,53 +82,62 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await expect(page.locator(".saved-comp")).toHaveCount(4);
 });
 
-test("guided bans, conflicts, joint phases and Undo enforce the draft rules", async ({
+test("direct bans and saves apply at once and can be replaced or cleared", async ({
   page,
 }) => {
   await page.goto("/");
   await openBuilder(page);
   await pickHero(page, "Allies slot 1: Choose hero", "Doctor Strange");
   await page.getByLabel("Draft format").selectOption("mrc");
-  await pickHero(page, "Choose ban · Allies", "Doctor Strange");
+  await expect(page.getByRole("button", { name: /Choose ban/ })).toHaveCount(0);
+  await pickHero(page, "Opponents ban 4: Choose hero", "Doctor Strange");
   await expect(page.locator(".has-conflict")).toHaveCount(1);
+  await pickHero(page, "Opponents ban 4: Doctor Strange", "Hulk");
+  await expect(page.locator(".has-conflict")).toHaveCount(0);
+  await pickHero(page, "Allies save 2: Choose hero", "Luna Snow");
+  await page
+    .getByRole("button", { name: "Allies ban 2: Choose hero", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Luna Snow — Protected for this team." }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await pickHero(page, "Allies ban 1: Choose hero", "Hulk");
+  await page
+    .getByRole("button", { name: "Clear Allies ban 1", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Opponents ban 4: Hulk", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Clear Opponents ban 4", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Clear Allies save 2", exact: true })
+    .click();
+  await page.getByLabel("Draft format").selectOption("ignite");
+  await pickHero(page, "Opponents ban 5: Choose hero", "Doctor Strange");
+  await expect(page.locator(".has-conflict")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Clear Opponents ban 5", exact: true })
+    .click();
+  await expect(page.locator(".has-conflict")).toHaveCount(0);
+  await pickHero(page, "Allies save 2: Choose hero", "Doctor Strange");
+  await pickHero(page, "Allies ban 5: Choose hero", "Doctor Strange");
+  await expect(page.locator(".has-conflict")).toHaveCount(0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Reset draft", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: /^Clear (Allies|Opponents) (ban|save)/ }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", {
       name: "Allies slot 1: Doctor Strange",
       exact: true,
     }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Allies slot 2: Choose hero", exact: true })
-    .click();
-  await expect(
-    page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Doctor Strange — Banned for this team." }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.locator(".has-conflict")).toHaveCount(0);
-  await page.getByLabel("Draft format").selectOption("ignite");
-  await pickHero(page, "Choose ban · Allies", "Doctor Strange");
-  await expect(page.locator(".joint-note")).toContainText("1 / 2");
-  await expect(page.locator(".has-conflict")).toHaveCount(0);
-  await pickHero(page, "Choose ban · Opponents", "Doctor Strange");
-  await expect(page.locator(".has-conflict")).toHaveCount(1);
-  await expect(
-    page.getByRole("heading", { name: "Allies save", exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Choose save · Allies", exact: true })
-    .click();
-  await expect(
-    page.getByRole("dialog").getByRole("button", {
-      name: "Doctor Strange — Already banned for this team.",
-    }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Close dialog" }).click();
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.locator(".joint-note")).toContainText("1 / 2");
-  await expect(page.locator(".has-conflict")).toHaveCount(0);
 });
 
 test("board transfer requires a supported map and confirms replacement; edits stay in the builder", async ({
@@ -313,7 +322,7 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
   }
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.getByLabel("Draft format").selectOption("mrc");
-  await pickHero(page, "Choose ban · Allies", "Deadpool");
+  await pickHero(page, "Allies ban 1: Choose hero", "Deadpool");
   await expect(page.locator(".has-conflict")).toHaveCount(1);
   await page
     .getByRole("button", { name: "Opponents slot 1: Choose hero", exact: true })

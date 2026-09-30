@@ -364,10 +364,6 @@
   border-radius: 6px;
   background: #121316;
 }
-.draft-step.current {
-  border-color: #7a85ed;
-  background: #5e6ad210;
-}
 .draft-step.done {
   border-color: #3a3d49;
 }
@@ -409,11 +405,17 @@
   font-size: 10px;
   font-weight: 500;
 }
-.joint-note {
-  color: #babee0;
-  font-size: 11px;
-  line-height: 1.6;
-  margin: 6px 0 14px;
+.draft-slot-button {
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.draft-clear {
+  margin-top: 12px;
 }
 .draft-controls {
   display: flex;
