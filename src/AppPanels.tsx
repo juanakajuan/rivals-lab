@@ -4,6 +4,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { Minus, Plus } from "lucide-react";
+
 import type { BoardDrawing } from "./boardDrawings";
 import type { BoardToken } from "./boardCanvas";
 import {
@@ -149,6 +151,10 @@ function HeroRow({
   onAdd,
   onRemove,
 }: HeroRowProps): React.JSX.Element {
+  const actionLabel = token
+    ? `Remove ${hero.name} from ${teamLabel(team)}`
+    : `Add ${hero.name} to ${teamLabel(team)}`;
+
   return (
     <div
       className={`hero-row${token ? " placed" : ""}`}
@@ -167,14 +173,15 @@ function HeroRow({
       <button
         className="row-action"
         type="button"
-        aria-label={
-          token
-            ? `Remove ${hero.name} from ${teamLabel(team)}`
-            : `Add ${hero.name} to ${teamLabel(team)}`
-        }
+        aria-label={actionLabel}
+        title={actionLabel}
         onClick={() => (token ? onRemove(token) : onAdd(hero))}
       >
-        {token ? "Remove" : "Add"}
+        {token ? (
+          <Minus size={16} aria-hidden="true" />
+        ) : (
+          <Plus size={16} aria-hidden="true" />
+        )}
       </button>
     </div>
   );

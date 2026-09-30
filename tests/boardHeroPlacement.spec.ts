@@ -33,14 +33,22 @@ for (const key of ["Enter", "Space"]) {
     await page.getByRole("searchbox").focus();
     await page.keyboard.press("Tab");
     await expect(add).toBeFocused();
-    await expect(add).toHaveText("Add");
+    await expect(add).toHaveText("");
+    await expect(add.locator("svg.lucide-plus")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     await page.keyboard.press(key);
     await expect(allies).toHaveText("Allies 1");
     await expect(opponents).toHaveText("Opponents 0");
     await expect(page.locator(".selection-name strong")).toHaveText("Angela");
     await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
     await expect(remove).toBeEnabled();
-    await expect(remove).toHaveText("Remove");
+    await expect(remove).toHaveText("");
+    await expect(remove.locator("svg.lucide-minus")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     await undo.click();
     await expect(allies).toHaveText("Allies 0");
     await expect(add).toBeEnabled();
