@@ -8,6 +8,7 @@ declare global {
     imageCopyTest: {
       text: string[];
       writes: number;
+      bytes?: number[];
       positions?: {
         readonly text: string;
         readonly x: number;
@@ -325,6 +326,116 @@ test("downloads when image clipboard access is unsupported", async ({
   );
 });
 
+test("uses the intact local image when the encoder worker cannot load", async ({
+  page,
+}, testInfo) => {
+  const saved = serializeCompLibrary([
+    {
+      id: "fallback-test",
+      updatedAt: "2026-09-28T00:00:00Z",
+      comp: { ...emptyComp(), name: "Saved plan" },
+    },
+  ]);
+  await page.addInitScript((source) => {
+    localStorage.setItem("rivals-lab.comps.v1", source);
+    window.imageCopyTest = { text: [], writes: 0 };
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        write: async (items: ClipboardItem[]) => {
+          const item = items[0];
+          if (!item) throw new Error("Missing clipboard item");
+          const blob = await item.getType("image/png");
+          window.imageCopyTest.bytes = [
+            ...new Uint8Array(await blob.arrayBuffer()),
+          ];
+          window.imageCopyTest.writes++;
+        },
+      },
+    });
+  }, saved);
+  let failedWorkerLoads = 0;
+  await page.route("**/*compImageEncoder.worker*", async (route) => {
+    failedWorkerLoads++;
+    await route.fulfill({
+      status: 404,
+      contentType: "text/html",
+      body: "Worker asset is no longer available.",
+    });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Load Saved plan", exact: true })
+    .click();
+  await page.getByLabel("Comp name", { exact: true }).fill("Unsaved plan");
+  await page
+    .getByLabel("Comp notes", { exact: true })
+    .fill("Keep these notes.");
+  const downloadReady = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download & Copy", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Download started. Image copied to clipboard.",
+  );
+  const download = await downloadReady;
+  expect(download.suggestedFilename()).toBe("Unsaved-plan.png");
+  const path = testInfo.outputPath("fallback.png");
+  await download.saveAs(path);
+  const bytes = [...(await readFile(path))];
+  const result = await page.evaluate(async (downloaded) => {
+    const clipboard = window.imageCopyTest.bytes;
+    if (!clipboard) throw new Error("Missing clipboard PNG");
+    const pixelHashes: string[] = [];
+    let background: number[] = [];
+    let hasContent = false;
+    for (const bytes of [downloaded, clipboard]) {
+      const image = await createImageBitmap(
+        new Blob([new Uint8Array(bytes)], { type: "image/png" }),
+      );
+      const context = new OffscreenCanvas(image.width, image.height).getContext(
+        "2d",
+      );
+      if (!context) throw new Error("Cannot inspect PNG");
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, image.width, image.height).data;
+      background = [...pixels.slice(0, 4)];
+      hasContent = pixels.some(
+        (channel, index) => channel !== background[index % 4],
+      );
+      const hash = await crypto.subtle.digest(
+        "SHA-256",
+        new Uint8Array(pixels),
+      );
+      pixelHashes.push(
+        `${image.width}x${image.height}:${[...new Uint8Array(hash)].join(",")}`,
+      );
+      image.close();
+    }
+    return {
+      pixelHashes,
+      background,
+      hasContent,
+      writes: window.imageCopyTest.writes,
+      saved: localStorage.getItem("rivals-lab.comps.v1"),
+    };
+  }, bytes);
+  expect(failedWorkerLoads).toBe(1);
+  expect(result.pixelHashes[0]).toBe(result.pixelHashes[1]);
+  expect(result.background).toEqual([8, 9, 10, 255]);
+  expect(result.hasContent).toBe(true);
+  expect(result.writes).toBe(1);
+  expect(result.saved).toBe(saved);
+  await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
+    "Unsaved plan",
+  );
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Keep these notes.",
+  );
+});
+
 test("image generation failure produces no download or clipboard image", async ({
   page,
 }) => {
@@ -332,6 +443,9 @@ test("image generation failure produces no download or clipboard image", async (
   page.on("download", () => downloads++);
   await page.addInitScript(() => {
     window.imageCopyTest = { text: [], writes: 0 };
+    OffscreenCanvas.prototype.convertToBlob = async () => {
+      throw new Error("Local PNG encoding failed.");
+    };
     Object.defineProperty(navigator, "clipboard", {
       value: {
         write: async (items: ClipboardItem[]) => {

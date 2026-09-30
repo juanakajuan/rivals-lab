@@ -476,9 +476,12 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   for (const draw of commands) draw();
   // Encoding in a worker avoids the page's idle-task queue for PNG export.
   if ("transferToImageBitmap" in canvas && typeof Worker !== "undefined") {
-    const image = canvas.transferToImageBitmap();
+    let image: ImageBitmap | undefined;
     let worker: Worker | undefined;
     try {
+      // Keep the rendered canvas intact if worker startup or encoding fails.
+      const snapshot = await createImageBitmap(canvas);
+      image = snapshot;
       worker = new Worker(
         new URL("./compImageEncoder.worker.ts", import.meta.url),
         { type: "module" },
@@ -486,7 +489,11 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       const encoder = worker;
       return await new Promise<Blob>((resolve, reject) => {
         encoder.onmessage = (event: MessageEvent<unknown>) => {
-          if (event.data instanceof Blob && event.data.type === "image/png")
+          if (
+            event.data instanceof Blob &&
+            event.data.type === "image/png" &&
+            event.data.size > 0
+          )
             resolve(event.data);
           else
             reject(
@@ -501,10 +508,12 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
           reject(new Error("The image encoder could not start. Try again."));
         encoder.onmessageerror = () =>
           reject(new Error("The image encoder returned invalid data."));
-        encoder.postMessage(image, [image]);
+        encoder.postMessage(snapshot, [snapshot]);
       });
+    } catch {
+      // Use the local encoder below with the original rendered pixels.
     } finally {
-      image.close();
+      image?.close();
       worker?.terminate();
     }
   }
