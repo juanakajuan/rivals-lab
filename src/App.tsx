@@ -28,6 +28,12 @@ import {
 import { boardHistoryReducer, createBoardHistory } from "./boardHistory";
 import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from "./maps";
 
+type Page = "board" | "builder";
+
+function pageFromPath(): Page {
+  return window.location.pathname === "/builder" ? "builder" : "board";
+}
+
 type BoardContextMenu = {
   readonly x: number;
   readonly y: number;
@@ -65,7 +71,7 @@ function updateTokenPosition(
 }
 
 export default function App(): React.JSX.Element {
-  const [page, setPage] = useState<"board" | "builder">("board");
+  const [page, setPage] = useState<Page>(pageFromPath);
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
@@ -122,6 +128,42 @@ export default function App(): React.JSX.Element {
   const visibleHeroes = HEROES.filter((hero) =>
     hero.name.toLocaleLowerCase().includes(normalizedHeroSearch),
   );
+
+  useEffect(() => {
+    function handlePopState(): void {
+      setPage(pageFromPath());
+      setContextMenu(null);
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  function navigate(nextPage: Page): void {
+    const path = `/${nextPage}`;
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, "", path);
+    }
+    setPage(nextPage);
+    setContextMenu(null);
+  }
+
+  function handlePageLink(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    nextPage: Page,
+  ): void {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    navigate(nextPage);
+  }
 
   useEffect(() => {
     const host = boardHostRef.current;
@@ -556,7 +598,7 @@ export default function App(): React.JSX.Element {
     });
     setSelectedTokenId(null);
     setContextMenu(null);
-    setPage("board");
+    navigate("board");
     setAnnouncement(`${comp.name || "Comp"} opened on ${map.name}.`);
   }
 
@@ -579,23 +621,20 @@ export default function App(): React.JSX.Element {
           <strong>Rivals Lab</strong>
         </div>
         <nav className="page-navigation" aria-label="Pages">
-          <button
-            type="button"
+          <a
+            href="/board"
             aria-current={page === "board" ? "page" : undefined}
-            onClick={() => setPage("board")}
+            onClick={(event) => handlePageLink(event, "board")}
           >
             Position Board
-          </button>
-          <button
-            type="button"
+          </a>
+          <a
+            href="/builder"
             aria-current={page === "builder" ? "page" : undefined}
-            onClick={() => {
-              setContextMenu(null);
-              setPage("builder");
-            }}
+            onClick={(event) => handlePageLink(event, "builder")}
           >
             Draft / Comp Builder
-          </button>
+          </a>
         </nav>
         <div className="header-actions" hidden={page !== "board"}>
           <button

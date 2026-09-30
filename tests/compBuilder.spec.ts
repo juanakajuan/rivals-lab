@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function openBuilder(page: Page): Promise<void> {
   await page
-    .getByRole("button", { name: "Draft / Comp Builder", exact: true })
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
 }
 
@@ -217,6 +217,7 @@ test("board transfer requires a supported map and confirms replacement; edits st
 }) => {
   await page.goto("/");
   await openBuilder(page);
+  await expect(page).toHaveURL(/\/builder$/);
   await pickHero(page, "Allies slot 1: Choose hero", "Hulk");
   await pickHero(page, "Opponents slot 1: Choose hero", "Loki");
   await page.getByLabel("Comp map", { exact: true }).selectOption("midtown");
@@ -232,6 +233,7 @@ test("board transfer requires a supported map and confirms replacement; edits st
     .selectOption("museum-of-contemplation-convoy");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Open board", exact: true }).click();
+  await expect(page).toHaveURL(/\/board$/);
   await expect(
     page.getByRole("heading", { name: "Museum of Contemplation", exact: true }),
   ).toBeVisible();
@@ -280,13 +282,9 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await page.getByLabel("Allies slot 1 notes").fill("abc");
   await page.getByLabel("Allies slot 1 notes").press("Backspace");
   await expect(page.getByLabel("Allies slot 1 notes")).toHaveValue("ab");
-  await page
-    .getByRole("button", { name: "Position Board", exact: true })
-    .focus();
+  await page.getByRole("link", { name: "Position Board", exact: true }).focus();
   await page.keyboard.press("Control+z");
-  await page
-    .getByRole("button", { name: "Position Board", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Position Board", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Allies 1", exact: true }),
   ).toBeVisible();
