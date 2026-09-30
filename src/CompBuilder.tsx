@@ -62,6 +62,11 @@ interface LibraryState {
 
 const TEAMS: readonly Team[] = ["ally", "enemy"];
 
+// Normalize optional fields and key order, including legacy saved data.
+function savedCompRevision(entry: SavedComp): string {
+  return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
 }
@@ -221,7 +226,7 @@ export function CompBuilder({
     setComp(compToLoad);
     setBaseline(compToLoad);
     setSavedId(entry?.id ?? null);
-    setSavedRevision(entry ? JSON.stringify(entry) : null);
+    setSavedRevision(entry ? savedCompRevision(entry) : null);
     setPicker(null);
     setMessage(entry ? `Loaded ${compToLoad.name}.` : "New comp.");
     setError(null);
@@ -244,7 +249,7 @@ export function CompBuilder({
       !commit((current) => {
         if (!asCopy && savedId !== null) {
           const stored = current.find((item) => item.id === savedId);
-          if (!stored || JSON.stringify(stored) !== savedRevision)
+          if (!stored || savedCompRevision(stored) !== savedRevision)
             throw new Error(
               stored
                 ? "This comp changed in another tab. Your edits were kept. Use Save As to save a copy, or load the saved comp to use that version."
@@ -258,7 +263,7 @@ export function CompBuilder({
     setComp(nextComp);
     setBaseline(nextComp);
     setSavedId(id);
-    setSavedRevision(JSON.stringify(entry));
+    setSavedRevision(savedCompRevision(entry));
     setNameRequest(null);
     setMessage(`Saved ${trimmed}.`);
   }
@@ -274,8 +279,8 @@ export function CompBuilder({
           updatedAt: new Date().toISOString(),
         };
         // A rename must not make stale editor content safe to overwrite.
-        if (savedId === id && JSON.stringify(entry) === savedRevision)
-          renamedRevision = JSON.stringify(nextEntry);
+        if (savedId === id && savedCompRevision(entry) === savedRevision)
+          renamedRevision = savedCompRevision(nextEntry);
         return nextEntry;
       }),
     );
