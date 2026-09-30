@@ -333,7 +333,7 @@ button:focus-visible,
   border-color: var(--team-color);
 }
 
-.hero-row:focus-visible {
+.row-action:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 1px;
 }
@@ -377,11 +377,23 @@ button:focus-visible,
 }
 
 .row-action {
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  color: #aeb1b2;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  color: var(--team-text);
+  background: color-mix(in srgb, var(--team-color) 14%, var(--panel));
+  border: 1px solid var(--team-color);
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.row-action:disabled {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
 }
 
 .row-action svg {

@@ -369,6 +369,35 @@ export default function App(): React.JSX.Element {
     setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
   }
 
+  function addHero(hero: HeroDefinition): void {
+    if (tokens.some((token) => token.id === `${selectedTeam}-${hero.id}`))
+      return;
+
+    const spacing = (64 * iconSize) / 100;
+    const startX = selectedTeam === "ally" ? 0 : selectedMap.width / 2;
+    const endX = startX + selectedMap.width / 2;
+    for (let y = spacing; y < selectedMap.height; y += spacing) {
+      for (let x = startX + spacing; x < endX; x += spacing) {
+        if (
+          tokens.every(
+            (token) =>
+              Math.abs(token.x - x) >= spacing ||
+              Math.abs(token.y - y) >= spacing,
+          )
+        ) {
+          placeHero(hero, x, y, selectedTeam);
+          return;
+        }
+      }
+    }
+    placeHero(
+      hero,
+      startX + selectedMap.width / 4,
+      selectedMap.height / 2,
+      selectedTeam,
+    );
+  }
+
   function handleHeroDragStart(
     event: React.DragEvent<HTMLDivElement>,
     hero: HeroDefinition,
@@ -684,6 +713,7 @@ export default function App(): React.JSX.Element {
           onSearchChange={setHeroSearch}
           onHeroDragStart={handleHeroDragStart}
           onHeroDragEnd={() => setIsHeroDragging(false)}
+          onHeroAdd={addHero}
         />
         <BoardPanel
           drawingControls={

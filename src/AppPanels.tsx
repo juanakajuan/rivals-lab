@@ -4,7 +4,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { CircleCheck, Move } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 
 import type { BoardDrawing } from "./boardDrawings";
 import type { BoardToken } from "./boardCanvas";
@@ -30,6 +30,7 @@ interface HeroPanelProps {
     hero: HeroDefinition,
   ) => void;
   readonly onHeroDragEnd: () => void;
+  readonly onHeroAdd: (hero: HeroDefinition) => void;
 }
 
 export function HeroPanel({
@@ -43,13 +44,14 @@ export function HeroPanel({
   onSearchChange,
   onHeroDragStart,
   onHeroDragEnd,
+  onHeroAdd,
 }: HeroPanelProps): React.JSX.Element {
   return (
     <aside className="hero-panel" aria-labelledby="heroes-heading">
       <div className="hero-panel-header">
         <div className="sidebar-heading">
           <h2 id="heroes-heading">Heroes</h2>
-          <p>Choose a team, then drag a hero onto the map.</p>
+          <p>Choose a team, then add or drag a hero onto the map.</p>
         </div>
 
         <div className="team-picker" aria-label="Team for new heroes">
@@ -111,6 +113,7 @@ export function HeroPanel({
                 isPlaced={isPlaced}
                 onDragStart={onHeroDragStart}
                 onDragEnd={onHeroDragEnd}
+                onAdd={onHeroAdd}
               />
             </Fragment>
           );
@@ -132,6 +135,7 @@ interface HeroRowProps {
     hero: HeroDefinition,
   ) => void;
   readonly onDragEnd: () => void;
+  readonly onAdd: (hero: HeroDefinition) => void;
 }
 
 function HeroRow({
@@ -140,15 +144,13 @@ function HeroRow({
   isPlaced,
   onDragStart,
   onDragEnd,
+  onAdd,
 }: HeroRowProps): React.JSX.Element {
   return (
     <div
       className={`hero-row${isPlaced ? " placed" : ""}`}
       data-team={team}
       draggable
-      role="button"
-      tabIndex={0}
-      aria-label={`Drag ${hero.name} onto the map for ${teamLabel(team)}`}
       onDragStart={(event) => onDragStart(event, hero)}
       onDragEnd={onDragEnd}
     >
@@ -159,9 +161,16 @@ function HeroRow({
         <strong>{hero.name}</strong>
         <small>{hero.role}</small>
       </span>
-      <span className="row-action" aria-hidden="true">
-        {isPlaced ? <CircleCheck /> : <Move />}
-      </span>
+      <button
+        className="row-action"
+        type="button"
+        disabled={isPlaced}
+        aria-label={`${isPlaced ? "Added" : "Add"} ${hero.name} to ${teamLabel(team)}`}
+        onClick={() => onAdd(hero)}
+      >
+        {isPlaced ? <CircleCheck aria-hidden="true" /> : null}
+        {isPlaced ? "Added" : "Add"}
+      </button>
     </div>
   );
 }
@@ -266,7 +275,7 @@ export function BoardPanel({
           <SelectionSummary token={selectedToken} hero={selectedHero} />
         ) : (
           <p className="board-help">
-            Drag heroes onto the map. Right-click a token to remove it.
+            Add or drag heroes onto the map. Right-click a token to remove it.
           </p>
         )}
       </div>
