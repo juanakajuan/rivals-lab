@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Search, ShieldCheck, Swords, X } from "lucide-react";
+import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import {
   draftSlots,
@@ -216,6 +216,7 @@ export function DraftPanel({
                     <li
                       key={`${slot.kind}-${slot.index}`}
                       className={`draft-step${hero ? " done" : ""}`}
+                      data-action={slot.kind}
                     >
                       <button
                         type="button"
@@ -228,17 +229,33 @@ export function DraftPanel({
                           {slot.index + 1}
                         </span>
                         <span className="draft-step-choice" data-team={team}>
-                          {hero ? (
-                            <img src={heroImagePath(hero.id)} alt="" />
-                          ) : (
-                            <span className="draft-placeholder">
-                              {slot.kind === "save" ? (
-                                <ShieldCheck size={22} />
-                              ) : (
-                                <Swords size={22} />
-                              )}
-                            </span>
-                          )}
+                          <span
+                            className={`draft-portrait${hero ? " has-hero" : ""}`}
+                          >
+                            {hero ? (
+                              <img src={heroImagePath(hero.id)} alt="" />
+                            ) : (
+                              <span className="draft-placeholder">
+                                {slot.kind === "save" ? (
+                                  <ShieldCheck size={22} />
+                                ) : (
+                                  <Ban size={22} />
+                                )}
+                              </span>
+                            )}
+                            {hero && (
+                              <span
+                                className="draft-action-badge"
+                                aria-hidden="true"
+                              >
+                                {slot.kind === "save" ? (
+                                  <ShieldCheck size={12} />
+                                ) : (
+                                  <Ban size={12} />
+                                )}
+                              </span>
+                            )}
+                          </span>
                           <span>
                             <strong>{hero?.name ?? "Choose hero"}</strong>
                           </span>

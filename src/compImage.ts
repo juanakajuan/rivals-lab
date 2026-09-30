@@ -1,6 +1,6 @@
 import { COMP_MAPS } from "./compMaps";
 import { type Comp } from "./comps";
-import { draftEffects, draftSlots } from "./draft";
+import { draftEffects, draftSlots, type DraftActionKind } from "./draft";
 import {
   HERO_BY_ID,
   heroImagePath,
@@ -22,12 +22,14 @@ const COLORS = {
   muted: "#8a8f98",
   ally: "#6872d9",
   enemy: "#df6670",
+  ban: "#e28a78",
+  save: "#8ddacb",
 };
 
 interface DraftCard {
   readonly team: Team;
   readonly step: string;
-  readonly action: string;
+  readonly kind: DraftActionKind;
   readonly heroId: string | null;
 }
 
@@ -36,7 +38,7 @@ function draftCards(comp: Comp): readonly DraftCard[] {
   return draftSlots(comp.draft).map((slot) => ({
     team: slot.team,
     step: `${slot.kind === "ban" ? "Ban" : "Save"} ${slot.index + 1}`,
-    action: slot.kind === "ban" ? "Ban" : "Save",
+    kind: slot.kind,
     heroId: slot.heroId,
   }));
 }
@@ -174,6 +176,64 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     const image = heroId ? images.get(heroId) : undefined;
     if (image) commands.push(() => context.drawImage(image, x, y, size, size));
     else text("—", x, y + size / 4, size, 22, COLORS.muted, true);
+  }
+
+  function draftPortrait(
+    heroId: string | null,
+    kind: DraftActionKind,
+    x: number,
+    y: number,
+  ): void {
+    portrait(heroId, x, y, 44);
+    commands.push(() => {
+      context.save();
+      context.strokeStyle = COLORS[kind];
+      context.lineWidth = 2;
+      context.strokeRect(x, y, 44, 44);
+      if (kind === "ban") {
+        context.globalAlpha = 0.75;
+        context.lineWidth = 3;
+        context.beginPath();
+        context.moveTo(x + 2, y + 42);
+        context.lineTo(x + 42, y + 2);
+        context.stroke();
+        context.globalAlpha = 1;
+      }
+      const badgeX = x + 43;
+      const badgeY = y + 43;
+      context.fillStyle = COLORS[kind];
+      context.strokeStyle = COLORS.panel;
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(badgeX, badgeY, 10, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.lineWidth = 1.5;
+      context.beginPath();
+      if (kind === "ban") {
+        context.arc(badgeX, badgeY, 5, 0, Math.PI * 2);
+        context.moveTo(badgeX - 3.5, badgeY + 3.5);
+        context.lineTo(badgeX + 3.5, badgeY - 3.5);
+      } else {
+        context.moveTo(badgeX, badgeY - 5);
+        context.lineTo(badgeX + 4, badgeY - 3);
+        context.lineTo(badgeX + 4, badgeY + 1);
+        context.quadraticCurveTo(badgeX + 3, badgeY + 4, badgeX, badgeY + 5);
+        context.quadraticCurveTo(
+          badgeX - 3,
+          badgeY + 4,
+          badgeX - 4,
+          badgeY + 1,
+        );
+        context.lineTo(badgeX - 4, badgeY - 3);
+        context.closePath();
+        context.moveTo(badgeX - 2, badgeY);
+        context.lineTo(badgeX, badgeY + 2);
+        context.lineTo(badgeX + 2, badgeY - 1);
+      }
+      context.stroke();
+      context.restore();
+    });
   }
 
   text(
@@ -326,15 +386,15 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       let rowHeight = 0;
       teamCards.forEach((card, index) => {
         const x = left + index * (width + 12);
-        portrait(card.heroId, x + (width - 44) / 2, y + 28, 44);
-        text(card.step, x, y, width, 14, COLORS.muted, true);
+        draftPortrait(card.heroId, card.kind, x + (width - 44) / 2, y + 28);
+        text(card.step, x, y, width, 14, COLORS[card.kind], true);
         text(
-          card.action,
+          card.kind === "save" ? "Save" : "Ban",
           x,
-          y + 78,
+          y + 88,
           width,
           15,
-          card.action === "Save" ? COLORS.ally : COLORS.enemy,
+          COLORS[card.kind],
           true,
         );
         const nameHeight = text(
@@ -342,13 +402,13 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
             ? (HERO_BY_ID.get(card.heroId)?.name ?? "Unknown hero")
             : "Not selected",
           x + 4,
-          y + 100,
+          y + 110,
           width - 8,
           17,
           COLORS.text,
           true,
         );
-        const height = 104 + nameHeight;
+        const height = 114 + nameHeight;
         rowHeight = Math.max(rowHeight, height);
       });
       y += rowHeight + 18;

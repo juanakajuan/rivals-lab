@@ -361,9 +361,19 @@
   min-width: 144px;
   position: relative;
 }
+.draft-step[data-action="ban"] {
+  --draft-accent: #e28a78;
+  --draft-border: #744f49;
+  --draft-tint: #30201e;
+}
+.draft-step[data-action="save"] {
+  --draft-accent: #8ddacb;
+  --draft-border: #426b66;
+  --draft-tint: #1b2c29;
+}
 .step-number {
   display: block;
-  color: #9b9ead;
+  color: var(--draft-accent);
   font-size: 10px;
   margin-bottom: 0;
 }
@@ -373,26 +383,55 @@
   align-items: center;
   gap: 8px;
 }
-.draft-step-choice > img,
-.draft-placeholder {
+.draft-portrait {
+  position: relative;
   width: 44px;
   height: 44px;
   flex-shrink: 0;
+  border: 2px solid var(--draft-accent);
   border-radius: 4px;
-  background: #23252e;
+  background: var(--draft-tint);
+}
+.draft-portrait > img,
+.draft-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
 }
 .draft-placeholder {
   display: grid;
   place-items: center;
-  color: #8f94a4;
+  color: var(--draft-accent);
+}
+.draft-step[data-action="ban"] .draft-portrait.has-hero::after {
+  content: "";
+  position: absolute;
+  width: 52px;
+  height: 3px;
+  left: -6px;
+  top: 19px;
+  background: #e28a78bf;
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+.draft-action-badge {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  right: -7px;
+  bottom: -7px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #121316;
+  border-radius: 50%;
+  color: #121316;
+  background: var(--draft-accent);
+  z-index: 1;
 }
 .draft-step-choice > span:last-child {
   display: grid;
   gap: 4px;
-}
-.draft-step-choice small {
-  font-size: 9px;
-  color: var(--team-color);
 }
 .draft-step-choice strong {
   max-width: 140px;
@@ -411,7 +450,7 @@
   padding: 14px 10px;
   text-align: center;
   background: #121316;
-  border: 1px dashed #484d5d;
+  border: 1px dashed var(--draft-border);
   border-radius: 6px;
   color: inherit;
   cursor: pointer;
@@ -423,13 +462,13 @@
   border-style: solid;
 }
 .draft-step .draft-slot-button:hover {
-  border-color: #7a85ed;
-  background: #1c2033;
+  border-color: var(--draft-accent);
+  background: var(--draft-tint);
 }
 .draft-slot-button:focus-visible {
-  outline: 2px solid #9ba6ff;
+  outline: 2px solid var(--draft-accent);
   outline-offset: -3px;
-  background: #1c2033;
+  background: var(--draft-tint);
 }
 .draft-clear {
   position: absolute;
