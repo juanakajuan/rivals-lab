@@ -217,6 +217,7 @@ test("board transfer requires a supported map and confirms replacement; edits st
 }) => {
   await page.goto("/");
   await openBuilder(page);
+  await expect(page).toHaveURL(/\/builder$/);
   await pickHero(page, "Allies slot 1: Choose hero", "Hulk");
   await pickHero(page, "Opponents slot 1: Choose hero", "Loki");
   await page.getByLabel("Comp map", { exact: true }).selectOption("midtown");
@@ -232,6 +233,7 @@ test("board transfer requires a supported map and confirms replacement; edits st
     .selectOption("museum-of-contemplation-convoy");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Open board", exact: true }).click();
+  await expect(page).toHaveURL(/\/board$/);
   await expect(
     page.getByRole("heading", { name: "Museum of Contemplation", exact: true }),
   ).toBeVisible();
