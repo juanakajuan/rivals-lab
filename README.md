@@ -20,3 +20,12 @@ through `.prettierignore`.
 
 Before a pull request, run `npm run format:check`, `npm run check`, and
 `npm run build`.
+
+## Board history
+
+Board history stays in the current session and resets on reload. It stores up to
+100 edits across undo and redo, plus the current board. New edits discard the
+oldest saved entries when needed and clear redo. Unchanged actions preserve history.
+
+Use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo. Ctrl+Y also redoes on
+Windows/Linux. These shortcuts leave editable fields to native text editing.

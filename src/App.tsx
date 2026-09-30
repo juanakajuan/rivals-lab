@@ -248,13 +248,15 @@ export default function App(): React.JSX.Element {
             target.closest("input, textarea, select")))
       )
         return;
+      const key = event.key.toLowerCase();
       if (
         (event.ctrlKey || event.metaKey) &&
         !event.altKey &&
-        event.key.toLowerCase() === "z"
+        (key === "z" ||
+          (event.ctrlKey && !event.metaKey && !event.shiftKey && key === "y"))
       ) {
         event.preventDefault();
-        restoreBoard(event.shiftKey ? "redo" : "undo");
+        restoreBoard(event.shiftKey || key === "y" ? "redo" : "undo");
         return;
       }
       if (
