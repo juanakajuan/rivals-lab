@@ -1,4 +1,11 @@
 import Konva from "konva";
+import {
+  createDrawing as createAnnotation,
+  moveDrawing,
+  type BoardDrawing,
+  type BoardPoint,
+  type BoardTool,
+} from "./boardDrawings";
 
 import {
   HERO_BY_ID,
@@ -23,9 +30,20 @@ export interface BoardSnapshot {
   readonly tokens: readonly BoardToken[];
   readonly selectedTokenId: string | null;
   readonly iconSize: number;
+  readonly drawings?: readonly BoardDrawing[];
+  readonly tool?: BoardTool;
+  readonly drawingColor?: string;
+  readonly selectedDrawingId?: string | null;
 }
 
 export interface BoardEvents {
+  readonly onDrawingSelect?: (drawing: BoardDrawing | null) => void;
+  readonly onDrawingContextMenu?: (
+    drawing: BoardDrawing,
+    clientX: number,
+    clientY: number,
+  ) => void;
+  readonly onDrawingEdit?: (drawing: BoardDrawing) => void;
   readonly onSelect: (token: BoardToken | null) => void;
   readonly onMove: (token: BoardToken, x: number, y: number) => void;
   readonly onContextMenu: (
@@ -53,7 +71,7 @@ interface TokenDrawing {
   dragging: boolean;
 }
 
-type BoardCursor = "default" | "grab" | "grabbing";
+type BoardCursor = "default" | "grab" | "grabbing" | "crosshair";
 
 const TOKEN_RADIUS = 22;
 
@@ -181,10 +199,17 @@ export function createBoardCanvas(
   const stage = new Konva.Stage({ container: host, width: 1, height: 1 });
   const mapLayer = new Konva.Layer();
   const tokenLayer = new Konva.Layer();
-  stage.add(mapLayer, tokenLayer);
+  const annotationLayer = new Konva.Layer();
+  stage.add(mapLayer, annotationLayer, tokenLayer);
+  const annotations = new Map<
+    string,
+    { group: Konva.Group; drawing: BoardDrawing; dragging: boolean }
+  >();
+  let gesture: { start: BoardPoint; preview: Konva.Group } | null = null;
   const drawings = new Map<string, TokenDrawing>();
   const heroImages = new Map<string, HTMLImageElement>();
   let snapshot: BoardSnapshot | null = null;
+  let pointerTool: BoardTool = "move";
   let destroyed = false;
   let mapRequest = 0;
 
@@ -280,6 +305,7 @@ export function createBoardCanvas(
         drawing = createDrawing(token, hero);
         drawings.set(token.id, drawing);
       }
+
       drawing.group.scale({
         x: current.iconSize / 100,
         y: current.iconSize / 100,
@@ -305,8 +331,191 @@ export function createBoardCanvas(
     tokenLayer.batchDraw();
   }
 
+  function annotationShape(
+    drawing: BoardDrawing,
+    selected: boolean,
+  ): Konva.Shape {
+    const common = {
+      stroke: drawing.color,
+      strokeWidth: selected ? 5 : 3,
+      hitStrokeWidth: 18,
+    };
+    switch (drawing.kind) {
+      case "arrow":
+        return new Konva.Arrow({
+          ...common,
+          points: [0, 0, drawing.dx, drawing.dy],
+          fill: drawing.color,
+          pointerLength: 16,
+          pointerWidth: 14,
+        });
+      case "zone":
+        return new Konva.Rect({
+          ...common,
+          width: drawing.width,
+          height: drawing.height,
+          fill: drawing.color + "33",
+          dash: selected ? [10, 5] : [],
+        });
+      case "note":
+        return new Konva.Text({
+          text: drawing.text,
+          width: 180,
+          padding: 8,
+          fontSize: 20,
+          fill: drawing.color,
+          shadowColor: "#000000",
+          shadowBlur: 4,
+          ...(selected ? { stroke: "#ffffff" } : {}),
+          strokeWidth: selected ? 0.4 : 0,
+          wrap: "word",
+        });
+    }
+  }
+
+  function cancelGesture(): void {
+    gesture?.preview.destroy();
+    gesture = null;
+    annotationLayer.batchDraw();
+  }
+
+  function renderAnnotations(current: BoardSnapshot): void {
+    const items = current.drawings ?? [];
+    for (const [id, item] of annotations) {
+      if (items.some((drawing) => drawing.id === id)) continue;
+      item.group.destroy();
+      annotations.delete(id);
+    }
+    for (const drawing of items) {
+      let item = annotations.get(drawing.id);
+      if (!item) {
+        const group = new Konva.Group({ id: drawing.id });
+        item = { group, drawing, dragging: false };
+        annotations.set(drawing.id, item);
+        const entry = item;
+        group.on("click tap", (event) => {
+          event.cancelBubble = true;
+          if (event.evt instanceof MouseEvent && event.evt.button !== 0) return;
+          events.onDrawingSelect?.(entry.drawing);
+        });
+        group.on("contextmenu", (event) => {
+          event.evt.preventDefault();
+          event.cancelBubble = true;
+          events.onDrawingContextMenu?.(
+            entry.drawing,
+            event.evt.clientX,
+            event.evt.clientY,
+          );
+        });
+        group.on("dragstart", () => {
+          entry.dragging = true;
+          events.onDrawingSelect?.(entry.drawing);
+        });
+        group.on("dragend", () => {
+          entry.dragging = false;
+          if (snapshot)
+            events.onDrawingEdit?.(
+              moveDrawing(entry.drawing, group.x(), group.y(), snapshot.map),
+            );
+        });
+        group.dragBoundFunc((point) => {
+          if (!snapshot) return point;
+          const moved = moveDrawing(
+            entry.drawing,
+            point.x / stage.scaleX(),
+            point.y / stage.scaleY(),
+            snapshot.map,
+          );
+          return { x: moved.x * stage.scaleX(), y: moved.y * stage.scaleY() };
+        });
+        annotationLayer.add(group);
+      }
+      item.drawing = drawing;
+      item.group.draggable(true);
+      if (!item.dragging) item.group.position({ x: drawing.x, y: drawing.y });
+      item.group.destroyChildren();
+      item.group.add(
+        annotationShape(drawing, drawing.id === current.selectedDrawingId),
+      );
+    }
+    annotationLayer.batchDraw();
+  }
+
+  function pointerPoint(): BoardPoint | null {
+    const point = stage.getPointerPosition();
+    if (!point || !snapshot) return null;
+    return {
+      x: Math.round(clamp(point.x / stage.scaleX(), 0, snapshot.map.width)),
+      y: Math.round(clamp(point.y / stage.scaleY(), 0, snapshot.map.height)),
+    };
+  }
+  stage.on("pointerdown", (event) => {
+    pointerTool = snapshot?.tool ?? "move";
+    const tool = snapshot?.tool;
+    if (
+      !tool ||
+      tool === "move" ||
+      event.evt.button > 0 ||
+      event.target !== stage
+    )
+      return;
+    const start = pointerPoint();
+    if (!start) return;
+    cancelGesture();
+    const preview = new Konva.Group({
+      x: start.x,
+      y: start.y,
+      listening: false,
+    });
+    annotationLayer.add(preview);
+    gesture = { start, preview };
+  });
+  stage.on("pointermove", () => {
+    const end = pointerPoint();
+    const tool = snapshot?.tool;
+    if (!snapshot || !gesture || !end || !tool || tool === "move") return;
+    const drawing = createAnnotation(
+      tool,
+      gesture.start,
+      end,
+      snapshot?.drawingColor ?? "#ffd166",
+    );
+    gesture.preview.position({ x: drawing.x, y: drawing.y });
+    gesture.preview.destroyChildren();
+    gesture.preview.add(annotationShape(drawing, false));
+    annotationLayer.batchDraw();
+  });
+  stage.on("pointerup", () => {
+    const end = pointerPoint();
+    const tool = snapshot?.tool;
+    if (!snapshot || !gesture || !end || !tool || tool === "move") return;
+    const drawing = createAnnotation(
+      tool,
+      gesture.start,
+      end,
+      snapshot?.drawingColor ?? "#ffd166",
+    );
+    cancelGesture();
+    if (drawing.kind === "arrow" && Math.hypot(drawing.dx, drawing.dy) < 8)
+      return;
+    if (drawing.kind === "zone" && (drawing.width < 8 || drawing.height < 8))
+      return;
+    events.onDrawingEdit?.(
+      moveDrawing(drawing, drawing.x, drawing.y, snapshot.map),
+    );
+  });
+  stage.on("pointerleave pointercancel", cancelGesture);
+  function cancelOnEscape(event: KeyboardEvent): void {
+    if (event.key === "Escape") cancelGesture();
+  }
+  window.addEventListener("keydown", cancelOnEscape);
   stage.on("click tap", (event) => {
-    if (event.target === stage) events.onSelect(null);
+    if (event.evt instanceof MouseEvent && event.evt.button !== 0) return;
+    if (event.target !== stage) return;
+    if (pointerTool === "move") {
+      events.onSelect(null);
+      events.onDrawingSelect?.(null);
+    }
   });
   const resizeObserver = new ResizeObserver(() => {
     if (!destroyed && snapshot) resizeStage(stage, host, snapshot.map);
@@ -344,7 +553,25 @@ export function createBoardCanvas(
           setBoardCursor(stage, "default");
         }
       }
+      if (
+        snapshot?.map !== current.map ||
+        snapshot?.tokens !== current.tokens ||
+        snapshot?.drawings !== current.drawings ||
+        snapshot?.tool !== current.tool ||
+        snapshot?.drawingColor !== current.drawingColor
+      ) {
+        cancelGesture();
+        for (const [id, item] of annotations) {
+          if (!item.dragging) continue;
+          item.group.destroy();
+          annotations.delete(id);
+        }
+      }
       snapshot = current;
+      setBoardCursor(
+        stage,
+        current.tool && current.tool !== "move" ? "crosshair" : "default",
+      );
       if (mapChanged) {
         // A map change ends the old gesture, as stage replacement did before.
         for (const drawing of drawings.values()) {
@@ -363,6 +590,7 @@ export function createBoardCanvas(
         });
       }
       renderTokens(current);
+      renderAnnotations(current);
     },
     toBoardPoint(clientX, clientY) {
       // The canvas is centered inside the host, which can have unused space.
@@ -376,6 +604,8 @@ export function createBoardCanvas(
       if (destroyed) return;
       destroyed = true;
       resizeObserver.disconnect();
+      window.removeEventListener("keydown", cancelOnEscape);
+      cancelGesture();
       for (const drawing of drawings.values()) drawing.group.off();
       stage.destroy();
       drawings.clear();

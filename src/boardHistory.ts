@@ -1,9 +1,14 @@
+import { equalDrawings, type BoardDrawing } from "./boardDrawings";
+import { MAPS } from "./maps";
 import type { BoardToken } from "./boardCanvas";
 import type { MapId } from "./maps";
 
 export interface BoardState {
   readonly mapId: MapId;
   readonly tokens: readonly BoardToken[];
+  readonly drawingsByMap?: Readonly<
+    Partial<Record<MapId, readonly BoardDrawing[]>>
+  >;
 }
 
 export interface BoardHistory {
@@ -27,6 +32,12 @@ export function createBoardHistory(present: BoardState): BoardHistory {
 function equalBoards(left: BoardState, right: BoardState): boolean {
   return (
     left.mapId === right.mapId &&
+    MAPS.every((map) =>
+      equalDrawings(
+        left.drawingsByMap?.[map.id] ?? [],
+        right.drawingsByMap?.[map.id] ?? [],
+      ),
+    ) &&
     left.tokens.length === right.tokens.length &&
     left.tokens.every((token, index) => {
       const other = right.tokens[index];

@@ -158,7 +158,7 @@ test("React keeps selection across drag and map change", async ({ page }) => {
     "Doctor Strange",
   );
   await expect(page.locator(".coordinates")).toHaveText(coordinates);
-  await expect(page.locator(".stage-host canvas")).toHaveCount(2);
+  await expect(page.locator(".stage-host canvas")).toHaveCount(3);
 });
 
 test("late map images cannot replace the current map or selection", async ({
