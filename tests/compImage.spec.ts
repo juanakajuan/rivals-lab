@@ -16,7 +16,63 @@ declare global {
       }[];
       rejectWrite?: () => void;
     };
+    imageFallbackTest: {
+      bitmapCloses: number;
+      workers: number;
+      workerStops: number;
+      localEncodes: number;
+    };
   }
+}
+
+interface PngPixels {
+  readonly hash: string;
+  readonly background: readonly number[];
+  readonly hasContent: boolean;
+}
+
+/** Decode exported pixels without using the worker and bitmap APIs under test. */
+async function inspectPngs(
+  sources: readonly (readonly number[])[],
+): Promise<readonly PngPixels[]> {
+  return Promise.all(
+    sources.map(async (bytes) => {
+      const url = URL.createObjectURL(
+        new Blob([new Uint8Array(bytes)], { type: "image/png" }),
+      );
+      try {
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Cannot inspect PNG");
+        context.drawImage(image, 0, 0);
+        const pixels = context.getImageData(
+          0,
+          0,
+          image.width,
+          image.height,
+        ).data;
+        const background = [...pixels.slice(0, 4)];
+        const hash = await crypto.subtle.digest(
+          "SHA-256",
+          new Uint8Array(pixels),
+        );
+        return {
+          hash: `${image.width}x${image.height}:${[...new Uint8Array(hash)].join(",")}`,
+          background,
+          hasContent: pixels.some(
+            (channel, index) => channel !== background[index % 4],
+          ),
+        };
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }),
+  );
 }
 
 test("downloads and copies the same full PNG without changing saved data", async ({
@@ -385,47 +441,21 @@ test("uses the intact local image when the encoder worker cannot load", async ({
   const path = testInfo.outputPath("fallback.png");
   await download.saveAs(path);
   const bytes = [...(await readFile(path))];
-  const result = await page.evaluate(async (downloaded) => {
-    const clipboard = window.imageCopyTest.bytes;
-    if (!clipboard) throw new Error("Missing clipboard PNG");
-    const pixelHashes: string[] = [];
-    let background: number[] = [];
-    let hasContent = false;
-    for (const bytes of [downloaded, clipboard]) {
-      const image = await createImageBitmap(
-        new Blob([new Uint8Array(bytes)], { type: "image/png" }),
-      );
-      const context = new OffscreenCanvas(image.width, image.height).getContext(
-        "2d",
-      );
-      if (!context) throw new Error("Cannot inspect PNG");
-      context.drawImage(image, 0, 0);
-      const pixels = context.getImageData(0, 0, image.width, image.height).data;
-      background = [...pixels.slice(0, 4)];
-      hasContent = pixels.some(
-        (channel, index) => channel !== background[index % 4],
-      );
-      const hash = await crypto.subtle.digest(
-        "SHA-256",
-        new Uint8Array(pixels),
-      );
-      pixelHashes.push(
-        `${image.width}x${image.height}:${[...new Uint8Array(hash)].join(",")}`,
-      );
-      image.close();
-    }
-    return {
-      pixelHashes,
-      background,
-      hasContent,
-      writes: window.imageCopyTest.writes,
-      saved: localStorage.getItem("rivals-lab.comps.v1"),
-    };
-  }, bytes);
+  const result = await page.evaluate(() => ({
+    bytes: window.imageCopyTest.bytes,
+    writes: window.imageCopyTest.writes,
+    saved: localStorage.getItem("rivals-lab.comps.v1"),
+  }));
+  if (!result.bytes) throw new Error("Missing clipboard PNG");
+  const [downloaded, copied] = await page.evaluate(inspectPngs, [
+    bytes,
+    result.bytes,
+  ]);
+  if (!downloaded || !copied) throw new Error("Missing PNG inspection");
   expect(failedWorkerLoads).toBe(1);
-  expect(result.pixelHashes[0]).toBe(result.pixelHashes[1]);
-  expect(result.background).toEqual([8, 9, 10, 255]);
-  expect(result.hasContent).toBe(true);
+  expect(downloaded.hash).toBe(copied.hash);
+  expect(downloaded.background).toEqual([8, 9, 10, 255]);
+  expect(downloaded.hasContent).toBe(true);
   expect(result.writes).toBe(1);
   expect(result.saved).toBe(saved);
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
@@ -435,6 +465,151 @@ test("uses the intact local image when the encoder worker cannot load", async ({
     "Keep these notes.",
   );
 });
+
+const workerFailures = [
+  "snapshot",
+  "constructor",
+  "postMessage",
+  "messageerror",
+  "error",
+  "encoding",
+  "invalid",
+  "empty",
+] as const;
+
+for (const failure of workerFailures) {
+  test(`preserves PNG pixels and cleans up after ${failure} failure`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript(() =>
+      Object.defineProperty(navigator, "clipboard", { value: undefined }),
+    );
+    await page.goto("/");
+    await page
+      .getByRole("link", { name: "Draft / Comp Builder", exact: true })
+      .click();
+    await page.getByLabel("Comp name", { exact: true }).fill("Intact build");
+    await page
+      .getByLabel("Comp notes", { exact: true })
+      .fill("The full plan must remain in the PNG.");
+    const referenceReady = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Download & Copy", exact: true })
+      .click();
+    const referencePath = testInfo.outputPath("reference.png");
+    await (await referenceReady).saveAs(referencePath);
+    await expect(
+      page.getByRole("button", { name: "Download & Copy", exact: true }),
+    ).toBeEnabled();
+
+    await page.evaluate((failure) => {
+      window.imageFallbackTest = {
+        bitmapCloses: 0,
+        workers: 0,
+        workerStops: 0,
+        localEncodes: 0,
+      };
+      const close = ImageBitmap.prototype.close;
+      ImageBitmap.prototype.close = function () {
+        window.imageFallbackTest.bitmapCloses++;
+        close.call(this);
+      };
+      const convertToBlob = OffscreenCanvas.prototype.convertToBlob;
+      OffscreenCanvas.prototype.convertToBlob = function (options) {
+        window.imageFallbackTest.localEncodes++;
+        return convertToBlob.call(this, options);
+      };
+      if (failure === "snapshot") {
+        window.createImageBitmap = async () => {
+          throw new Error("Cannot copy the canvas");
+        };
+      }
+      class FailingWorker extends Worker {
+        constructor(scriptURL: string | URL, options?: WorkerOptions) {
+          if (failure === "constructor")
+            throw new Error("Cannot construct worker");
+          super(scriptURL, options);
+          window.imageFallbackTest.workers++;
+        }
+
+        override postMessage(message: unknown, transfer: Transferable[]): void;
+        override postMessage(
+          message: unknown,
+          options?: StructuredSerializeOptions,
+        ): void;
+        override postMessage(
+          message: unknown,
+          options: Transferable[] | StructuredSerializeOptions = [],
+        ): void {
+          if (failure === "postMessage") throw new Error("Cannot send bitmap");
+          if (Array.isArray(options)) super.postMessage(message, options);
+          else super.postMessage(message, options);
+          if (failure === "messageerror")
+            queueMicrotask(() =>
+              this.onmessageerror?.call(this, new MessageEvent("messageerror")),
+            );
+        }
+
+        override terminate(): void {
+          window.imageFallbackTest.workerStops++;
+          super.terminate();
+        }
+      }
+      window.Worker = FailingWorker;
+    }, failure);
+    if (
+      failure === "error" ||
+      failure === "encoding" ||
+      failure === "invalid" ||
+      failure === "empty"
+    ) {
+      const response = {
+        error: 'throw new Error("Worker encoding failed");',
+        encoding:
+          'postMessage("This browser could not create the PNG image.");',
+        invalid: 'postMessage({ unexpected: "result" });',
+        empty: 'postMessage(new Blob([], { type: "image/png" }));',
+      }[failure];
+      await page.route("**/*compImageEncoder.worker*", (route) =>
+        route.fulfill({
+          contentType: "application/javascript",
+          body: `onmessage = (event) => {
+            if (!(event.data instanceof ImageBitmap)) throw new Error("Missing bitmap");
+            event.data.close();
+            ${response}
+          };`,
+        }),
+      );
+    }
+    const fallbackReady = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Download & Copy", exact: true })
+      .click();
+    const fallbackPath = testInfo.outputPath("fallback.png");
+    await (await fallbackReady).saveAs(fallbackPath);
+    const cleanup = await page.evaluate(() => window.imageFallbackTest);
+    expect(cleanup).toEqual({
+      bitmapCloses: failure === "snapshot" ? 0 : 1,
+      workers: failure === "snapshot" || failure === "constructor" ? 0 : 1,
+      workerStops: failure === "snapshot" || failure === "constructor" ? 0 : 1,
+      localEncodes: 1,
+    });
+    const [reference, fallback] = await page.evaluate(inspectPngs, [
+      [...(await readFile(referencePath))],
+      [...(await readFile(fallbackPath))],
+    ]);
+    if (!reference || !fallback) throw new Error("Missing PNG inspection");
+    expect(fallback.hash).toBe(reference.hash);
+    expect(fallback.background).toEqual([8, 9, 10, 255]);
+    expect(fallback.hasContent).toBe(true);
+    await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
+      "Intact build",
+    );
+    await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      "The full plan must remain in the PNG.",
+    );
+  });
+}
 
 test("image generation failure produces no download or clipboard image", async ({
   page,
