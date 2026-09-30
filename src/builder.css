@@ -8,7 +8,8 @@
   margin-right: auto;
   margin-left: 28px;
 }
-.page-navigation button {
+.page-navigation a {
+  text-decoration: none;
   padding: 8px 12px;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -17,7 +18,7 @@
   font-size: 12px;
   cursor: pointer;
 }
-.page-navigation button[aria-current] {
+.page-navigation a[aria-current] {
   color: #e7e9ff;
   background: #5e6ad21c;
   border-color: #5e6ad250;
@@ -785,7 +786,7 @@
     margin-left: auto;
     margin-right: 0;
   }
-  .page-navigation button {
+  .page-navigation a {
     padding: 7px;
     font-size: 11px;
   }

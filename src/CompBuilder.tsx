@@ -585,7 +585,6 @@ export function CompBuilder({
           <div>
             <p className="eyebrow">Plan the matchup</p>
             <h1>Draft / Comp Builder</h1>
-            <p>Set your bans. Build your six. Keep the plan.</p>
           </div>
           <div className="builder-heading-actions">
             <button
