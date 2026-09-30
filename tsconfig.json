@@ -24,6 +24,7 @@
     "tests",
     "vite.config.ts",
     "playwright.config.ts",
+    "playwright.production.config.ts",
     "cloudflare.config.ts"
   ]
 }
