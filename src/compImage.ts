@@ -442,7 +442,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       const height = rows * 26 + 84;
       panel(left, y, compNoteWidth, height);
       text(
-        `Comp notes${start ? " (continued)" : ""}`,
+        `Comp Notes${start ? " (Continued)" : ""}`,
         left + 16,
         y + 16,
         compNoteWidth - 32,

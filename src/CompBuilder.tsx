@@ -741,7 +741,7 @@ export function CompBuilder({
         ))}
         <section className="builder-card comp-notes">
           <label>
-            <h2>Comp notes</h2>
+            <h2>Comp Notes</h2>
             <p className="muted-copy">
               Win conditions, opening plan, swaps, and reminders.
             </p>

@@ -462,7 +462,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
     "Opponents",
     "Empty slot",
     "Not selected",
-    "Comp notes",
+    "Comp Notes",
     "DRAFT ·",
   ])
     expect(sparseText).not.toContain(excluded);
