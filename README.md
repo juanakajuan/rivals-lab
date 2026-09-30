@@ -31,6 +31,8 @@ through `.prettierignore`.
 
 Before a pull request, run `npm run format:check`, `npm run check`, and
 `npm run build`.
+The Release checks workflow runs these checks for pull requests and pushes to
+`main`. Check the pull request status and Actions logs before release.
 
 ## Board history
 
