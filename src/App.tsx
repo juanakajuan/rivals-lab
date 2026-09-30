@@ -373,28 +373,30 @@ export default function App(): React.JSX.Element {
     if (tokens.some((token) => token.id === `${selectedTeam}-${hero.id}`))
       return;
 
-    const spacing = (64 * iconSize) / 100;
-    const startX = selectedTeam === "ally" ? 0 : selectedMap.width / 2;
-    const endX = startX + selectedMap.width / 2;
-    for (let y = spacing; y < selectedMap.height; y += spacing) {
-      for (let x = startX + spacing; x < endX; x += spacing) {
-        if (
-          tokens.every(
-            (token) =>
-              Math.abs(token.x - x) >= spacing ||
-              Math.abs(token.y - y) >= spacing,
+    const boundary = clampToBoard(0, selectedMap.width, iconSize);
+    const spacing = boundary * 2 + 4;
+    const halfWidth = Math.floor(selectedMap.width / 2);
+    const preferredStart = selectedTeam === "ally" ? 0 : halfWidth;
+    const maximumY = selectedMap.height - boundary;
+    for (const startX of [preferredStart, halfWidth - preferredStart]) {
+      const maximumX = startX + halfWidth - boundary;
+      for (let y = spacing; y <= maximumY; y += spacing) {
+        for (let x = startX + spacing; x <= maximumX; x += spacing) {
+          if (
+            tokens.some(
+              (token) =>
+                Math.abs(token.x - x) < spacing &&
+                Math.abs(token.y - y) < spacing,
+            )
           )
-        ) {
+            continue;
           placeHero(hero, x, y, selectedTeam);
           return;
         }
       }
     }
-    placeHero(
-      hero,
-      startX + selectedMap.width / 4,
-      selectedMap.height / 2,
-      selectedTeam,
+    setAnnouncement(
+      `No free position for ${hero.name}. Move or remove a hero first.`,
     );
   }
 
