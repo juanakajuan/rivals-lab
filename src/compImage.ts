@@ -23,7 +23,7 @@ const COLORS = {
   ally: "#6872d9",
   enemy: "#df6670",
   ban: "#e28a78",
-  save: "#8ddacb",
+  save: "#5e6ad2",
 };
 
 interface DraftCard {

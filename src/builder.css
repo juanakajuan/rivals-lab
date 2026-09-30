@@ -367,9 +367,9 @@
   --draft-tint: #30201e;
 }
 .draft-step[data-action="save"] {
-  --draft-accent: #8ddacb;
-  --draft-border: #426b66;
-  --draft-tint: #1b2c29;
+  --draft-accent: var(--accent);
+  --draft-border: #414976;
+  --draft-tint: #202338;
 }
 .step-number {
   display: block;
