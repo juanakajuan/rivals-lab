@@ -71,6 +71,13 @@ Windows/Linux. These shortcuts leave editable fields to native text editing.
 
 ## Saved comp compatibility
 
+`SavedCompSession` in `src/savedComps.ts` owns library operations, saved revisions,
+and the editor baseline. `CompBuilder` keeps display state, file selection,
+confirmations, and messages. `comps.ts` validates and migrates stored data.
+The session publishes saved state only after storage accepts a write. Library
+refreshes preserve local edits and stale-save checks. Tests use a memory storage
+adapter through the same session interface.
+
 Map, hero, and saved comp IDs are persistent storage keys. Keep these IDs when
 names, images, or map pools change. Do not reuse a removed ID for another item.
 

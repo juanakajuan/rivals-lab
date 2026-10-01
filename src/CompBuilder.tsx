@@ -17,19 +17,17 @@ import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { downloadAndCopyCompImage } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
 import {
-  COMP_STORAGE_KEY,
-  MAX_IMPORT_BYTES,
   compStatus,
   emptyComp,
-  parseCompLibrary,
-  readCompLibrary,
-  serializeCompLibrary,
-  updateCompLibrary,
   type Comp,
   type CompSlot,
-  type CompLibrary,
   type SavedComp,
 } from "./comps";
+import {
+  SavedCompSession,
+  SavedCompWriteError,
+  type SavedCompSessionState,
+} from "./savedComps";
 import {
   setDraftHero,
   emptyDraft,
@@ -56,43 +54,14 @@ type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
   | { readonly kind: "rename"; readonly id: string; readonly name: string };
 
-interface LibraryState {
-  readonly entries: readonly SavedComp[];
-  readonly error: string | null;
-  readonly unavailableCount: number;
-}
-
 const TEAMS: readonly Team[] = ["ally", "enemy"];
-
-// Normalize optional fields and key order, including legacy saved data.
-function savedCompRevision(entry: SavedComp): string {
-  return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
 }
 
-function libraryState(library: CompLibrary): LibraryState {
-  return {
-    entries: library.entries,
-    unavailableCount: library.unavailable.length,
-    error: library.unavailable.length
-      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${library.errors.join(" ")}`
-      : null,
-  };
-}
-
-function loadLibrary(): LibraryState {
-  try {
-    return libraryState(readCompLibrary());
-  } catch (error) {
-    return {
-      entries: [],
-      unavailableCount: 0,
-      error: `Saved comps could not be read: ${errorMessage(error)}`,
-    };
-  }
+function writeErrorMessage(error: unknown): string {
+  return `Could not save changes. ${errorMessage(error)} Existing saved data was kept.`;
 }
 
 function downloadJson(source: string, filename: string): void {
@@ -161,11 +130,9 @@ export function CompBuilder({
 }: {
   readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
-  const [comp, setComp] = useState<Comp>(emptyComp);
-  const [baseline, setBaseline] = useState<Comp>(emptyComp);
-  const [savedId, setSavedId] = useState<string | null>(null);
-  const [savedRevision, setSavedRevision] = useState<string | null>(null);
-  const [library, setLibrary] = useState<LibraryState>(loadLibrary);
+  const [session] = useState(() => new SavedCompSession());
+  const [savedState, setSavedState] = useState(() => session.state);
+  const { comp, savedId, dirty, library } = savedState;
   const [librarySearch, setLibrarySearch] = useState("");
   const [picker, setPicker] = useState<Picker | null>(null);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
@@ -176,7 +143,6 @@ export function CompBuilder({
   const [exportingImage, setExportingImage] = useState(false);
   const exportingImageRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const dirty = JSON.stringify(comp) !== JSON.stringify(baseline);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
   const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
@@ -201,34 +167,26 @@ export function CompBuilder({
 
   useEffect(() => {
     function refresh(event: StorageEvent): void {
-      if (event.key === COMP_STORAGE_KEY || event.key === null)
-        setLibrary(loadLibrary());
+      setSavedState(session.refresh(event.key));
     }
     window.addEventListener("storage", refresh);
     return () => window.removeEventListener("storage", refresh);
-  }, []);
+  }, [session]);
 
-  function commit(
-    update: (current: readonly SavedComp[]) => readonly SavedComp[],
-  ): boolean {
+  function commit(operation: () => SavedCompSessionState): boolean {
     try {
-      setLibrary(libraryState(updateCompLibrary(update)));
+      setSavedState(operation());
       setError(null);
       return true;
     } catch (cause) {
-      setError(
-        `Could not save changes. ${errorMessage(cause)} Existing saved data was kept.`,
-      );
+      setError(writeErrorMessage(cause));
       return false;
     }
   }
 
-  function exportStoredData(filename: string): void {
+  function exportStoredData(filename: string, entry?: SavedComp): void {
     try {
-      downloadJson(
-        localStorage.getItem(COMP_STORAGE_KEY) ?? serializeCompLibrary([]),
-        filename,
-      );
+      downloadJson(session.exportData(entry), filename);
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -239,80 +197,31 @@ export function CompBuilder({
   }
 
   function edit(next: Comp): void {
-    setComp(next);
+    setSavedState(session.edit(next));
     setMessage("");
     setError(null);
   }
 
-  function load(compToLoad: Comp, entry: SavedComp | null): void {
+  function load(entry: SavedComp | null): void {
     if (!canDiscard()) return;
-    setComp(compToLoad);
-    setBaseline(compToLoad);
-    setSavedId(entry?.id ?? null);
-    setSavedRevision(entry ? savedCompRevision(entry) : null);
+    setSavedState(session.load(entry));
     setPicker(null);
-    setMessage(entry ? `Loaded ${compToLoad.name}.` : "New comp.");
+    setMessage(entry ? `Loaded ${entry.comp.name}.` : "New comp.");
     setError(null);
   }
 
   function save(name: string, asCopy = false): void {
-    const trimmed = name.trim();
-    if (!trimmed) {
+    if (!name.trim()) {
       setError("Enter a comp name before saving.");
       return;
     }
-    const nextComp = { ...comp, name: trimmed };
-    const id = asCopy || savedId === null ? crypto.randomUUID() : savedId;
-    const entry: SavedComp = {
-      id,
-      comp: nextComp,
-      updatedAt: new Date().toISOString(),
-    };
-    if (
-      !commit((current) => {
-        if (!asCopy && savedId !== null) {
-          const stored = current.find((item) => item.id === savedId);
-          if (!stored || savedCompRevision(stored) !== savedRevision)
-            throw new Error(
-              stored
-                ? "This comp changed in another tab. Your edits were kept. Use Save As to save a copy, or load the saved comp to use that version."
-                : "This comp was deleted in another tab. Your edits were kept. Use Save As to save a copy.",
-            );
-        }
-        return [entry, ...current.filter((item) => item.id !== id)];
-      })
-    )
-      return;
-    setComp(nextComp);
-    setBaseline(nextComp);
-    setSavedId(id);
-    setSavedRevision(savedCompRevision(entry));
+    if (!commit(() => session.save(name, asCopy))) return;
     setNameRequest(null);
-    setMessage(`Saved ${trimmed}.`);
+    setMessage(`Saved ${session.state.comp.name}.`);
   }
 
   function rename(id: string, name: string): void {
-    let renamedRevision = savedRevision;
-    const renamed = commit((current) =>
-      current.map((entry) => {
-        if (entry.id !== id) return entry;
-        const nextEntry: SavedComp = {
-          ...entry,
-          comp: { ...entry.comp, name },
-          updatedAt: new Date().toISOString(),
-        };
-        // A rename must not make stale editor content safe to overwrite.
-        if (savedId === id && savedCompRevision(entry) === savedRevision)
-          renamedRevision = savedCompRevision(nextEntry);
-        return nextEntry;
-      }),
-    );
-    if (!renamed) return;
-    if (savedId === id) {
-      setSavedRevision(renamedRevision);
-      setComp((current) => ({ ...current, name }));
-      setBaseline((current) => ({ ...current, name }));
-    }
+    if (!commit(() => session.rename(id, name))) return;
     setNameRequest(null);
     setMessage(`Renamed comp to ${name}.`);
   }
@@ -320,33 +229,24 @@ export function CompBuilder({
   function deleteComp(entry: SavedComp): void {
     if (!window.confirm(`Delete “${entry.comp.name}” from this browser?`))
       return;
-    if (!commit((current) => current.filter((item) => item.id !== entry.id)))
-      return;
-    if (savedId === entry.id) {
-      setSavedId(null);
-      setSavedRevision(null);
-      setBaseline(emptyComp());
-    }
+    if (!commit(() => session.remove(entry.id))) return;
     setMessage(`Deleted ${entry.comp.name}.`);
   }
 
   async function importFile(file: File): Promise<void> {
     try {
-      if (file.size > MAX_IMPORT_BYTES)
-        throw new Error("The file must be smaller than 2 MB.");
-      const imported = parseCompLibrary(await file.text());
-      if (!imported.length) throw new Error("This file has no saved comps.");
-      const copies = imported.map((entry): SavedComp => ({
-        ...entry,
-        id: crypto.randomUUID(),
-        updatedAt: new Date().toISOString(),
-      }));
-      if (commit((current) => [...copies, ...current]))
-        setMessage(
-          `Imported ${copies.length} comp${copies.length === 1 ? "" : "s"} as copies.`,
-        );
+      const result = await session.importFile(file);
+      setSavedState(result.state);
+      setError(null);
+      setMessage(
+        `Imported ${result.count} comp${result.count === 1 ? "" : "s"} as copies.`,
+      );
     } catch (cause) {
-      setError(`Import failed. ${errorMessage(cause)}`);
+      setError(
+        cause instanceof SavedCompWriteError
+          ? writeErrorMessage(cause)
+          : `Import failed. ${errorMessage(cause)}`,
+      );
     }
   }
 
@@ -488,7 +388,7 @@ export function CompBuilder({
         <button
           type="button"
           className="primary-button wide-button"
-          onClick={() => load(emptyComp(), null)}
+          onClick={() => load(null)}
         >
           <Plus size={15} />
           New comp
@@ -512,7 +412,7 @@ export function CompBuilder({
               <button
                 type="button"
                 className="load-comp"
-                onClick={() => load(entry.comp, entry)}
+                onClick={() => load(entry)}
                 aria-label={`Load ${entry.comp.name}`}
               >
                 <strong>{entry.comp.name}</strong>
@@ -551,12 +451,7 @@ export function CompBuilder({
                 <button
                   type="button"
                   aria-label={`Export ${entry.comp.name}`}
-                  onClick={() =>
-                    downloadJson(
-                      serializeCompLibrary([entry]),
-                      "rivals-comp.json",
-                    )
-                  }
+                  onClick={() => exportStoredData("rivals-comp.json", entry)}
                 >
                   Export
                 </button>
