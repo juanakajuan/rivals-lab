@@ -12,11 +12,7 @@ import {
 } from "../src/draft";
 import {
   compStatus,
-  COMP_STORAGE_KEY,
   decodeCompLibrary,
-  MAX_SAVED_COMPS,
-  MAX_IMPORT_BYTES,
-  updateCompLibrary,
   emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
@@ -331,7 +327,7 @@ test("legacy partial drafts migrate by team, including reversed first team and s
   }
 });
 
-test("unavailable IDs and library limits prevent destructive writes", () => {
+test("duplicate saved IDs stay unavailable for recovery", () => {
   const saved = {
     id: "reserved",
     updatedAt: "2026-09-30T12:00:00Z",
@@ -346,50 +342,4 @@ test("unavailable IDs and library limits prevent destructive writes", () => {
   );
   expect(duplicate.entries).toEqual([]);
   expect(duplicate.unavailable).toEqual([saved, unavailable]);
-  const storage = new Map<string, string>();
-  const localStorage = {
-    getItem: (key: string): string | null => storage.get(key) ?? null,
-    setItem: (key: string, value: string): void => {
-      storage.set(key, value);
-    },
-  };
-  const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
-  Object.defineProperty(globalThis, "localStorage", {
-    value: localStorage,
-    configurable: true,
-  });
-  try {
-    const source = JSON.stringify({ version: 1, comps: [unavailable] });
-    storage.set(COMP_STORAGE_KEY, source);
-    expect(() => updateCompLibrary(() => [saved])).toThrow(
-      "belongs to an unavailable entry",
-    );
-    expect(storage.get(COMP_STORAGE_KEY)).toBe(source);
-    const full = JSON.stringify({
-      version: 1,
-      comps: Array.from({ length: MAX_SAVED_COMPS }, (_, index) => ({
-        ...unavailable,
-        id: `obsolete-${index}`,
-      })),
-    });
-    storage.set(COMP_STORAGE_KEY, full);
-    expect(() => updateCompLibrary(() => [saved])).toThrow(
-      "library limit is 500 comps",
-    );
-    expect(storage.get(COMP_STORAGE_KEY)).toBe(full);
-    const oversized = JSON.stringify({
-      version: 1,
-      comps: [
-        { ...unavailable, recoveryPayload: "x".repeat(MAX_IMPORT_BYTES) },
-      ],
-    });
-    storage.set(COMP_STORAGE_KEY, oversized);
-    expect(() => updateCompLibrary(() => [{ ...saved, id: "new" }])).toThrow(
-      "library limit is 2 MB",
-    );
-    expect(storage.get(COMP_STORAGE_KEY)).toBe(oversized);
-  } finally {
-    if (original) Object.defineProperty(globalThis, "localStorage", original);
-    else Reflect.deleteProperty(globalThis, "localStorage");
-  }
 });

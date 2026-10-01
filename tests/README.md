@@ -22,6 +22,9 @@ late images, resize, map changes, cleanup, and the React caller.
 Draft tests cover direct slot edits, team scope, conflicts, and legacy imports.
 Builder tests cover browser saves, notes, copies, imports, conflicts, board transfer,
 unsaved edits, and recovery when stored data is invalid.
+Saved comp session tests use a memory storage adapter. They cover failed writes,
+stale revisions, recovery data, storage limits, and edits during file imports
+through the session interface.
 History tests cover edit order, redo invalidation, unchanged edits, grouped map
 changes, drag completion, restore during a drag, text-safe shortcuts, and session reset.
 

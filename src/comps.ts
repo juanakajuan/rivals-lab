@@ -232,33 +232,3 @@ export function parseCompLibrary(source: string): readonly SavedComp[] {
 export function serializeCompLibrary(comps: readonly SavedComp[]): string {
   return JSON.stringify({ version: 1, comps }, null, 2);
 }
-
-export function readCompLibrary(): CompLibrary {
-  const source = localStorage.getItem(COMP_STORAGE_KEY);
-  return decodeCompLibrary(source ?? serializeCompLibrary([]));
-}
-
-/** Re-read before each write to preserve changes made in other tabs. */
-export function updateCompLibrary(
-  update: (current: readonly SavedComp[]) => readonly SavedComp[],
-): CompLibrary {
-  const current = readCompLibrary();
-  const next = update(current.entries);
-  // Reserve IDs even when their entries cannot be decoded.
-  for (const item of current.unavailable)
-    if (isRecord(item) && next.some((entry) => entry.id === item.id))
-      throw new Error("A comp ID belongs to an unavailable entry.");
-  const comps = [...next, ...current.unavailable];
-  if (comps.length > MAX_SAVED_COMPS)
-    throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
-  parseCompLibrary(serializeCompLibrary(next));
-  const source = JSON.stringify({ ...current.envelope, comps }, null, 2);
-  if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES) {
-    throw new Error(
-      "The library limit is 2 MB. Export and remove older comps to make space.",
-    );
-  }
-  const result = decodeCompLibrary(source);
-  localStorage.setItem(COMP_STORAGE_KEY, source);
-  return result;
-}
