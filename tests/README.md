@@ -24,7 +24,11 @@ Builder tests cover browser saves, notes, copies, imports, conflicts, board tran
 unsaved edits, and recovery when stored data is invalid.
 Saved comp session tests use a memory storage adapter. They cover failed writes,
 stale revisions, recovery data, storage limits, and edits during file imports
-through the session interface.
+or commits through the session interface.
+Concurrent save tests use two browser tabs. They check that both new comps stay
+stored and that concurrent edits of one comp produce a stale-save error.
+They also check local edits and loads while a save waits for a transaction, and
+failed saves when IndexedDB is unavailable.
 Comp edit tests cover note retention, role removal, choice rules, and resets
 through the edit module interface. Session tests also cover rejected edits and
 saved conflict plans.
@@ -36,12 +40,13 @@ tests cover drag completion, restore during a drag, text-safe shortcuts, and ses
 
 Run `npm run test:production`. This command builds the app and starts Vite preview
 on port 4174. It fails if that port is already in use. It cannot reuse a running
-development server. `playwright.production.config.ts` selects only route tests
-and `production.spec.ts`; it does not select the development fixtures.
+development server. `playwright.production.config.ts` selects route tests,
+`production.spec.ts`, and `compConcurrentSaves.spec.ts`. It does not select the
+development fixtures.
 
 The same crucial flows run in Chromium, Firefox, and WebKit: direct routes and
-refresh, page navigation, comp save/reload, board token drag with undo/redo, and
-PNG download. A separate check verifies built JS/CSS assets and excludes the
+refresh, page navigation, comp save/reload, concurrent saves, board token drag
+with undo/redo, and PNG download. A separate check verifies built JS/CSS assets and excludes the
 Vite development client.
 
 Only Chromium receives `clipboard-read` and `clipboard-write` permissions.

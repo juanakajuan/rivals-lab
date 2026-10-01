@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { emptyComp } from "../src/comps";
 import { emptyDraft } from "../src/draft";
-import { readFile } from "node:fs/promises";
+import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
 
 async function openBuilder(page: Page): Promise<void> {
   await page
@@ -79,10 +79,7 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await expect(
     page.getByRole("button", { name: "Load Dive copy", exact: true }),
   ).toBeVisible();
-  const exported = await page.evaluate(() =>
-    localStorage.getItem("rivals-lab.comps.v1"),
-  );
-  if (!exported) throw new Error("Missing saved library");
+  const exported = await exportCompLibrary(page);
   await page.getByLabel("Import comps JSON").setInputFiles({
     name: "comps.json",
     mimeType: "application/json",
@@ -315,9 +312,7 @@ test("corrupt browser saves are kept and a failed save does not claim success", 
   await expect(
     page.getByText("Could not save changes.", { exact: false }),
   ).toBeVisible();
-  expect(
-    await page.evaluate(() => localStorage.getItem("rivals-lab.comps.v1")),
-  ).toBe("broken saved data");
+  expect(await exportCompLibrary(page, true)).toBe("broken saved data");
   await expect(page.getByRole("status")).toHaveText("Unsaved changes");
 });
 
@@ -342,6 +337,7 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
       .locator(".role-counts"),
   ).toHaveText("1 Duelist");
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved Deadpool support.");
   await page.reload();
   await openBuilder(page);
   await page
@@ -353,10 +349,7 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
   await expect(page.getByLabel("Allies slot 1 notes")).toHaveValue(
     "Stay near the back line.",
   );
-  const exported = await page.evaluate(() =>
-    localStorage.getItem("rivals-lab.comps.v1"),
-  );
-  if (!exported) throw new Error("Missing saved library");
+  const exported = await exportCompLibrary(page);
   await page.getByLabel("Import comps JSON").setInputFiles({
     name: "deadpool.json",
     mimeType: "application/json",
@@ -447,8 +440,7 @@ test("mixed saved data stays recoverable through valid library changes", async (
       },
     },
   ];
-  await page.goto("/");
-  await page.evaluate(
+  await page.addInitScript(
     (comps) =>
       localStorage.setItem(
         "rivals-lab.comps.v1",
@@ -460,7 +452,7 @@ test("mixed saved data stays recoverable through valid library changes", async (
       ),
     [saved, ...unavailable],
   );
-  await page.reload();
+  await page.goto("/");
   await openBuilder(page);
   await expect(page.getByRole("alert")).toContainText(
     "3 saved comp(s) cannot be loaded",
@@ -476,6 +468,9 @@ test("mixed saved data stays recoverable through valid library changes", async (
     .click();
   await page.getByRole("dialog").getByLabel("Comp name").fill("Renamed valid");
   await page.getByRole("button", { name: "Save name", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Renamed comp to Renamed valid.",
+  );
   await page.getByRole("button", { name: "New comp", exact: true }).click();
   await page.getByLabel("Comp name", { exact: true }).fill("New valid");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -492,6 +487,7 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await page
     .getByRole("button", { name: "Delete New valid", exact: true })
     .click();
+  await expect(page.getByRole("status")).toHaveText("Deleted New valid.");
   await page.reload();
   await openBuilder(page);
   await page
@@ -500,10 +496,7 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Still editable",
   );
-  const source = await page.evaluate(() =>
-    localStorage.getItem("rivals-lab.comps.v1"),
-  );
-  if (!source) throw new Error("Missing saved library");
+  const source = await exportCompLibrary(page);
   // Compare external JSON as unknown; no cast can hide malformed stored data.
   const actual: unknown = JSON.parse(source);
   expect(actual).toMatchObject({
@@ -520,14 +513,8 @@ test("mixed saved data stays recoverable through valid library changes", async (
       },
     ]),
   });
-  for (const name of ["Export all", "Export stored data for recovery"]) {
-    const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name, exact: true }).click();
-    const download = await downloadPromise;
-    const path = await download.path();
-    if (!path) throw new Error("Missing download");
-    expect(await readFile(path, "utf8")).toBe(source);
-  }
+  for (const recovery of [false, true])
+    expect(await exportCompLibrary(page, recovery)).toBe(source);
 });
 
 for (const renameBeforeSave of [false, true]) {
@@ -543,6 +530,7 @@ for (const renameBeforeSave of [false, true]) {
     await pickHero(page, "Allies slot 1: Choose hero", "Deadpool · Strategist");
     await page.getByLabel("Comp notes", { exact: true }).fill("Original notes");
     await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("Saved Shared comp.");
     const stale = await context.newPage();
     await stale.clock.setFixedTime(time);
     await stale.goto("/builder");
@@ -565,12 +553,13 @@ for (const renameBeforeSave of [false, true]) {
       await stale
         .getByRole("button", { name: "Save name", exact: true })
         .click();
+      await expect(stale.getByRole("status")).toHaveText(
+        "Renamed comp to Renamed comp.",
+      );
     } else {
       await stale.getByLabel("Comp name", { exact: true }).fill("Renamed comp");
     }
-    const storedBefore = await page.evaluate(() =>
-      localStorage.getItem("rivals-lab.comps.v1"),
-    );
+    const storedBefore = await exportCompLibrary(page);
     await stale.getByRole("button", { name: "Save", exact: true }).click();
     await expect(stale.getByRole("alert")).toContainText(
       "This comp changed in another tab",
@@ -581,9 +570,7 @@ for (const renameBeforeSave of [false, true]) {
     await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
       "Original notes",
     );
-    expect(
-      await page.evaluate(() => localStorage.getItem("rivals-lab.comps.v1")),
-    ).toBe(storedBefore);
+    expect(await exportCompLibrary(page)).toBe(storedBefore);
     await stale.getByRole("button", { name: "Save As", exact: true }).click();
     await stale
       .getByRole("dialog")
@@ -628,6 +615,7 @@ test("stale tab cannot restore a deleted comp and can save its edits as a new co
   await page.getByLabel("Comp name", { exact: true }).fill("Deleted comp");
   await page.getByLabel("Comp notes", { exact: true }).fill("Original notes");
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved Deleted comp.");
   const stale = await context.newPage();
   await stale.goto("/builder");
   await stale
@@ -640,9 +628,8 @@ test("stale tab cannot restore a deleted comp and can save its edits as a new co
   await page
     .getByRole("button", { name: "Delete Deleted comp", exact: true })
     .click();
-  const storedBefore = await page.evaluate(() =>
-    localStorage.getItem("rivals-lab.comps.v1"),
-  );
+  await expect(page.getByRole("status")).toHaveText("Deleted Deleted comp.");
+  const storedBefore = await readStoredCompLibrary(page);
   await stale.getByRole("button", { name: "Save", exact: true }).click();
   await expect(stale.getByRole("alert")).toContainText(
     "This comp was deleted in another tab",
@@ -650,9 +637,7 @@ test("stale tab cannot restore a deleted comp and can save its edits as a new co
   await expect(stale.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Edits from tab B",
   );
-  expect(
-    await page.evaluate(() => localStorage.getItem("rivals-lab.comps.v1")),
-  ).toBe(storedBefore);
+  expect(await readStoredCompLibrary(page)).toBe(storedBefore);
   await expect(stale.locator(".saved-comp")).toHaveCount(0);
   await stale.getByRole("button", { name: "Save As", exact: true }).click();
   await stale

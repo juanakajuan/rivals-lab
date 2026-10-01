@@ -2,7 +2,11 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["**/pageRoutes.spec.ts", "**/production.spec.ts"],
+  testMatch: [
+    "**/pageRoutes.spec.ts",
+    "**/production.spec.ts",
+    "**/compConcurrentSaves.spec.ts",
+  ],
   forbidOnly: Boolean(process.env["CI"]),
   workers: 2,
   outputDir: "test-results/production",

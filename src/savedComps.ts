@@ -1,5 +1,4 @@
 import {
-  COMP_STORAGE_KEY,
   MAX_IMPORT_BYTES,
   MAX_SAVED_COMPS,
   decodeCompLibrary,
@@ -11,8 +10,7 @@ import {
   type SavedComp,
 } from "./comps";
 import { applyCompEdit, type CompEdit } from "./compEdits";
-
-export type CompStorage = Pick<Storage, "getItem" | "setItem">;
+import { browserCompStorage, type CompStorage } from "./compStorage";
 
 export interface SavedCompLibraryView {
   readonly entries: readonly SavedComp[];
@@ -34,8 +32,16 @@ export interface CompImportFile {
 
 export interface CompImportResult {
   readonly count: number;
-  readonly state: SavedCompSessionState;
 }
+
+export type SaveResult =
+  | { readonly kind: "clean" }
+  | { readonly kind: "newerEdits" }
+  | { readonly kind: "differentEditor" };
+
+type EditorLink =
+  | { readonly kind: "new" }
+  | { readonly kind: "saved"; readonly id: string; readonly revision: string };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
@@ -47,12 +53,6 @@ export class SavedCompWriteError extends Error {
     this.name = "SavedCompWriteError";
   }
 }
-
-// Access storage inside operations so an unavailable browser store can be reported.
-const browserStorage: CompStorage = {
-  getItem: (key) => localStorage.getItem(key),
-  setItem: (key, value) => localStorage.setItem(key, value),
-};
 
 function libraryView(library: CompLibrary): SavedCompLibraryView {
   return {
@@ -76,15 +76,19 @@ function sameComp(left: Comp, right: Comp): boolean {
 /** Owns the library and editor save state; display code owns confirmations. */
 export class SavedCompSession {
   private baseline = emptyComp();
-  private revision: string | null = null;
+  private link: EditorLink = { kind: "new" };
   private current: SavedCompSessionState;
+  private editorIdentity = Symbol();
+  private editorGeneration = Symbol();
+  private refreshGeneration = 0;
+  private writeTail: Promise<void> = Promise.resolve();
 
-  constructor(private readonly storage: CompStorage = browserStorage) {
+  constructor(private readonly storage: CompStorage = browserCompStorage) {
     this.current = {
       comp: this.baseline,
       savedId: null,
       dirty: false,
-      library: this.readLibrary(),
+      library: { entries: [], unavailableCount: 0, error: null },
     };
   }
 
@@ -99,104 +103,135 @@ export class SavedCompSession {
       comp,
       dirty: !sameComp(comp, this.baseline),
     };
+    this.editorGeneration = Symbol();
     return this.current;
   }
 
   load(entry: SavedComp | null): SavedCompSessionState {
     const comp = entry?.comp ?? emptyComp();
-    const revision = entry ? savedCompRevision(entry) : null;
     this.baseline = comp;
-    this.revision = revision;
+    this.link = entry
+      ? { kind: "saved", id: entry.id, revision: savedCompRevision(entry) }
+      : { kind: "new" };
     this.current = {
       ...this.current,
       comp,
       savedId: entry?.id ?? null,
       dirty: false,
     };
+    this.editorIdentity = Symbol();
+    this.editorGeneration = Symbol();
     return this.current;
   }
 
-  save(name: string, asCopy = false): SavedCompSessionState {
+  async save(name: string, asCopy = false): Promise<SaveResult> {
     const trimmed = name.trim();
     if (!trimmed) throw new Error("Enter a comp name before saving.");
+    const originalName = this.current.comp.name;
     const comp = { ...this.current.comp, name: trimmed };
-    const savedId = this.current.savedId;
-    const id = asCopy || savedId === null ? crypto.randomUUID() : savedId;
+    const link = this.link;
+    const identity = this.editorIdentity;
+    const generation = this.editorGeneration;
+    const id = asCopy || link.kind === "new" ? crypto.randomUUID() : link.id;
     const entry: SavedComp = {
       id,
       comp,
       updatedAt: new Date().toISOString(),
     };
-    const revision = savedCompRevision(entry);
-    const library = this.write((current) => {
-      if (!asCopy && savedId !== null) {
-        const stored = current.find((item) => item.id === savedId);
-        if (!stored || savedCompRevision(stored) !== this.revision)
+    return this.runWrite(async () => {
+      await this.write((current) => {
+        if (generation !== this.editorGeneration)
           throw new Error(
-            stored
-              ? "This comp changed in another tab. Your edits were kept. Use Save As to save a copy, or load the saved comp to use that version."
-              : "This comp was deleted in another tab. Your edits were kept. Use Save As to save a copy.",
+            "Your comp changed while saving. Your edits were kept. Save again.",
           );
-      }
-      return [entry, ...current.filter((item) => item.id !== id)];
-    });
-    this.baseline = comp;
-    this.revision = revision;
-    this.current = { comp, savedId: id, dirty: false, library };
-    return this.current;
-  }
-
-  rename(id: string, name: string): SavedCompSessionState {
-    let revision = this.revision;
-    const library = this.write((current) =>
-      current.map((entry) => {
-        if (entry.id !== id) return entry;
-        const nextEntry: SavedComp = {
-          ...entry,
-          comp: { ...entry.comp, name },
-          updatedAt: new Date().toISOString(),
+        if (!asCopy && link.kind === "saved") {
+          const stored = current.find((item) => item.id === link.id);
+          if (!stored || savedCompRevision(stored) !== link.revision)
+            throw new Error(
+              stored
+                ? "This comp changed in another tab. Your edits were kept. Use Save As to save a copy, or load the saved comp to use that version."
+                : "This comp was deleted in another tab. Your edits were kept. Use Save As to save a copy.",
+            );
+        }
+        return [entry, ...current.filter((item) => item.id !== id)];
+      });
+      if (identity === this.editorIdentity) {
+        this.baseline = comp;
+        this.link = { kind: "saved", id, revision: savedCompRevision(entry) };
+        const live = this.current.comp;
+        const nextComp =
+          live.name === originalName ? { ...live, name: trimmed } : live;
+        this.current = {
+          ...this.current,
+          comp: nextComp,
+          savedId: id,
+          dirty: !sameComp(nextComp, this.baseline),
         };
-        // A rename must not make stale editor content safe to overwrite.
-        if (
-          this.current.savedId === id &&
-          savedCompRevision(entry) === this.revision
-        )
-          revision = savedCompRevision(nextEntry);
-        return nextEntry;
-      }),
-    );
-    let comp = this.current.comp;
-    if (this.current.savedId === id) {
-      comp = { ...comp, name };
-      this.baseline = { ...this.baseline, name };
-      this.revision = revision;
-    }
-    this.current = {
-      ...this.current,
-      comp,
-      dirty: !sameComp(comp, this.baseline),
-      library,
-    };
-    return this.current;
+        this.editorGeneration = Symbol();
+      }
+      await this.refresh();
+      if (identity !== this.editorIdentity) return { kind: "differentEditor" };
+      return { kind: this.current.dirty ? "newerEdits" : "clean" };
+    });
   }
 
-  remove(id: string): SavedCompSessionState {
-    const library = this.write((current) =>
-      current.filter((entry) => entry.id !== id),
-    );
-    let savedId = this.current.savedId;
-    if (savedId === id) {
-      savedId = null;
-      this.revision = null;
-      this.baseline = emptyComp();
-    }
-    this.current = {
-      ...this.current,
-      savedId,
-      dirty: !sameComp(this.current.comp, this.baseline),
-      library,
-    };
-    return this.current;
+  async rename(id: string, name: string): Promise<void> {
+    const identity = this.editorIdentity;
+    const link = this.link;
+    const originalName = this.current.comp.name;
+    return this.runWrite(async () => {
+      let renamedRevision: string | null = null;
+      await this.write((current) =>
+        current.map((entry) => {
+          if (entry.id !== id) return entry;
+          const nextEntry: SavedComp = {
+            ...entry,
+            comp: { ...entry.comp, name },
+            updatedAt: new Date().toISOString(),
+          };
+          // A rename must not make stale editor content safe to overwrite.
+          if (
+            link.kind === "saved" &&
+            link.id === id &&
+            savedCompRevision(entry) === link.revision
+          )
+            renamedRevision = savedCompRevision(nextEntry);
+          return nextEntry;
+        }),
+      );
+      if (identity === this.editorIdentity && this.current.savedId === id) {
+        const live = this.current.comp;
+        const comp = live.name === originalName ? { ...live, name } : live;
+        this.baseline = { ...this.baseline, name };
+        if (renamedRevision !== null)
+          this.link = { kind: "saved", id, revision: renamedRevision };
+        this.current = {
+          ...this.current,
+          comp,
+          dirty: !sameComp(comp, this.baseline),
+        };
+        this.editorGeneration = Symbol();
+      }
+      await this.refresh();
+    });
+  }
+
+  async remove(id: string): Promise<void> {
+    const identity = this.editorIdentity;
+    return this.runWrite(async () => {
+      await this.write((current) => current.filter((entry) => entry.id !== id));
+      if (identity === this.editorIdentity && this.current.savedId === id) {
+        this.link = { kind: "new" };
+        this.baseline = emptyComp();
+        this.current = {
+          ...this.current,
+          savedId: null,
+          dirty: !sameComp(this.current.comp, this.baseline),
+        };
+        this.editorGeneration = Symbol();
+      }
+      await this.refresh();
+    });
   }
 
   async importFile(file: CompImportFile): Promise<CompImportResult> {
@@ -207,47 +242,61 @@ export class SavedCompSession {
       throw new Error("The file must be smaller than 2 MB.");
     const imported = parseCompLibrary(source);
     if (!imported.length) throw new Error("This file has no saved comps.");
-    const copies = imported.map((entry): SavedComp => ({
-      ...entry,
-      id: crypto.randomUUID(),
-      updatedAt: new Date().toISOString(),
-    }));
-    const library = this.write((current) => [...copies, ...current]);
-    this.current = { ...this.current, library };
-    return { count: copies.length, state: this.current };
+    return this.runWrite(async () => {
+      await this.write((current) => {
+        const copies = imported.map((entry): SavedComp => ({
+          ...entry,
+          id: crypto.randomUUID(),
+          updatedAt: new Date().toISOString(),
+        }));
+        return [...copies, ...current];
+      });
+      await this.refresh();
+      return { count: imported.length };
+    });
   }
 
-  exportData(entry?: SavedComp): string {
+  async exportData(entry?: SavedComp): Promise<string> {
     return entry
       ? serializeCompLibrary([entry])
-      : (this.storage.getItem(COMP_STORAGE_KEY) ?? serializeCompLibrary([]));
+      : ((await this.storage.read()) ?? serializeCompLibrary([]));
   }
 
   /** A library refresh never replaces local edits or makes a stale save safe. */
-  refresh(key: string | null = null): SavedCompSessionState {
-    if (key === COMP_STORAGE_KEY || key === null)
-      this.current = { ...this.current, library: this.readLibrary() };
-    return this.current;
-  }
-
-  private readLibrary(): SavedCompLibraryView {
+  async refresh(): Promise<void> {
+    const generation = ++this.refreshGeneration;
+    let library: SavedCompLibraryView;
     try {
-      return libraryView(decodeCompLibrary(this.exportData()));
+      library = libraryView(decodeCompLibrary(await this.exportData()));
     } catch (error) {
-      return {
+      library = {
         entries: [],
         unavailableCount: 0,
         error: `Saved comps could not be read: ${errorMessage(error)}`,
       };
     }
+    if (generation === this.refreshGeneration)
+      this.current = { ...this.current, library };
   }
 
-  /** Re-read before writing; publish saved state only after storage accepts it. */
+  private async runWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const writing = this.writeTail.then(operation);
+    this.writeTail = writing.then(
+      () => {},
+      () => {},
+    );
+    try {
+      return await writing;
+    } catch (cause) {
+      throw new SavedCompWriteError(cause);
+    }
+  }
+
   private write(
     update: (current: readonly SavedComp[]) => readonly SavedComp[],
-  ): SavedCompLibraryView {
-    try {
-      const current = decodeCompLibrary(this.exportData());
+  ): Promise<void> {
+    return this.storage.update((stored) => {
+      const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
       const next = update(current.entries);
       for (const item of current.unavailable)
         if (
@@ -266,11 +315,7 @@ export class SavedCompSession {
         throw new Error(
           "The library limit is 2 MB. Export and remove older comps to make space.",
         );
-      const result = libraryView(decodeCompLibrary(source));
-      this.storage.setItem(COMP_STORAGE_KEY, source);
-      return result;
-    } catch (cause) {
-      throw new SavedCompWriteError(cause);
-    }
+      return source;
+    });
   }
 }
