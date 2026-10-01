@@ -7,7 +7,7 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 
 import type { BoardDrawing } from "./boardDrawings";
-import type { BoardToken } from "./boardCanvas";
+import type { BoardToken } from "./boardTokens";
 import {
   heroImagePath,
   teamLabel,

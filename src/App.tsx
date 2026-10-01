@@ -1,22 +1,12 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 
 import { BoardPanel, DrawingMenu, HeroPanel, TokenMenu } from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
-import {
-  createDrawing,
-  moveDrawing,
-  type BoardDrawing,
-  type BoardTool,
-} from "./boardDrawings";
+import type { BoardDrawing, BoardTool } from "./boardDrawings";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
-import {
-  clampToBoard,
-  createBoardCanvas,
-  type BoardCanvas,
-  type BoardToken,
-} from "./boardCanvas";
+import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
 import {
   HERO_BY_ID,
   HEROES,
@@ -25,8 +15,9 @@ import {
   type HeroDefinition,
   type Team,
 } from "./heroes";
-import { boardHistoryReducer, createBoardHistory } from "./boardHistory";
-import { DEFAULT_MAP_ID, getMap, isMapId, type MapId } from "./maps";
+import { BoardSession, type HeroPlacement } from "./boardSession";
+import { clampToBoard, type BoardToken } from "./boardTokens";
+import { getMap, isMapId, type MapId } from "./maps";
 
 type Page = "board" | "builder";
 
@@ -47,46 +38,21 @@ const EMPTY_DRAWINGS: readonly BoardDrawing[] = [];
 const HERO_DRAG_TYPE = "application/x-rivals-hero";
 const TEAM_DRAG_TYPE = "application/x-rivals-team";
 
-function initialTokens(): BoardToken[] {
-  return [
-    { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 435 },
-    { id: "ally-psylocke", heroId: "psylocke", team: "ally", x: 380, y: 350 },
-    { id: "ally-luna", heroId: "luna", team: "ally", x: 230, y: 520 },
-    { id: "enemy-magneto", heroId: "magneto", team: "enemy", x: 865, y: 310 },
-    { id: "enemy-magik", heroId: "magik", team: "enemy", x: 960, y: 410 },
-    { id: "enemy-rocket", heroId: "rocket", team: "enemy", x: 910, y: 515 },
-  ];
-}
-
-function updateTokenPosition(
-  tokens: readonly BoardToken[],
-  tokenId: string,
-  x: number,
-  y: number,
-): BoardToken[] {
-  return tokens.map((token) => {
-    if (token.id !== tokenId) return token;
-    return { ...token, x, y };
-  });
-}
-
 export default function App(): React.JSX.Element {
   const [page, setPage] = useState<Page>(pageFromPath);
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
-  const [history, dispatch] = useReducer(boardHistoryReducer, undefined, () =>
-    createBoardHistory({ mapId: DEFAULT_MAP_ID, tokens: initialTokens() }),
-  );
+  const [session] = useState(() => new BoardSession());
+  const [boardState, setBoardState] = useState(session.state);
   const [tool, setTool] = useState<BoardTool>("move");
   const [drawingColor, setDrawingColor] = useState("#ffd166");
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
   const [iconSize, setIconSize] = useState(100);
-  const { mapId: selectedMapId, tokens: savedTokens } = history.present;
-  const mapDrawings =
-    history.present.drawingsByMap?.[selectedMapId] ?? EMPTY_DRAWINGS;
+  const { mapId: selectedMapId, tokens: savedTokens } = boardState;
+  const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
   const selectedDrawing = mapDrawings.find(
     (drawing) => drawing.id === selectedDrawingId,
   );
@@ -192,13 +158,7 @@ export default function App(): React.JSX.Element {
         );
       },
       onMove: (token, x, y) => {
-        dispatch({
-          type: "edit",
-          update: (board) => ({
-            ...board,
-            tokens: updateTokenPosition(board.tokens, token.id, x, y),
-          }),
-        });
+        setBoardState(session.moveToken({ id: token.id, point: { x, y } }));
         setAnnouncement(
           `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} moved to ${x}, ${y}.`,
         );
@@ -329,75 +289,46 @@ export default function App(): React.JSX.Element {
     };
   });
 
+  function showHeroPlacement(
+    hero: HeroDefinition,
+    result: HeroPlacement,
+  ): void {
+    setBoardState(session.state);
+    setTool("move");
+    setSelectedDrawingId(null);
+    setSelectedTokenId(result.token.id);
+    setAnnouncement(
+      result.kind === "moved"
+        ? `${hero.name} moved to ${result.token.x}, ${result.token.y}.`
+        : `${hero.name} added to ${teamLabel(result.token.team)}.`,
+    );
+  }
+
   function placeHero(
     hero: HeroDefinition,
     x: number,
     y: number,
     team: Team,
   ): void {
-    const id = `${team}-${hero.id}`;
-    const boardX = clampToBoard(x, selectedMap.width, iconSize);
-    const boardY = clampToBoard(y, selectedMap.height, iconSize);
-    const existingToken = tokens.find((token) => token.id === id);
-    setTool("move");
-    setSelectedDrawingId(null);
-    setSelectedTokenId(id);
-
-    if (existingToken) {
-      dispatch({
-        type: "edit",
-        update: (board) => ({
-          ...board,
-          tokens: updateTokenPosition(board.tokens, id, boardX, boardY),
-        }),
-      });
-      setAnnouncement(`${hero.name} moved to ${boardX}, ${boardY}.`);
-      return;
-    }
-
-    const token: BoardToken = {
-      id,
-      heroId: hero.id,
-      team,
-      x: boardX,
-      y: boardY,
-    };
-    dispatch({
-      type: "edit",
-      update: (board) => ({ ...board, tokens: [...board.tokens, token] }),
-    });
-    setAnnouncement(`${hero.name} added to ${teamLabel(team)}.`);
+    showHeroPlacement(
+      hero,
+      session.placeHero({ heroId: hero.id, team, point: { x, y }, iconSize }),
+    );
   }
 
   function addHero(hero: HeroDefinition): void {
-    if (tokens.some((token) => token.id === `${selectedTeam}-${hero.id}`))
-      return;
-
-    const boundary = clampToBoard(0, selectedMap.width, iconSize);
-    const spacing = boundary * 2 + 4;
-    const halfWidth = Math.floor(selectedMap.width / 2);
-    const preferredStart = selectedTeam === "ally" ? 0 : halfWidth;
-    const maximumY = selectedMap.height - boundary;
-    for (const startX of [preferredStart, halfWidth - preferredStart]) {
-      const maximumX = startX + halfWidth - boundary;
-      for (let y = spacing; y <= maximumY; y += spacing) {
-        for (let x = startX + spacing; x <= maximumX; x += spacing) {
-          if (
-            tokens.some(
-              (token) =>
-                Math.abs(token.x - x) < spacing &&
-                Math.abs(token.y - y) < spacing,
-            )
-          )
-            continue;
-          placeHero(hero, x, y, selectedTeam);
-          return;
-        }
-      }
+    const result = session.addHero({
+      heroId: hero.id,
+      team: selectedTeam,
+      iconSize,
+    });
+    if (result.kind === "added" || result.kind === "moved") {
+      showHeroPlacement(hero, result);
+    } else if (result.kind === "full") {
+      setAnnouncement(
+        `No free position for ${hero.name}. Move or remove a hero first.`,
+      );
     }
-    setAnnouncement(
-      `No free position for ${hero.name}. Move or remove a hero first.`,
-    );
   }
 
   function handleHeroDragStart(
@@ -429,13 +360,7 @@ export default function App(): React.JSX.Element {
 
   function removeToken(token: BoardToken): void {
     const heroName = HERO_BY_ID.get(token.heroId)?.name ?? "Hero";
-    dispatch({
-      type: "edit",
-      update: (board) => ({
-        ...board,
-        tokens: board.tokens.filter((current) => current.id !== token.id),
-      }),
-    });
+    setBoardState(session.removeToken(token.id));
     setSelectedTokenId((currentId) =>
       currentId === token.id ? null : currentId,
     );
@@ -443,39 +368,25 @@ export default function App(): React.JSX.Element {
     setAnnouncement(`${heroName} removed from the board.`);
   }
 
-  function editDrawing(drawing: BoardDrawing): void {
-    dispatch({
-      type: "edit",
-      update: (board) => {
-        const drawings = board.drawingsByMap?.[board.mapId] ?? [];
-        return {
-          ...board,
-          drawingsByMap: {
-            ...board.drawingsByMap,
-            [board.mapId]: drawings.some((item) => item.id === drawing.id)
-              ? drawings.map((item) =>
-                  item.id === drawing.id ? drawing : item,
-                )
-              : [...drawings, drawing],
-          },
-        };
-      },
-    });
+  function showDrawingEdit(drawing: BoardDrawing): void {
+    setBoardState(session.state);
     setSelectedDrawingId(drawing.id);
     setSelectedTokenId(null);
     setAnnouncement(`${drawing.kind} updated.`);
   }
 
+  function editDrawing(drawing: BoardDrawing): void {
+    session.editDrawing(drawing);
+    showDrawingEdit(drawing);
+  }
+
   function moveSelectedDrawing(dx: number, dy: number): void {
-    if (selectedDrawing)
-      editDrawing(
-        moveDrawing(
-          selectedDrawing,
-          selectedDrawing.x + dx,
-          selectedDrawing.y + dy,
-          selectedMap,
-        ),
-      );
+    if (!selectedDrawing) return;
+    const drawing = session.moveDrawing({
+      id: selectedDrawing.id,
+      delta: { x: dx, y: dy },
+    });
+    if (drawing) showDrawingEdit(drawing);
   }
 
   function changeTool(next: BoardTool): void {
@@ -502,18 +413,7 @@ export default function App(): React.JSX.Element {
   }
 
   function removeDrawing(drawing: BoardDrawing): void {
-    dispatch({
-      type: "edit",
-      update: (board) => ({
-        ...board,
-        drawingsByMap: {
-          ...board.drawingsByMap,
-          [board.mapId]: (board.drawingsByMap?.[board.mapId] ?? []).filter(
-            (item) => item.id !== drawing.id,
-          ),
-        },
-      }),
-    });
+    setBoardState(session.removeDrawing(drawing.id));
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement("Drawing removed.");
@@ -552,27 +452,13 @@ export default function App(): React.JSX.Element {
   }
 
   function resetBoard(): void {
-    dispatch({
-      type: "edit",
-      update: (board) => ({
-        ...board,
-        tokens: initialTokens(),
-        drawingsByMap: { ...board.drawingsByMap, [board.mapId]: [] },
-      }),
-    });
+    setBoardState(session.reset());
     setSelectedTokenId(null);
     setAnnouncement("The example formation is restored.");
   }
 
   function clearBoard(): void {
-    dispatch({
-      type: "edit",
-      update: (board) => ({
-        ...board,
-        tokens: [],
-        drawingsByMap: { ...board.drawingsByMap, [board.mapId]: [] },
-      }),
-    });
+    setBoardState(session.clear());
     setSelectedTokenId(null);
     setAnnouncement("The board is clear.");
   }
@@ -580,18 +466,7 @@ export default function App(): React.JSX.Element {
   function changeMap(value: string): void {
     if (!isMapId(value)) return;
     const map = getMap(value);
-    dispatch({
-      type: "edit",
-      update: (board) => ({
-        ...board,
-        mapId: value,
-        tokens: board.tokens.map((token) => ({
-          ...token,
-          x: clampToBoard(token.x, map.width, iconSize),
-          y: clampToBoard(token.y, map.height, iconSize),
-        })),
-      }),
-    });
+    setBoardState(session.changeMap({ mapId: value, iconSize }));
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);
@@ -606,27 +481,7 @@ export default function App(): React.JSX.Element {
     )
       return;
     const map = getMap(mapId);
-    const nextTokens: BoardToken[] = [];
-    const teams: readonly Team[] = ["ally", "enemy"];
-    for (const team of teams) {
-      comp.teams[team].forEach((slot, index) => {
-        if (!slot.heroId) return;
-        nextTokens.push({
-          id: `${team}-${slot.heroId}`,
-          heroId: slot.heroId,
-          team,
-          ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),
-          x: Math.round(
-            map.width * (team === "ally" ? 0.25 : 0.75) + (index % 2) * 65 - 32,
-          ),
-          y: Math.round(map.height * 0.3 + Math.floor(index / 2) * 80),
-        });
-      });
-    }
-    dispatch({
-      type: "edit",
-      update: (board) => ({ ...board, mapId, tokens: nextTokens }),
-    });
+    setBoardState(session.openComp({ comp, mapId }));
     setSelectedTokenId(null);
     setContextMenu(null);
     navigate("board");
@@ -634,11 +489,8 @@ export default function App(): React.JSX.Element {
   }
 
   function restoreBoard(type: "undo" | "redo"): void {
-    if (
-      type === "undo" ? history.past.length === 0 : history.future.length === 0
-    )
-      return;
-    dispatch({ type });
+    if (type === "undo" ? !boardState.canUndo : !boardState.canRedo) return;
+    setBoardState(type === "undo" ? session.undo() : session.redo());
     setContextMenu(null);
     setAnnouncement(
       type === "undo" ? "Board edit undone." : "Board edit restored.",
@@ -671,7 +523,7 @@ export default function App(): React.JSX.Element {
           <button
             className="secondary-button history-button"
             type="button"
-            disabled={history.past.length === 0}
+            disabled={!boardState.canUndo}
             onClick={() => restoreBoard("undo")}
             title="Undo (Ctrl/Cmd+Z)"
             aria-label="Undo"
@@ -682,7 +534,7 @@ export default function App(): React.JSX.Element {
           <button
             className="secondary-button history-button"
             type="button"
-            disabled={history.future.length === 0}
+            disabled={!boardState.canRedo}
             onClick={() => restoreBoard("redo")}
             title="Redo (Ctrl/Cmd+Shift+Z)"
             aria-label="Redo"
@@ -729,19 +581,8 @@ export default function App(): React.JSX.Element {
               onEdit={editDrawing}
               onAdd={() => {
                 if (tool === "move") return;
-                editDrawing(
-                  createDrawing(
-                    tool,
-                    {
-                      x: selectedMap.width / 2 - 80,
-                      y: selectedMap.height / 2 - 40,
-                    },
-                    {
-                      x: selectedMap.width / 2 + 80,
-                      y: selectedMap.height / 2 + 40,
-                    },
-                    drawingColor,
-                  ),
+                showDrawingEdit(
+                  session.addDrawing({ kind: tool, color: drawingColor }),
                 );
               }}
             />

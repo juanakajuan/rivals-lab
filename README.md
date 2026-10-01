@@ -62,6 +62,11 @@ testing is complete.
 
 ## Board history
 
+`BoardSession` in `src/boardSession.ts` owns committed edits and hidden history.
+React keeps selection, tools, messages, confirmations, and icon size. Placement
+and map edits receive the current icon size. `boardTokens.ts` shares token bounds
+with the canvas.
+
 Board history stays in the current session and resets on reload. It stores up to
 100 edits across undo and redo, plus the current board. New edits discard the
 oldest saved entries when needed and clear redo. Unchanged actions preserve history.

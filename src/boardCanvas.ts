@@ -12,18 +12,16 @@ import {
   HEROES,
   heroImagePath,
   type HeroDefinition,
-  type HeroSelection,
   type HeroRole,
   type Team,
 } from "./heroes";
 import type { MapDefinition } from "./maps";
-
-export interface BoardToken extends HeroSelection {
-  readonly id: string;
-  readonly team: Team;
-  readonly x: number;
-  readonly y: number;
-}
+import {
+  TOKEN_RADIUS,
+  clampToBoard,
+  tokenBoundary,
+  type BoardToken,
+} from "./boardTokens";
 
 export interface BoardSnapshot {
   readonly map: MapDefinition;
@@ -73,8 +71,6 @@ interface TokenDrawing {
 
 type BoardCursor = "default" | "grab" | "grabbing" | "crosshair";
 
-const TOKEN_RADIUS = 22;
-
 const TEAM_COLORS: Readonly<Record<Team, string>> = {
   ally: "#50b9ff",
   enemy: "#ff6268",
@@ -121,20 +117,6 @@ function resizeStage(
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
-}
-
-function tokenBoundary(iconSize: number): number {
-  // Include the selected ring, which is the widest visible token outline.
-  return Math.ceil(((TOKEN_RADIUS + 2) * iconSize) / 100);
-}
-
-export function clampToBoard(
-  value: number,
-  maximum: number,
-  iconSize = 100,
-): number {
-  const boundary = tokenBoundary(iconSize);
-  return Math.round(clamp(value, boundary, maximum - boundary));
 }
 
 function boundTokenPosition(
