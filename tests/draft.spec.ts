@@ -11,13 +11,13 @@ import {
   type LegacyDraftState as DraftState,
 } from "../src/draft";
 import {
-  compStatus,
   decodeCompLibrary,
   emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
   type SavedComp,
 } from "../src/comps";
+import { compStatus } from "../src/compEdits";
 import { DEADPOOL_ROLES } from "../src/heroes";
 
 test("MRC saves are global and the final duplicate ban takes effect atomically", () => {

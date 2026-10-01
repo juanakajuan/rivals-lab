@@ -1,8 +1,6 @@
 import { COMP_MAPS } from "./compMaps";
 import {
   chooseLegacyDraftHero,
-  draftEffects,
-  draftSlots,
   emptyDraft,
   migrateLegacyDraft,
   setDraftHero,
@@ -51,25 +49,6 @@ export function emptyComp(): Comp {
     teams: { ally: slots(), enemy: slots() },
     draft: null,
   };
-}
-
-export function compStatus(comp: Comp): "Conflict" | "Incomplete" | "Ready" {
-  const effects = draftEffects(comp.draft);
-  if (
-    comp.teams.ally.some(
-      (slot) => slot.heroId && effects.banned.ally.has(slot.heroId),
-    ) ||
-    comp.teams.enemy.some(
-      (slot) => slot.heroId && effects.banned.enemy.has(slot.heroId),
-    )
-  )
-    return "Conflict";
-  if (
-    comp.teams.ally.some((slot) => !slot.heroId) ||
-    (comp.draft && draftSlots(comp.draft).some((slot) => slot.heroId === null))
-  )
-    return "Incomplete";
-  return "Ready";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

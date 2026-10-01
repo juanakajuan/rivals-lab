@@ -10,6 +10,7 @@ import {
   type CompLibrary,
   type SavedComp,
 } from "./comps";
+import { applyCompEdit, type CompEdit } from "./compEdits";
 
 export type CompStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -91,7 +92,8 @@ export class SavedCompSession {
     return this.current;
   }
 
-  edit(comp: Comp): SavedCompSessionState {
+  edit(edit: CompEdit): SavedCompSessionState {
+    const comp = applyCompEdit(this.current.comp, edit);
     this.current = {
       ...this.current,
       comp,

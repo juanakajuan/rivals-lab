@@ -16,27 +16,20 @@ import {
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { downloadAndCopyCompImage } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
+import type { Comp, SavedComp } from "./comps";
 import {
+  compChoiceError,
   compStatus,
-  emptyComp,
-  type Comp,
-  type CompSlot,
-  type SavedComp,
-} from "./comps";
+  hasDraftChoices,
+  type CompEdit,
+  type CompHeroTarget,
+} from "./compEdits";
 import {
   SavedCompSession,
   SavedCompWriteError,
   type SavedCompSessionState,
 } from "./savedComps";
-import {
-  setDraftHero,
-  emptyDraft,
-  draftSlots,
-  type DraftSlot,
-  draftChoiceError,
-  draftEffects,
-  type DraftState,
-} from "./draft";
+import { draftEffects, type DraftFormat } from "./draft";
 import {
   HERO_BY_ID,
   heroImagePath,
@@ -47,9 +40,6 @@ import {
 import { MAPS, isMapId, type MapId } from "./maps";
 import "./builder.css";
 
-type Picker =
-  | { readonly kind: "draft"; readonly slot: DraftSlot }
-  | { readonly kind: "slot"; readonly team: Team; readonly index: number };
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
   | { readonly kind: "rename"; readonly id: string; readonly name: string };
@@ -134,7 +124,7 @@ export function CompBuilder({
   const [savedState, setSavedState] = useState(() => session.state);
   const { comp, savedId, dirty, library } = savedState;
   const [librarySearch, setLibrarySearch] = useState("");
-  const [picker, setPicker] = useState<Picker | null>(null);
+  const [picker, setPicker] = useState<CompHeroTarget | null>(null);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [boardMapOpen, setBoardMapOpen] = useState(false);
   const [boardMapId, setBoardMapId] = useState("");
@@ -196,10 +186,16 @@ export function CompBuilder({
     return !dirty || window.confirm("Discard unsaved comp edits?");
   }
 
-  function edit(next: Comp): void {
-    setSavedState(session.edit(next));
-    setMessage("");
-    setError(null);
+  function edit(change: CompEdit): boolean {
+    try {
+      setSavedState(session.edit(change));
+      setMessage("");
+      setError(null);
+      return true;
+    } catch (cause) {
+      setError(errorMessage(cause));
+      return false;
+    }
   }
 
   function load(entry: SavedComp | null): void {
@@ -250,83 +246,43 @@ export function CompBuilder({
     }
   }
 
-  function changeSlot(team: Team, index: number, slot: CompSlot): void {
-    const slots = comp.teams[team].map((current, slotIndex) =>
-      slotIndex === index ? slot : current,
-    );
-    edit({ ...comp, teams: { ...comp.teams, [team]: slots } });
-  }
-
   function resetTeam(team: Team): void {
     if (
       !window.confirm(`Clear all heroes and slot notes for ${teamLabel(team)}?`)
     )
       return;
-    edit({
-      ...comp,
-      teams: { ...comp.teams, [team]: emptyComp().teams[team] },
-    });
+    edit({ kind: "resetTeam", team });
   }
 
   function choiceError(heroId: string): string | null {
-    if (!picker) return "No selection.";
-    if (picker.kind === "draft")
-      return comp.draft
-        ? draftChoiceError(comp.draft, picker.slot, heroId)
-        : "No draft selected.";
-    if (effects.banned[picker.team].has(heroId)) return "Banned for this team.";
-    if (
-      comp.teams[picker.team].some(
-        (slot, index) => index !== picker.index && slot.heroId === heroId,
-      )
-    )
-      return "Already on this team.";
-    return null;
+    return picker ? compChoiceError(comp, picker, heroId) : "No selection.";
   }
 
   function chooseHero(selection: HeroSelection): void {
-    const { heroId } = selection;
-    if (!picker || choiceError(heroId)) return;
-    if (picker.kind === "draft" && comp.draft)
-      edit({ ...comp, draft: setDraftHero(comp.draft, picker.slot, heroId) });
-    else if (picker.kind === "slot") {
-      const slot = comp.teams[picker.team][picker.index];
-      if (slot)
-        changeSlot(picker.team, picker.index, {
-          ...selection,
-          notes: slot.notes,
-        });
-    }
-    setPicker(null);
+    if (picker && edit({ kind: "chooseHero", target: picker, selection }))
+      setPicker(null);
   }
 
-  function changeDraft(next: DraftState | null): void {
+  function changeDraft(format: DraftFormat | null): void {
     if (
-      comp.draft &&
-      draftSlots(comp.draft).some((slot) => slot.heroId !== null) &&
+      hasDraftChoices(comp) &&
       !window.confirm(
         "Change draft settings and reset all bans and saves? Heroes and notes will stay.",
       )
     )
       return;
-    edit({ ...comp, draft: next });
+    edit({ kind: "draftFormat", format });
   }
 
   function changeMap(mapId: string): void {
-    if (mapId !== "" && !COMP_MAPS.some((map) => map.id === mapId)) return;
     if (
-      comp.draft &&
-      draftSlots(comp.draft).some((slot) => slot.heroId !== null) &&
+      hasDraftChoices(comp) &&
       !window.confirm(
         "Change map and reset its draft? Heroes and notes will stay.",
       )
     )
       return;
-    edit({
-      ...comp,
-      mapId: mapId || null,
-      draft: comp.draft ? emptyDraft(comp.draft.format) : null,
-    });
+    edit({ kind: "map", mapId: mapId || null });
   }
 
   async function shareImage(): Promise<void> {
@@ -587,7 +543,7 @@ export function CompBuilder({
                 maxLength={100}
                 placeholder="e.g. Midtown dive"
                 onChange={(event) =>
-                  edit({ ...comp, name: event.currentTarget.value })
+                  edit({ kind: "name", value: event.currentTarget.value })
                 }
               />
             </label>
@@ -639,7 +595,7 @@ export function CompBuilder({
                   const format = event.currentTarget.value;
                   if (format === "free") changeDraft(null);
                   else if (format === "mrc" || format === "ignite")
-                    changeDraft(emptyDraft(format));
+                    changeDraft(format);
                 }}
               >
                 <option value="free">Free build</option>
@@ -652,7 +608,7 @@ export function CompBuilder({
         {comp.draft && (
           <DraftPanel
             draft={comp.draft}
-            onChange={(draft) => edit({ ...comp, draft })}
+            onEdit={edit}
             onChoose={(slot) => setPicker({ kind: "draft", slot })}
           />
         )}
@@ -669,7 +625,7 @@ export function CompBuilder({
             slots={comp.teams[team]}
             banned={effects.banned[team]}
             onChoose={(index) => setPicker({ kind: "slot", team, index })}
-            onChange={(index, slot) => changeSlot(team, index, slot)}
+            onEdit={edit}
             onReset={() => resetTeam(team)}
           />
         ))}
@@ -686,7 +642,7 @@ export function CompBuilder({
               aria-label="Comp notes"
               placeholder="What makes this comp work?"
               onChange={(event) =>
-                edit({ ...comp, notes: event.currentTarget.value })
+                edit({ kind: "notes", value: event.currentTarget.value })
               }
             />
           </label>

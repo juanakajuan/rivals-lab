@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
-import {
-  draftSlots,
-  emptyDraft,
-  setDraftHero,
-  type DraftState,
-  type DraftSlot,
-} from "./draft";
+import { draftSlots, type DraftState, type DraftSlot } from "./draft";
+import type { CompEdit } from "./compEdits";
 import {
   DEADPOOL_ROLES,
   HEROES,
@@ -157,11 +152,11 @@ export function HeroPicker({
 
 export function DraftPanel({
   draft,
-  onChange,
+  onEdit,
   onChoose,
 }: {
   readonly draft: DraftState;
-  readonly onChange: (draft: DraftState) => void;
+  readonly onEdit: (edit: CompEdit) => void;
   readonly onChoose: (slot: DraftSlot) => void;
 }): React.JSX.Element {
   const slots = draftSlots(draft);
@@ -267,7 +262,10 @@ export function DraftPanel({
                           className="draft-clear icon-button"
                           aria-label={`Clear ${label}`}
                           onClick={() =>
-                            onChange(setDraftHero(draft, slot, null))
+                            onEdit({
+                              kind: "clearHero",
+                              target: { kind: "draft", slot },
+                            })
                           }
                         >
                           <X size={14} />
@@ -291,7 +289,7 @@ export function DraftPanel({
                 "Reset all bans and saves? Comp heroes and notes will stay.",
               )
             )
-              onChange(emptyDraft(draft.format));
+              onEdit({ kind: "resetDraft" });
           }}
         >
           Reset draft
@@ -306,14 +304,14 @@ export function TeamEditor({
   slots,
   banned,
   onChoose,
-  onChange,
+  onEdit,
   onReset,
 }: {
   readonly team: Team;
   readonly slots: readonly CompSlot[];
   readonly banned: ReadonlySet<string>;
   readonly onChoose: (index: number) => void;
-  readonly onChange: (index: number, slot: CompSlot) => void;
+  readonly onEdit: (edit: CompEdit) => void;
   readonly onReset: () => void;
 }): React.JSX.Element {
   const label = teamLabel(team);
@@ -395,7 +393,10 @@ export function TeamEditor({
                   className="slot-remove icon-button"
                   aria-label={`Remove ${hero.name} from ${label}`}
                   onClick={() =>
-                    onChange(index, { heroId: null, notes: slot.notes })
+                    onEdit({
+                      kind: "clearHero",
+                      target: { kind: "slot", team, index },
+                    })
                   }
                 >
                   <X size={14} />
@@ -409,7 +410,12 @@ export function TeamEditor({
                   onChange={(event) => {
                     const deadpoolRole = event.currentTarget.value;
                     if (isDeadpoolRole(deadpoolRole))
-                      onChange(index, { ...slot, deadpoolRole });
+                      onEdit({
+                        kind: "deadpoolRole",
+                        team,
+                        index,
+                        role: deadpoolRole,
+                      });
                   }}
                 >
                   <option value="" disabled>
@@ -432,7 +438,12 @@ export function TeamEditor({
                 rows={2}
                 value={slot.notes}
                 onChange={(event) =>
-                  onChange(index, { ...slot, notes: event.currentTarget.value })
+                  onEdit({
+                    kind: "slotNotes",
+                    team,
+                    index,
+                    notes: event.currentTarget.value,
+                  })
                 }
               />
             </div>

@@ -56,7 +56,7 @@ test("failed writes preserve local edits, saved state, and stored data", async (
   const storage = new MemoryStorage(serializeCompLibrary([saved]));
   const session = new SavedCompSession(storage);
   session.load(entry(session));
-  session.edit({ ...session.state.comp, notes: "Unsaved notes" });
+  session.edit({ kind: "notes", value: "Unsaved notes" });
   const before = session.state;
   const source = session.exportData();
   storage.failWrites = true;
@@ -81,7 +81,7 @@ test("failed writes preserve local edits, saved state, and stored data", async (
   expect(session.state.dirty).toBe(false);
   expect(session.state.comp.name).toBe("Plan");
   expect(entry(session).comp.notes).toBe("Unsaved notes");
-  session.edit({ ...session.state.comp, notes: "Later edit" });
+  session.edit({ kind: "notes", value: "Later edit" });
   session.rename(saved.id, "Renamed");
   expect(session.state.dirty).toBe(true);
   expect(session.state.comp.notes).toBe("Later edit");
@@ -98,7 +98,7 @@ for (const renameBeforeSave of [false, true]) {
     const storage = new MemoryStorage(serializeCompLibrary([saved]));
     const session = new SavedCompSession(storage);
     session.load(entry(session));
-    session.edit({ ...session.state.comp, notes: "Local edits" });
+    session.edit({ kind: "notes", value: "Local edits" });
     const newer = { ...saved, comp: { ...saved.comp, notes: "Remote edits" } };
     storage.setItem(COMP_STORAGE_KEY, serializeCompLibrary([newer]));
     session.refresh(COMP_STORAGE_KEY);
@@ -133,7 +133,7 @@ test("a deleted or unavailable saved comp cannot be restored by a stale editor",
     const storage = new MemoryStorage(serializeCompLibrary([saved]));
     const session = new SavedCompSession(storage);
     session.load(entry(session));
-    session.edit({ ...session.state.comp, notes: "Local edits" });
+    session.edit({ kind: "notes", value: "Local edits" });
     storage.setItem(COMP_STORAGE_KEY, replacement);
     session.refresh();
     const before = session.state;
@@ -178,7 +178,7 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
   expect(migrated.comp.draft?.teams.ally.ban[0]).toBe("strange");
   expect(migrated.comp.teams.ally[0]?.deadpoolRole).toBeUndefined();
   session.load(migrated);
-  session.edit({ ...session.state.comp, notes: "Updated notes" });
+  session.edit({ kind: "notes", value: "Updated notes" });
   session.save("Plan");
   session.rename(saved.id, "Renamed");
   const imported = await session.importFile(
@@ -214,7 +214,7 @@ test("invalid library data stays available for export and cannot be overwritten"
   expect(session.state.library.error).toContain(
     "Saved comps could not be read",
   );
-  session.edit({ ...session.state.comp, name: "Do not overwrite" });
+  session.edit({ kind: "name", value: "Do not overwrite" });
   const before = session.state;
   expect(() => session.save("Do not overwrite")).toThrow(SavedCompWriteError);
   expect(session.state).toBe(before);
@@ -240,7 +240,7 @@ test("unavailable entries count toward storage limits and failed imports are ato
   });
   for (const source of [full, oversized]) {
     const session = new SavedCompSession(new MemoryStorage(source));
-    session.edit({ ...session.state.comp, name: "New comp" });
+    session.edit({ kind: "name", value: "New comp" });
     const before = session.state;
     expect(() => session.save("New comp")).toThrow("library limit");
     await expect(
@@ -280,10 +280,10 @@ test("an import keeps edits and library writes made while the file is read", asy
         finishRead = resolve;
       }),
   });
-  session.edit({ ...session.state.comp, notes: "Edits during import" });
+  session.edit({ kind: "notes", value: "Edits during import" });
   session.save("New comp");
   const savedId = session.state.savedId;
-  session.edit({ ...session.state.comp, notes: "Still unsaved" });
+  session.edit({ kind: "notes", value: "Still unsaved" });
   finishRead(source);
   const result = await importing;
   expect(result.state.comp.notes).toBe("Still unsaved");
@@ -293,4 +293,45 @@ test("an import keeps edits and library writes made while the file is read", asy
   expect(result.state.library.entries.map((item) => item.id)).not.toContain(
     saved.id,
   );
+});
+
+test("rejected edits preserve session state and conflict plans remain savable", () => {
+  const storage = new MemoryStorage(serializeCompLibrary([saved]));
+  const session = new SavedCompSession(storage);
+  session.load(entry(session));
+  session.edit({
+    kind: "chooseHero",
+    target: { kind: "slot", team: "ally", index: 0 },
+    selection: { heroId: "hulk" },
+  });
+  const before = session.state;
+  expect(() =>
+    session.edit({
+      kind: "chooseHero",
+      target: { kind: "slot", team: "ally", index: 1 },
+      selection: { heroId: "hulk" },
+    }),
+  ).toThrow("Already on this team.");
+  expect(session.state).toBe(before);
+  expect(session.state.dirty).toBe(true);
+  session.edit({ kind: "draftFormat", format: "mrc" });
+  session.edit({
+    kind: "chooseHero",
+    target: { kind: "draft", slot: { team: "ally", kind: "ban", index: 0 } },
+    selection: { heroId: "hulk" },
+  });
+  session.save("Plan");
+  const reloaded = new SavedCompSession(storage);
+  reloaded.load(entry(reloaded));
+  expect(reloaded.state.comp.teams.ally[0]).toEqual({
+    heroId: "hulk",
+    notes: "",
+  });
+  expect(reloaded.state.comp.draft?.teams.ally.ban).toEqual([
+    "hulk",
+    null,
+    null,
+    null,
+  ]);
+  expect(reloaded.state.dirty).toBe(false);
 });

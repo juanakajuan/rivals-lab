@@ -25,6 +25,9 @@ unsaved edits, and recovery when stored data is invalid.
 Saved comp session tests use a memory storage adapter. They cover failed writes,
 stale revisions, recovery data, storage limits, and edits during file imports
 through the session interface.
+Comp edit tests cover note retention, role removal, choice rules, and resets
+through the edit module interface. Session tests also cover rejected edits and
+saved conflict plans.
 Board session tests cover placement, map changes, drawing isolation, comp transfer,
 edit order, redo invalidation, unchanged edits, and the 100-edit limit. Browser
 tests cover drag completion, restore during a drag, text-safe shortcuts, and session reset.
