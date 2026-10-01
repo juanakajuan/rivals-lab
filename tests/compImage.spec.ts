@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { emptyDraft, setDraftHero } from "../src/draft";
 import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
+import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
 
 declare global {
   interface Window {
@@ -215,7 +216,6 @@ test("downloads and copies the same full PNG without changing saved data", async
         bytes: [...new Uint8Array(await blob.arrayBuffer())],
         text: window.imageCopyTest.text,
         positions: window.imageCopyTest.positions ?? [],
-        saved: localStorage.getItem("rivals-lab.comps.v1"),
       };
       bitmap.close();
       return result;
@@ -228,7 +228,7 @@ test("downloads and copies the same full PNG without changing saved data", async
       (line) => line === "RIVALS LAB  /  DRAFT & COMP BUILDER",
     ),
   ).toHaveLength(1);
-  expect(result.saved).toBe(saved);
+  expect(await exportCompLibrary(page)).toBe(saved);
   expect(result.background).toEqual([8, 9, 10, 255]);
   expect(result.width).toBeGreaterThan(1000);
   expect(result.height).toBeGreaterThan(2000);
@@ -352,9 +352,10 @@ test("prevents repeat writes and only reports success after the write", async ({
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Keep this build",
   );
-  expect(
-    await page.evaluate(() => localStorage.getItem("rivals-lab.comps.v1")),
-  ).toBeNull();
+  await expect(
+    page.getByRole("button", { name: "Save", exact: true }),
+  ).toBeEnabled();
+  expect(await readStoredCompLibrary(page)).toBeNull();
 });
 
 test("downloads when image clipboard access is unsupported", async ({
@@ -444,7 +445,6 @@ test("uses the intact local image when the encoder worker cannot load", async ({
   const result = await page.evaluate(() => ({
     bytes: window.imageCopyTest.bytes,
     writes: window.imageCopyTest.writes,
-    saved: localStorage.getItem("rivals-lab.comps.v1"),
   }));
   if (!result.bytes) throw new Error("Missing clipboard PNG");
   const [downloaded, copied] = await page.evaluate(inspectPngs, [
@@ -457,7 +457,7 @@ test("uses the intact local image when the encoder worker cannot load", async ({
   expect(downloaded.background).toEqual([8, 9, 10, 255]);
   expect(downloaded.hasContent).toBe(true);
   expect(result.writes).toBe(1);
-  expect(result.saved).toBe(saved);
+  expect(await exportCompLibrary(page)).toBe(saved);
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Unsaved plan",
   );
@@ -726,11 +726,17 @@ test("sparse export omits empty sections and rejects an empty build", async ({
     },
     draft: emptyDraft("mrc"),
   };
-  await page.evaluate(
-    (source) => localStorage.setItem("rivals-lab.comps.v1", source),
-    serializeCompLibrary([
-      { id: "sparse", updatedAt: "2026-09-28T00:00:00Z", comp: sparse },
-    ]),
+  await page.getByLabel("Import comps JSON").setInputFiles({
+    name: "sparse.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      serializeCompLibrary([
+        { id: "sparse", updatedAt: "2026-09-28T00:00:00Z", comp: sparse },
+      ]),
+    ),
+  });
+  await expect(page.getByRole("status")).toHaveText(
+    "Imported 1 comp as copies.",
   );
   await page.reload();
   await page

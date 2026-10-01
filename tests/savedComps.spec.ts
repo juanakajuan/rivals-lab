@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import {
-  COMP_STORAGE_KEY,
   MAX_IMPORT_BYTES,
   MAX_SAVED_COMPS,
   emptyComp,
@@ -12,25 +11,45 @@ import {
   SavedCompSession,
   SavedCompWriteError,
   type CompImportFile,
-  type CompStorage,
 } from "../src/savedComps";
 
+import type { CompStorage } from "../src/compStorage";
+
 class MemoryStorage implements CompStorage {
-  private readonly data = new Map<string, string>();
+  private source: string | null;
   failWrites = false;
+  beforeCommit: (() => Promise<void>) | null = null;
+  afterCommit: (() => Promise<void>) | null = null;
 
-  constructor(source?: string) {
-    if (source !== undefined) this.data.set(COMP_STORAGE_KEY, source);
+  constructor(source: string | null = null) {
+    this.source = source;
   }
 
-  getItem(key: string): string | null {
-    return this.data.get(key) ?? null;
+  async read(): Promise<string | null> {
+    return this.source;
   }
 
-  setItem(key: string, value: string): void {
+  async update(transform: (source: string | null) => string): Promise<void> {
+    const next = transform(this.source);
+    await this.beforeCommit?.();
     if (this.failWrites) throw new Error("Storage is full.");
-    this.data.set(key, value);
+    this.source = next;
+    await this.afterCommit?.();
   }
+
+  subscribe(_onChange: () => void): () => void {
+    return () => {};
+  }
+
+  replace(source: string): void {
+    this.source = source;
+  }
+}
+
+async function sessionFor(storage: CompStorage): Promise<SavedCompSession> {
+  const session = new SavedCompSession(storage);
+  await session.refresh();
+  return session;
 }
 
 const saved: SavedComp = {
@@ -52,13 +71,161 @@ function importFile(source: string): CompImportFile {
   };
 }
 
+function deferred(): {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+} {
+  let resolve = (): void => {
+    throw new Error("The deferred operation has not started.");
+  };
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
+const delayedWrites: readonly ("save" | "rename" | "remove" | "import")[] = [
+  "save",
+  "rename",
+  "remove",
+  "import",
+];
+
+for (const operation of delayedWrites) {
+  test(`a delayed ${operation} completion keeps a newer remote library`, async () => {
+    const storage = new MemoryStorage(serializeCompLibrary([saved]));
+    const session = await sessionFor(storage);
+    session.load(entry(session));
+    const committed = deferred();
+    const deliver = deferred();
+    storage.afterCommit = async () => {
+      committed.resolve();
+      await deliver.promise;
+    };
+    let writing: Promise<unknown>;
+    let expectedNames: readonly string[];
+    switch (operation) {
+      case "save":
+        session.edit({ kind: "notes", value: "Local notes" });
+        writing = session.save("Local plan");
+        expectedNames = ["Remote plan", "Local plan"];
+        break;
+      case "rename":
+        writing = session.rename(saved.id, "Local name");
+        expectedNames = ["Remote plan", "Local name"];
+        break;
+      case "remove":
+        writing = session.remove(saved.id);
+        expectedNames = ["Remote plan"];
+        break;
+      case "import":
+        writing = session.importFile(importFile(serializeCompLibrary([saved])));
+        expectedNames = ["Remote plan", "Plan", "Plan"];
+        break;
+    }
+
+    await committed.promise;
+    const local = parseCompLibrary(await session.exportData());
+    const remote: SavedComp = {
+      ...saved,
+      id: "remote",
+      comp: { ...saved.comp, name: "Remote plan" },
+    };
+    storage.replace(serializeCompLibrary([remote, ...local]));
+    await session.refresh();
+    expect(session.state.library.entries.map((item) => item.comp.name)).toEqual(
+      expectedNames,
+    );
+    deliver.resolve();
+    await writing;
+
+    expect(session.state.library.entries.map((item) => item.comp.name)).toEqual(
+      expectedNames,
+    );
+    expect(
+      parseCompLibrary(await session.exportData()).map(
+        (item) => item.comp.name,
+      ),
+    ).toEqual(expectedNames);
+  });
+}
+
+test("edits during commit stay local and dirty after the submitted snapshot is saved", async () => {
+  const storage = new MemoryStorage(serializeCompLibrary([saved]));
+  const session = await sessionFor(storage);
+  session.load(entry(session));
+  session.edit({ kind: "notes", value: "Submitted notes" });
+  const transformed = deferred();
+  const complete = deferred();
+  storage.beforeCommit = async () => {
+    transformed.resolve();
+    await complete.promise;
+  };
+
+  const saving = session.save(" Plan ");
+  await transformed.promise;
+  session.edit({ kind: "notes", value: "Newer notes" });
+  session.edit({ kind: "name", value: "Newer name" });
+  complete.resolve();
+
+  expect(await saving).toEqual({ kind: "newerEdits" });
+  expect(parseCompLibrary(await session.exportData())[0]?.comp).toEqual({
+    ...saved.comp,
+    name: "Plan",
+    notes: "Submitted notes",
+  });
+  expect(session.state.comp).toEqual({
+    ...saved.comp,
+    name: "Newer name",
+    notes: "Newer notes",
+  });
+  expect(session.state.savedId).toBe(saved.id);
+  expect(session.state.dirty).toBe(true);
+  expect(await session.save("Newer name")).toEqual({ kind: "clean" });
+  expect(entry(session).comp.notes).toBe("Newer notes");
+  expect(session.state.dirty).toBe(false);
+});
+
+test("loading another comp during commit keeps that editor and its saved link", async () => {
+  const other: SavedComp = {
+    ...saved,
+    id: "other",
+    comp: { ...saved.comp, name: "Other plan", notes: "Other notes" },
+  };
+  const storage = new MemoryStorage(serializeCompLibrary([saved, other]));
+  const session = await sessionFor(storage);
+  session.load(entry(session));
+  session.edit({ kind: "notes", value: "Submitted notes" });
+  const transformed = deferred();
+  const complete = deferred();
+  storage.beforeCommit = async () => {
+    transformed.resolve();
+    await complete.promise;
+  };
+
+  const saving = session.save("Plan");
+  await transformed.promise;
+  session.load(entry(session, other.id));
+  complete.resolve();
+
+  expect(await saving).toEqual({ kind: "differentEditor" });
+  expect(entry(session).comp.notes).toBe("Submitted notes");
+  expect(session.state.comp).toEqual(other.comp);
+  expect(session.state.savedId).toBe(other.id);
+  expect(session.state.dirty).toBe(false);
+  session.edit({ kind: "notes", value: "Updated other notes" });
+  expect(await session.save("Other plan")).toEqual({ kind: "clean" });
+  expect(entry(session, other.id).comp.notes).toBe("Updated other notes");
+  expect(session.state.library.entries).toHaveLength(2);
+});
+
 test("failed writes preserve local edits, saved state, and stored data", async () => {
   const storage = new MemoryStorage(serializeCompLibrary([saved]));
-  const session = new SavedCompSession(storage);
+  const session = await sessionFor(storage);
   session.load(entry(session));
   session.edit({ kind: "notes", value: "Unsaved notes" });
   const before = session.state;
-  const source = session.exportData();
+  const source = await session.exportData();
   storage.failWrites = true;
 
   for (const operation of [
@@ -66,54 +233,54 @@ test("failed writes preserve local edits, saved state, and stored data", async (
     () => session.rename(saved.id, "Renamed"),
     () => session.remove(saved.id),
   ]) {
-    expect(operation).toThrow(SavedCompWriteError);
+    await expect(operation()).rejects.toThrow(SavedCompWriteError);
     expect(session.state).toBe(before);
-    expect(session.exportData()).toBe(source);
+    expect(await session.exportData()).toBe(source);
   }
   await expect(
     session.importFile(importFile(serializeCompLibrary([saved]))),
   ).rejects.toThrow(SavedCompWriteError);
   expect(session.state).toBe(before);
-  expect(session.exportData()).toBe(source);
+  expect(await session.exportData()).toBe(source);
 
   storage.failWrites = false;
-  session.save(" Plan ");
+  await session.save(" Plan ");
   expect(session.state.dirty).toBe(false);
   expect(session.state.comp.name).toBe("Plan");
   expect(entry(session).comp.notes).toBe("Unsaved notes");
   session.edit({ kind: "notes", value: "Later edit" });
-  session.rename(saved.id, "Renamed");
+  await session.rename(saved.id, "Renamed");
   expect(session.state.dirty).toBe(true);
   expect(session.state.comp.notes).toBe("Later edit");
-  session.save("Renamed");
+  await session.save("Renamed");
   expect(entry(session).comp.notes).toBe("Later edit");
-  session.remove(saved.id);
+  await session.remove(saved.id);
   expect(session.state.savedId).toBeNull();
   expect(session.state.dirty).toBe(true);
   expect(session.state.comp.notes).toBe("Later edit");
 });
 
 for (const renameBeforeSave of [false, true]) {
-  test(`same-time remote changes block stale saves${renameBeforeSave ? " after rename" : " after refresh"}`, () => {
+  test(`same-time remote changes block stale saves${renameBeforeSave ? " after rename" : " after refresh"}`, async () => {
     const storage = new MemoryStorage(serializeCompLibrary([saved]));
-    const session = new SavedCompSession(storage);
+    const session = await sessionFor(storage);
     session.load(entry(session));
     session.edit({ kind: "notes", value: "Local edits" });
     const newer = { ...saved, comp: { ...saved.comp, notes: "Remote edits" } };
-    storage.setItem(COMP_STORAGE_KEY, serializeCompLibrary([newer]));
-    session.refresh(COMP_STORAGE_KEY);
+    storage.replace(serializeCompLibrary([newer]));
+    await session.refresh();
     expect(session.state.comp.notes).toBe("Local edits");
-    if (renameBeforeSave) session.rename(saved.id, "Renamed");
+    if (renameBeforeSave) await session.rename(saved.id, "Renamed");
 
     const before = session.state;
-    const source = session.exportData();
-    expect(() => session.save(session.state.comp.name)).toThrow(
+    const source = await session.exportData();
+    await expect(session.save(session.state.comp.name)).rejects.toThrow(
       "changed in another tab",
     );
     expect(session.state).toBe(before);
-    expect(session.exportData()).toBe(source);
+    expect(await session.exportData()).toBe(source);
 
-    session.save("Recovered copy", true);
+    await session.save("Recovered copy", true);
     expect(session.state.savedId).not.toBe(saved.id);
     expect(session.state.dirty).toBe(false);
     expect(session.state.comp.notes).toBe("Local edits");
@@ -122,7 +289,7 @@ for (const renameBeforeSave of [false, true]) {
   });
 }
 
-test("a deleted or unavailable saved comp cannot be restored by a stale editor", () => {
+test("a deleted or unavailable saved comp cannot be restored by a stale editor", async () => {
   for (const replacement of [
     serializeCompLibrary([]),
     JSON.stringify({
@@ -131,16 +298,18 @@ test("a deleted or unavailable saved comp cannot be restored by a stale editor",
     }),
   ]) {
     const storage = new MemoryStorage(serializeCompLibrary([saved]));
-    const session = new SavedCompSession(storage);
+    const session = await sessionFor(storage);
     session.load(entry(session));
     session.edit({ kind: "notes", value: "Local edits" });
-    storage.setItem(COMP_STORAGE_KEY, replacement);
-    session.refresh();
+    storage.replace(replacement);
+    await session.refresh();
     const before = session.state;
-    expect(() => session.save("Plan")).toThrow("deleted in another tab");
+    await expect(session.save("Plan")).rejects.toThrow(
+      "deleted in another tab",
+    );
     expect(session.state).toBe(before);
-    expect(session.exportData()).toBe(replacement);
-    session.save("Recovered copy", true);
+    expect(await session.exportData()).toBe(replacement);
+    await session.save("Recovered copy", true);
     expect(session.state.savedId).not.toBe(saved.id);
     expect(session.state.comp.notes).toBe("Local edits");
   }
@@ -172,53 +341,55 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
       comps: [legacy, unavailable],
     }),
   );
-  const session = new SavedCompSession(storage);
+  const session = await sessionFor(storage);
   expect(session.state.library.unavailableCount).toBe(1);
   const migrated = entry(session);
   expect(migrated.comp.draft?.teams.ally.ban[0]).toBe("strange");
   expect(migrated.comp.teams.ally[0]?.deadpoolRole).toBeUndefined();
   session.load(migrated);
   session.edit({ kind: "notes", value: "Updated notes" });
-  session.save("Plan");
-  session.rename(saved.id, "Renamed");
+  await session.save("Plan");
+  await session.rename(saved.id, "Renamed");
   const imported = await session.importFile(
-    importFile(session.exportData(entry(session))),
+    importFile(await session.exportData(entry(session))),
   );
   expect(imported.count).toBe(1);
   const copy = session.state.library.entries.find(
     (item) => item.id !== saved.id,
   );
   if (!copy) throw new Error("Missing imported copy.");
-  session.remove(copy.id);
+  await session.remove(copy.id);
 
-  const raw: unknown = JSON.parse(session.exportData());
+  const raw: unknown = JSON.parse(await session.exportData());
   expect(raw).toMatchObject({
     version: 1,
     recoveryNote: "Keep metadata",
     comps: expect.arrayContaining([unavailable]),
   });
-  const reloaded = new SavedCompSession(storage);
+  const reloaded = await sessionFor(storage);
   expect(entry(reloaded).comp).toEqual({
     ...migrated.comp,
     name: "Renamed",
     notes: "Updated notes",
   });
-  expect(parseCompLibrary(session.exportData(entry(session)))).toEqual([
+  expect(parseCompLibrary(await session.exportData(entry(session)))).toEqual([
     entry(session),
   ]);
 });
 
-test("invalid library data stays available for export and cannot be overwritten", () => {
+test("invalid library data stays available for export and cannot be overwritten", async () => {
   const source = "broken saved data";
-  const session = new SavedCompSession(new MemoryStorage(source));
+  const session = await sessionFor(new MemoryStorage(source));
   expect(session.state.library.error).toContain(
     "Saved comps could not be read",
   );
   session.edit({ kind: "name", value: "Do not overwrite" });
   const before = session.state;
-  expect(() => session.save("Do not overwrite")).toThrow(SavedCompWriteError);
+  await expect(session.save("Do not overwrite")).rejects.toThrow(
+    SavedCompWriteError,
+  );
   expect(session.state).toBe(before);
-  expect(session.exportData()).toBe(source);
+  expect(await session.exportData()).toBe(source);
 });
 
 test("unavailable entries count toward storage limits and failed imports are atomic", async () => {
@@ -239,22 +410,22 @@ test("unavailable entries count toward storage limits and failed imports are ato
     comps: [{ ...unavailable, recoveryPayload: "x".repeat(MAX_IMPORT_BYTES) }],
   });
   for (const source of [full, oversized]) {
-    const session = new SavedCompSession(new MemoryStorage(source));
+    const session = await sessionFor(new MemoryStorage(source));
     session.edit({ kind: "name", value: "New comp" });
     const before = session.state;
-    expect(() => session.save("New comp")).toThrow("library limit");
+    await expect(session.save("New comp")).rejects.toThrow("library limit");
     await expect(
       session.importFile(importFile(serializeCompLibrary([saved]))),
     ).rejects.toThrow("library limit");
     expect(session.state).toBe(before);
-    expect(session.exportData()).toBe(source);
+    expect(await session.exportData()).toBe(source);
   }
 
-  const session = new SavedCompSession(
+  const session = await sessionFor(
     new MemoryStorage(serializeCompLibrary([saved])),
   );
   const before = session.state;
-  const source = session.exportData();
+  const source = await session.exportData();
   await expect(
     session.importFile(
       importFile(JSON.stringify({ version: 1, comps: [saved, unavailable] })),
@@ -264,11 +435,11 @@ test("unavailable entries count toward storage limits and failed imports are ato
     session.importFile(importFile("x".repeat(MAX_IMPORT_BYTES + 1))),
   ).rejects.toThrow("2 MB");
   expect(session.state).toBe(before);
-  expect(session.exportData()).toBe(source);
+  expect(await session.exportData()).toBe(source);
 });
 
 test("an import keeps edits and library writes made while the file is read", async () => {
-  const session = new SavedCompSession(new MemoryStorage());
+  const session = await sessionFor(new MemoryStorage());
   let finishRead: (source: string) => void = () => {
     throw new Error("The read has not started.");
   };
@@ -281,23 +452,23 @@ test("an import keeps edits and library writes made while the file is read", asy
       }),
   });
   session.edit({ kind: "notes", value: "Edits during import" });
-  session.save("New comp");
+  await session.save("New comp");
   const savedId = session.state.savedId;
   session.edit({ kind: "notes", value: "Still unsaved" });
   finishRead(source);
-  const result = await importing;
-  expect(result.state.comp.notes).toBe("Still unsaved");
-  expect(result.state.dirty).toBe(true);
-  expect(result.state.savedId).toBe(savedId);
-  expect(result.state.library.entries).toHaveLength(2);
-  expect(result.state.library.entries.map((item) => item.id)).not.toContain(
+  await importing;
+  expect(session.state.comp.notes).toBe("Still unsaved");
+  expect(session.state.dirty).toBe(true);
+  expect(session.state.savedId).toBe(savedId);
+  expect(session.state.library.entries).toHaveLength(2);
+  expect(session.state.library.entries.map((item) => item.id)).not.toContain(
     saved.id,
   );
 });
 
-test("rejected edits preserve session state and conflict plans remain savable", () => {
+test("rejected edits preserve session state and conflict plans remain savable", async () => {
   const storage = new MemoryStorage(serializeCompLibrary([saved]));
-  const session = new SavedCompSession(storage);
+  const session = await sessionFor(storage);
   session.load(entry(session));
   session.edit({
     kind: "chooseHero",
@@ -320,8 +491,8 @@ test("rejected edits preserve session state and conflict plans remain savable", 
     target: { kind: "draft", slot: { team: "ally", kind: "ban", index: 0 } },
     selection: { heroId: "hulk" },
   });
-  session.save("Plan");
-  const reloaded = new SavedCompSession(storage);
+  await session.save("Plan");
+  const reloaded = await sessionFor(storage);
   reloaded.load(entry(reloaded));
   expect(reloaded.state.comp.teams.ally[0]).toEqual({
     heroId: "hulk",
