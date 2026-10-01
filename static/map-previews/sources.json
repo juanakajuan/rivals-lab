@@ -1,0 +1,98 @@
+[
+  {
+    "mapId": "birnin-tchalla",
+    "file": "birnin-tchalla.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/06/064d1764fa34d9d20e7bad4cd50f82528f0a37f7251b19c99c2b7c105818114b?width=1920&format=webp"
+  },
+  {
+    "mapId": "hells-heaven",
+    "file": "hells-heaven.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/be/be711c685ca8a45d28abb34b938e162ab62239050fbdc2f69e1f3a86e894793c?width=1920&format=webp"
+  },
+  {
+    "mapId": "krakoa",
+    "file": "krakoa.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/36/3660f6073607e66fc03989341899442d47a7a91d8da8e568bcb7984700c41bd4?width=1920&format=webp"
+  },
+  {
+    "mapId": "celestial-husk",
+    "file": "celestial-husk.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/94/9421f2507dc5da1ff2df49ce91e9d149f0fda4e5c9c5efb221b4e9192214643b?width=1920&format=webp"
+  },
+  {
+    "mapId": "yggdrasill-path",
+    "file": "yggdrasill-path.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/27/27994289b38bc1a3847e1749a405d7f98bc5ffa0963e79343391add35bdef903?width=1920&format=webp"
+  },
+  {
+    "mapId": "spider-islands",
+    "file": "spider-islands.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/89/89e98d3771836a35f29b794bc3c1f966848446c50d6adb926e4bbac6af6c6d0c?width=1920&format=webp"
+  },
+  {
+    "mapId": "midtown",
+    "file": "midtown.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/ea/ea27a332476f53c81ade20cc72c29b14610ade4550949caa088bd6fc1ff83942?width=1920&format=webp"
+  },
+  {
+    "mapId": "arakko",
+    "file": "arakko.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/fd/fd7f5cbab5a77642617f9ea9064e1d5ade19df7146fdd530b43200ccdc08b71f?width=1920&format=webp"
+  },
+  {
+    "mapId": "hall-of-djalia",
+    "file": "hall-of-djalia.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/cd/cd50b84ea530f375646a0816a73fd43890cdeeefe9c981e8fc36019643665633?width=1920&format=webp"
+  },
+  {
+    "mapId": "symbiotic-surface",
+    "file": "symbiotic-surface.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/ec/ec6f2ca3907eda791a2b9ae8663e82890cfb83d32523ed3839773fe8cd86b7c6?width=1920&format=webp"
+  },
+  {
+    "mapId": "central-park",
+    "file": "central-park.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/e5/e5b3bd805a1b1dc64f1d6bd3b20edbd2aeeee4f4fecd06c455201e3f287da9aa?width=1920&format=webp"
+  },
+  {
+    "mapId": "heart-of-heaven",
+    "file": "heart-of-heaven.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/61/612d0330b49ef2aa298d43f747849e82de28eeed08d42389dc895d9d3eec72a7?width=1920&format=webp"
+  },
+  {
+    "mapId": "shin-shibuya",
+    "file": "shin-shibuya.webp",
+    "source": "https://psylocke.gg/assets?category=map-bg",
+    "image": "https://cdn.psylocke.gg/marvel-rivals/objects/26/267eb5feafc3cca72fb2bf1e0ec05457fdad56ea768aae773ded6cb09bdb191d?width=1920&format=webp"
+  },
+  {
+    "mapId": "thebes",
+    "file": "thebes.jpg",
+    "source": "https://www.marvelrivals.com/",
+    "image": "https://www.marvelrivals.com/pc/gw/20241128194803/img/21_484fcb82.jpg"
+  },
+  {
+    "mapId": "lower-manhattan",
+    "file": "lower-manhattan.jpg",
+    "source": "https://www.marvelrivals.com/",
+    "image": "https://www.marvelrivals.com/pc/gw/20241128194803/img/18_bd1c448f.jpg"
+  },
+  {
+    "mapId": "museum-of-contemplation",
+    "file": "museum-of-contemplation.jpg",
+    "source": "https://www.marvelrivals.com/",
+    "image": "https://www.marvelrivals.com/pc/gw/20241128194803/img/9_d1e6afd2.jpg"
+  }
+]

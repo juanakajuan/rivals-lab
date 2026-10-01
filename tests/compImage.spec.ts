@@ -184,6 +184,37 @@ test("downloads and copies the same full PNG without changing saved data", async
       if (!pixelContext) throw new Error("Cannot inspect image background");
       pixelContext.drawImage(bitmap, 0, 0);
       const pixelHashes: string[] = [];
+      const preview = document.querySelector(".selected-map-preview img");
+      if (!(preview instanceof HTMLImageElement))
+        throw new Error("Missing selected map preview");
+      await preview.decode();
+      const mapCanvas = new OffscreenCanvas(1600, 320);
+      const mapContext = mapCanvas.getContext("2d");
+      if (!mapContext) throw new Error("Cannot inspect map pixels");
+      mapContext.fillStyle = "#08090a";
+      mapContext.fillRect(0, 0, 1600, 320);
+      const scale = Math.min(
+        1520 / preview.naturalWidth,
+        320 / preview.naturalHeight,
+      );
+      const mapWidth = preview.naturalWidth * scale;
+      const mapHeight = preview.naturalHeight * scale;
+      mapContext.drawImage(
+        preview,
+        (1600 - mapWidth) / 2,
+        0,
+        mapWidth,
+        mapHeight,
+      );
+      const expectedMapHash = [
+        ...new Uint8Array(
+          await crypto.subtle.digest(
+            "SHA-256",
+            new Uint8Array(mapContext.getImageData(0, 0, 1600, 320).data),
+          ),
+        ),
+      ].join(",");
+      const mapHashes: string[] = [];
       for (const source of [
         blob,
         new Blob([new Uint8Array(downloaded)], { type: "image/png" }),
@@ -206,10 +237,17 @@ test("downloads and copies the same full PNG without changing saved data", async
         pixelHashes.push(
           `${image.width}x${image.height}:${[...new Uint8Array(hash)].join(",")}`,
         );
+        const mapHash = await crypto.subtle.digest(
+          "SHA-256",
+          new Uint8Array(context.getImageData(0, 170, 1600, 320).data),
+        );
+        mapHashes.push([...new Uint8Array(mapHash)].join(","));
         image.close();
       }
       const result = {
         pixelHashes,
+        expectedMapHash,
+        mapHashes,
         background: [...pixelContext.getImageData(0, 0, 1, 1).data],
         width: bitmap.width,
         height: bitmap.height,
@@ -223,6 +261,10 @@ test("downloads and copies the same full PNG without changing saved data", async
     [...downloaded],
   );
   expect(result.pixelHashes[0]).toBe(result.pixelHashes[1]);
+  expect(result.mapHashes).toEqual([
+    result.expectedMapHash,
+    result.expectedMapHash,
+  ]);
   expect(
     result.text.filter(
       (line) => line === "RIVALS LAB  /  DRAFT & COMP BUILDER",
@@ -610,6 +652,70 @@ for (const failure of workerFailures) {
     );
   });
 }
+
+test("map image failure reports the map and permits retry without changing saved data", async ({
+  page,
+}) => {
+  const saved = serializeCompLibrary([
+    {
+      id: "map-error",
+      updatedAt: "2026-09-28T00:00:00Z",
+      comp: { ...emptyComp(), name: "Map plan", mapId: "midtown" },
+    },
+  ]);
+  await page.addInitScript((source) => {
+    localStorage.setItem("rivals-lab.comps.v1", source);
+    window.imageCopyTest = { text: [], writes: 0 };
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        write: async (items: ClipboardItem[]) => {
+          const item = items[0];
+          if (!item) throw new Error("Missing clipboard item");
+          await item.getType("image/png");
+          window.imageCopyTest.writes++;
+        },
+      },
+    });
+  }, saved);
+  await page.route("**/map-previews/midtown.webp", (route) => route.abort());
+  await page.goto("/builder");
+  await page
+    .getByRole("button", { name: "Load Map plan", exact: true })
+    .click();
+  await page
+    .getByLabel("Comp notes", { exact: true })
+    .fill("Keep these edits.");
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  const exportButton = page.getByRole("button", {
+    name: "Download & Copy",
+    exact: true,
+  });
+  await exportButton.click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Could not create image. Midtown preview could not load. Try again.",
+  );
+  await expect(exportButton).toBeEnabled();
+  expect(downloads).toBe(0);
+  expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(0);
+  expect(await readStoredCompLibrary(page)).toBe(saved);
+  await expect(page.getByLabel("Comp map", { exact: true })).toHaveValue(
+    "midtown",
+  );
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Keep these edits.",
+  );
+  await page.unroute("**/map-previews/midtown.webp");
+  const downloadReady = page.waitForEvent("download");
+  await exportButton.click();
+  expect((await downloadReady).suggestedFilename()).toBe("Map-plan.png");
+  await expect(page.getByRole("status")).toHaveText(
+    "Download started. Image copied to clipboard.",
+  );
+  expect(downloads).toBe(1);
+  expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(1);
+  expect(await readStoredCompLibrary(page)).toBe(saved);
+});
 
 test("image generation failure produces no download or clipboard image", async ({
   page,
