@@ -124,6 +124,8 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+  padding-inline-end: 12px;
+  margin-inline-end: -12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -161,6 +163,7 @@
   gap: 4px;
 }
 .saved-portraits > * {
+  min-width: 0;
   width: 25px;
   height: 25px;
   object-fit: cover;
