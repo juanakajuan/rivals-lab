@@ -24,11 +24,8 @@ import {
   type CompEdit,
   type CompHeroTarget,
 } from "./compEdits";
-import {
-  SavedCompSession,
-  SavedCompWriteError,
-  type SavedCompSessionState,
-} from "./savedComps";
+import { SavedCompSession, SavedCompWriteError } from "./savedComps";
+import { browserCompStorage } from "./compStorage";
 import { draftEffects, type DraftFormat } from "./draft";
 import {
   HERO_BY_ID,
@@ -67,10 +64,12 @@ function downloadJson(source: string, filename: string): void {
 
 function NameDialog({
   request,
+  pending,
   onClose,
   onSubmit,
 }: {
   readonly request: NameRequest;
+  readonly pending: boolean;
   readonly onClose: () => void;
   readonly onSubmit: (name: string) => void;
 }): React.JSX.Element {
@@ -105,7 +104,7 @@ function NameDialog({
           <button
             type="submit"
             className="primary-button"
-            disabled={!name.trim()}
+            disabled={pending || !name.trim()}
           >
             Save name
           </button>
@@ -132,6 +131,8 @@ export function CompBuilder({
   const [error, setError] = useState<string | null>(null);
   const [exportingImage, setExportingImage] = useState(false);
   const exportingImageRef = useRef(false);
+  const [writing, setWriting] = useState(false);
+  const writingRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
@@ -141,7 +142,8 @@ export function CompBuilder({
     entry.comp.name.toLowerCase().includes(search),
   );
   let saveStatus = "New comp · not saved";
-  if (message) saveStatus = message;
+  if (writing) saveStatus = "Saving changes…";
+  else if (message) saveStatus = message;
   else if (dirty) saveStatus = "Unsaved changes";
   else if (savedId) saveStatus = "All changes saved";
 
@@ -156,27 +158,45 @@ export function CompBuilder({
   }, [dirty]);
 
   useEffect(() => {
-    function refresh(event: StorageEvent): void {
-      setSavedState(session.refresh(event.key));
+    let active = true;
+    async function refresh(): Promise<void> {
+      await session.refresh();
+      if (active) setSavedState(session.state);
     }
-    window.addEventListener("storage", refresh);
-    return () => window.removeEventListener("storage", refresh);
+    const unsubscribe = browserCompStorage.subscribe(() => void refresh());
+    void refresh();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [session]);
 
-  function commit(operation: () => SavedCompSessionState): boolean {
+  async function commit<T>(
+    operation: () => Promise<T>,
+  ): Promise<{ readonly result: T } | null> {
+    if (writingRef.current) return null;
+    writingRef.current = true;
+    setWriting(true);
     try {
-      setSavedState(operation());
+      const result = await operation();
+      setSavedState(session.state);
       setError(null);
-      return true;
+      return { result };
     } catch (cause) {
       setError(writeErrorMessage(cause));
-      return false;
+      return null;
+    } finally {
+      writingRef.current = false;
+      setWriting(false);
     }
   }
 
-  function exportStoredData(filename: string, entry?: SavedComp): void {
+  async function exportStoredData(
+    filename: string,
+    entry?: SavedComp,
+  ): Promise<void> {
     try {
-      downloadJson(session.exportData(entry), filename);
+      downloadJson(await session.exportData(entry), filename);
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -206,33 +226,44 @@ export function CompBuilder({
     setError(null);
   }
 
-  function save(name: string, asCopy = false): void {
+  async function save(name: string, asCopy = false): Promise<void> {
     if (!name.trim()) {
       setError("Enter a comp name before saving.");
       return;
     }
-    if (!commit(() => session.save(name, asCopy))) return;
+    const committed = await commit(() => session.save(name, asCopy));
+    if (!committed) return;
     setNameRequest(null);
-    setMessage(`Saved ${session.state.comp.name}.`);
+    switch (committed.result.kind) {
+      case "clean":
+        setMessage(`Saved ${name.trim()}.`);
+        break;
+      case "newerEdits":
+        setMessage(`Saved ${name.trim()}. Newer edits are not saved.`);
+        break;
+      case "differentEditor":
+        setMessage(`Saved ${name.trim()}. The current comp was kept.`);
+        break;
+    }
   }
 
-  function rename(id: string, name: string): void {
-    if (!commit(() => session.rename(id, name))) return;
+  async function rename(id: string, name: string): Promise<void> {
+    if (!(await commit(() => session.rename(id, name)))) return;
     setNameRequest(null);
     setMessage(`Renamed comp to ${name}.`);
   }
 
-  function deleteComp(entry: SavedComp): void {
+  async function deleteComp(entry: SavedComp): Promise<void> {
     if (!window.confirm(`Delete “${entry.comp.name}” from this browser?`))
       return;
-    if (!commit(() => session.remove(entry.id))) return;
+    if (!(await commit(() => session.remove(entry.id)))) return;
     setMessage(`Deleted ${entry.comp.name}.`);
   }
 
   async function importFile(file: File): Promise<void> {
     try {
       const result = await session.importFile(file);
-      setSavedState(result.state);
+      setSavedState(session.state);
       setError(null);
       setMessage(
         `Imported ${result.count} comp${result.count === 1 ? "" : "s"} as copies.`,
@@ -394,6 +425,7 @@ export function CompBuilder({
                 <button
                   type="button"
                   aria-label={`Rename ${entry.comp.name}`}
+                  disabled={writing}
                   onClick={() =>
                     setNameRequest({
                       kind: "rename",
@@ -407,14 +439,17 @@ export function CompBuilder({
                 <button
                   type="button"
                   aria-label={`Export ${entry.comp.name}`}
-                  onClick={() => exportStoredData("rivals-comp.json", entry)}
+                  onClick={() =>
+                    void exportStoredData("rivals-comp.json", entry)
+                  }
                 >
                   Export
                 </button>
                 <button
                   type="button"
                   aria-label={`Delete ${entry.comp.name}`}
-                  onClick={() => deleteComp(entry)}
+                  disabled={writing}
+                  onClick={() => void deleteComp(entry)}
                 >
                   Delete
                 </button>
@@ -442,6 +477,7 @@ export function CompBuilder({
             <button
               type="button"
               className="secondary-button"
+              disabled={writing}
               onClick={() => fileInput.current?.click()}
             >
               <Upload size={14} />
@@ -451,7 +487,7 @@ export function CompBuilder({
               type="button"
               className="secondary-button"
               disabled={!library.entries.length && !library.error}
-              onClick={() => exportStoredData("rivals-comps.json")}
+              onClick={() => void exportStoredData("rivals-comps.json")}
             >
               <Download size={14} />
               Export all
@@ -517,7 +553,9 @@ export function CompBuilder({
             <button
               type="button"
               className="secondary-button"
-              onClick={() => exportStoredData("rivals-comps-recovery.json")}
+              onClick={() =>
+                void exportStoredData("rivals-comps-recovery.json")
+              }
             >
               Export stored data for recovery
             </button>
@@ -553,6 +591,7 @@ export function CompBuilder({
             <button
               type="button"
               className="secondary-button"
+              disabled={writing}
               onClick={() =>
                 setNameRequest({
                   kind: "copy",
@@ -565,7 +604,9 @@ export function CompBuilder({
             <button
               type="button"
               className="primary-button"
-              onClick={() => save(comp.name)}
+              disabled={writing}
+              aria-busy={writing}
+              onClick={() => void save(comp.name)}
             >
               Save
             </button>
@@ -697,10 +738,11 @@ export function CompBuilder({
       {nameRequest && (
         <NameDialog
           request={nameRequest}
+          pending={writing}
           onClose={() => setNameRequest(null)}
           onSubmit={(name) => {
-            if (nameRequest.kind === "copy") save(name, true);
-            else rename(nameRequest.id, name);
+            if (nameRequest.kind === "copy") void save(name, true);
+            else void rename(nameRequest.id, name);
           }}
         />
       )}

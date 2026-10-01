@@ -82,9 +82,19 @@ confirmations, and messages. `comps.ts` validates and migrates stored data.
 `compEdits.ts` owns hero choice rules, slot edits, draft and map resets, and comp
 status. Display code sends typed edits through the saved session. Picker checks
 and edits use the same choice rules. The edit module has no mutable state.
-The session publishes saved state only after storage accepts a write. Library
-refreshes preserve local edits and stale-save checks. Tests use a memory storage
-adapter through the same session interface.
+The session publishes saved state only after an IndexedDB transaction commits.
+Each transaction reads the current library, checks revisions and limits, and
+writes the complete JSON envelope. Concurrent tabs keep independent saves.
+Library refreshes preserve local edits and stale-save checks. A queued save
+rejects if the editor changes before its transaction runs. Edits or loads after
+the write starts remain in the editor when the commit completes. Tests use an
+async memory storage adapter through the same session interface.
+
+The first transaction copies the exact legacy localStorage value into IndexedDB.
+The old key remains as a backup. Later saves use IndexedDB only. Reload older
+open tabs after this update. An older app version cannot read later saves; export
+the current library before a rollback, then import that file. If IndexedDB is
+unavailable, writes fail and local edits remain.
 
 Map, hero, and saved comp IDs are persistent storage keys. Keep these IDs when
 names, images, or map pools change. Do not reuse a removed ID for another item.

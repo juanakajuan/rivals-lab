@@ -1,6 +1,6 @@
 ---
 name: interrogate
-description: "Use for \"interrogate\", \"adversarial review\", \"multi-model review\", \"challenge this\", \"stress test this code\", \"find blind spots\", or \"tear this apart\". Multiple LLM reviewers challenge changes from independent angles."
+description: 'Use for "interrogate", "adversarial review", "multi-model review", "challenge this", "stress test this code", "find blind spots", or "tear this apart". Multiple LLM reviewers challenge changes from independent angles.'
 disable-model-invocation: true
 ---
 
@@ -39,14 +39,15 @@ Launch all reviewers in a single message using the Task tool.
 
 Use the `interrogate reviewers` list from the pstack settings file when present (`~/.cursor/rules/pstack-models.mdc` in Cursor, `~/.agents/pstack-models.md` in other harnesses), one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
 
-| Subagent | Default model |
-|----------|---------------|
+| Subagent   | Default model                   |
+| ---------- | ------------------------------- |
 | Reviewer A | `claude-fable-5-1-thinking-max` |
-| Reviewer B | `gpt-5.6-sol-max` |
-| Reviewer C | `grok-4.6-fast-xhigh` |
-| Reviewer D | `claude-opus-5-thinking-xhigh` |
+| Reviewer B | `gpt-5.6-sol-max`               |
+| Reviewer C | `grok-4.6-fast-xhigh`           |
+| Reviewer D | `claude-opus-5-thinking-xhigh`  |
 
 For each reviewer:
+
 - `subagent_type`: `generalPurpose`
 - `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
 - `readonly`: `true`
@@ -54,6 +55,7 @@ For each reviewer:
 If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the subagent tool's error message or your harness's model list, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, omit `model` instead. Never treat those aliases as broken slugs or enter this fallback for them.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
+
 1. The stated intent
 2. The diff or file contents
 3. The review rubric from `references/rubric.md`
@@ -85,6 +87,7 @@ Categorize every finding using these buckets:
 - **Dismissed**. Wrong, nitpicky, or missing context. Brief explanation why.
 
 For each finding, include:
+
 - Which model(s) raised it
 - The category (act on / consider / noted / dismissed)
 - A one-line rationale for the categorization
@@ -94,22 +97,29 @@ For each finding, include:
 Present the verdict in this structure:
 
 ### Intent
+
 > [The stated intent paragraph from Step 2]
 
 ### Reviewers
+
 - Reviewer [label]: [model name], [N findings] (one bullet per reviewer)
 
 ### Act On
+
 [Findings that should be addressed. For each: description, which models raised it, why it matters.]
 
 ### Consider
+
 [Findings worth thinking about. For each: description, which models raised it, tradeoff involved.]
 
 ### Noted
+
 [Valid but low-priority. Brief list.]
 
 ### Dismissed
+
 [Rejected findings with brief rationale.]
 
 ### Agreement Map
+
 [Where did models agree, where did they diverge, and what does the pattern of agreement/disagreement tell us?]
