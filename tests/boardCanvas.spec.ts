@@ -153,7 +153,14 @@ test("React keeps selection across drag and map change", async ({ page }) => {
   const tolerance = Math.ceil(1 / scale);
   expect(Math.abs(Number(match[1]) - 330)).toBeLessThanOrEqual(tolerance);
   expect(Math.abs(Number(match[2]) - 475)).toBeLessThanOrEqual(tolerance);
-  await page.getByRole("combobox").selectOption("hells-heaven-domination");
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", {
+      name: "Hydra Charteris Base: Hell's Heaven",
+      exact: true,
+    })
+    .click();
   await expect(page.locator(".selection-name strong")).toHaveText(
     "Doctor Strange",
   );

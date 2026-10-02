@@ -14,7 +14,9 @@ import {
   type HeroDefinition,
   type Team,
 } from "./heroes";
-import { MAPS, type MapDefinition, type MapId } from "./maps";
+import type { MapDefinition, MapId } from "./maps";
+import { MapPicker } from "./MapPicker";
+import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 
 interface HeroPanelProps {
   readonly selectedTeam: Team;
@@ -197,7 +199,7 @@ interface BoardPanelProps {
   readonly boardHostRef: RefObject<HTMLDivElement | null>;
   readonly selectedToken: BoardToken | undefined;
   readonly selectedHero: HeroDefinition | undefined;
-  readonly onMapChange: (mapId: string) => void;
+  readonly onMapChange: (mapId: MapId) => void;
   readonly onDrop: (event: DragEvent<HTMLDivElement>) => void;
   readonly onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
@@ -229,19 +231,13 @@ export function BoardPanel({
           <p>{selectedMap.mode}</p>
         </div>
         <div className="board-heading-actions">
-          <label className="map-picker">
-            <span>Map</span>
-            <select
-              value={selectedMapId}
-              onChange={(event) => onMapChange(event.currentTarget.value)}
-            >
-              {MAPS.map((map) => (
-                <option value={map.id} key={map.id}>
-                  {map.name} · {map.mode}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MapPicker<MapId>
+            options={BOARD_MAP_OPTIONS}
+            selectedValue={selectedMapId}
+            triggerLabel="Choose map"
+            title="Choose map"
+            onChoose={onMapChange}
+          />
         </div>
       </div>
 
