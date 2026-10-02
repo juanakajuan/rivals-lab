@@ -16,6 +16,7 @@ import {
 } from "./heroes";
 import type { MapDefinition, MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
+import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 
 interface HeroPanelProps {
   readonly selectedTeam: Team;
@@ -230,7 +231,13 @@ export function BoardPanel({
           <p>{selectedMap.mode}</p>
         </div>
         <div className="board-heading-actions">
-          <MapPicker selectedMapId={selectedMapId} onMapChange={onMapChange} />
+          <MapPicker<MapId>
+            options={BOARD_MAP_OPTIONS}
+            selectedValue={selectedMapId}
+            triggerLabel="Choose map"
+            title="Choose map"
+            onChoose={onMapChange}
+          />
         </div>
       </div>
 

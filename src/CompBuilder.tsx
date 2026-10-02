@@ -34,7 +34,9 @@ import {
   type HeroSelection,
   type Team,
 } from "./heroes";
-import { MAPS, isMapId, type MapId } from "./maps";
+import type { MapId } from "./maps";
+import { MapPicker } from "./MapPicker";
+import { BOARD_MAP_OPTIONS, COMP_MAP_OPTIONS } from "./mapPickerOptions";
 import "./builder.css";
 
 type NameRequest =
@@ -125,8 +127,6 @@ export function CompBuilder({
   const [librarySearch, setLibrarySearch] = useState("");
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
-  const [boardMapOpen, setBoardMapOpen] = useState(false);
-  const [boardMapId, setBoardMapId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [exportingImage, setExportingImage] = useState(false);
@@ -137,6 +137,10 @@ export function CompBuilder({
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
   const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
+  const supportedBoardMapId = selectedMap?.boardMapId;
+  const boardTransferDisabled = !TEAMS.some((team) =>
+    comp.teams[team].some((slot) => slot.heroId),
+  );
   const search = librarySearch.trim().toLowerCase();
   const filteredComps = library.entries.filter((entry) =>
     entry.comp.name.toLowerCase().includes(search),
@@ -305,7 +309,8 @@ export function CompBuilder({
     edit({ kind: "draftFormat", format });
   }
 
-  function changeMap(mapId: string): void {
+  function changeMap(mapId: string | null): void {
+    if (mapId === comp.mapId) return;
     if (
       hasDraftChoices(comp) &&
       !window.confirm(
@@ -313,7 +318,7 @@ export function CompBuilder({
       )
     )
       return;
-    edit({ kind: "map", mapId: mapId || null });
+    edit({ kind: "map", mapId });
   }
 
   async function shareImage(): Promise<void> {
@@ -347,15 +352,6 @@ export function CompBuilder({
       exportingImageRef.current = false;
       setExportingImage(false);
     }
-  }
-
-  function openBoard(): void {
-    if (selectedMap?.boardMapId) {
-      onOpenBoard(comp, selectedMap.boardMapId);
-      return;
-    }
-    setBoardMapId("");
-    setBoardMapOpen(true);
   }
 
   let pickerTitle = "Choose hero";
@@ -544,18 +540,32 @@ export function CompBuilder({
               <Download size={15} />
               {exportingImage ? "Preparing image…" : "Download & Copy"}
             </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={openBoard}
-              disabled={
-                !TEAMS.some((team) =>
-                  comp.teams[team].some((slot) => slot.heroId),
-                )
-              }
-            >
-              Open on Position Board <ArrowUpRight size={15} />
-            </button>
+            {supportedBoardMapId !== undefined ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => onOpenBoard(comp, supportedBoardMapId)}
+                disabled={boardTransferDisabled}
+              >
+                Open on Position Board <ArrowUpRight size={15} />
+              </button>
+            ) : (
+              <MapPicker<MapId>
+                options={BOARD_MAP_OPTIONS}
+                selectedValue={undefined}
+                triggerLabel="Open on Position Board"
+                triggerContent={
+                  <>
+                    Open on Position Board <ArrowUpRight size={15} />
+                  </>
+                }
+                triggerClassName="secondary-button"
+                disabled={boardTransferDisabled}
+                title="Choose a Position Board map"
+                description={`${selectedMap ? `${selectedMap.name} has no board image yet.` : "This comp has no map selected."} Choose a supported map. The saved comp’s map will stay unchanged.`}
+                onChoose={(mapId) => onOpenBoard(comp, mapId)}
+              />
+            )}
           </div>
         </div>
         {library.error && (
@@ -629,21 +639,21 @@ export function CompBuilder({
               </button>
             </div>
             <div className="settings-grid">
-              <label>
-                Comp map
-                <select
-                  aria-label="Comp map"
-                  value={comp.mapId ?? ""}
-                  onChange={(event) => changeMap(event.currentTarget.value)}
-                >
-                  <option value="">Any map</option>
-                  {COMP_MAPS.map((map) => (
-                    <option key={map.id} value={map.id}>
-                      {map.name} · {map.mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="comp-map-field">
+                <span>Comp map</span>
+                <MapPicker<string | null>
+                  options={COMP_MAP_OPTIONS}
+                  selectedValue={comp.mapId}
+                  triggerLabel="Comp map"
+                  triggerContent={
+                    selectedMap
+                      ? `${selectedMap.name} · ${selectedMap.mode}`
+                      : "Any map"
+                  }
+                  title="Choose comp map"
+                  onChoose={changeMap}
+                />
+              </div>
               <label>
                 Draft format
                 <select
@@ -777,63 +787,6 @@ export function CompBuilder({
             else void rename(nameRequest.id, name);
           }}
         />
-      )}
-      {boardMapOpen && (
-        <BuilderDialog
-          title="Choose a Position Board map"
-          onClose={() => setBoardMapOpen(false)}
-        >
-          <p className="muted-copy">
-            {selectedMap
-              ? `${selectedMap.name} has no board image yet.`
-              : "This comp has no map selected."}{" "}
-            Choose a supported map. The saved comp’s map will stay unchanged.
-          </p>
-          <form
-            className="dialog-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (isMapId(boardMapId)) {
-                setBoardMapOpen(false);
-                onOpenBoard(comp, boardMapId);
-              }
-            }}
-          >
-            <label>
-              Board map
-              <select
-                aria-label="Board map"
-                autoFocus
-                required
-                value={boardMapId}
-                onChange={(event) => setBoardMapId(event.currentTarget.value)}
-              >
-                <option value="">Choose a map</option>
-                {MAPS.map((map) => (
-                  <option key={map.id} value={map.id}>
-                    {map.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setBoardMapOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="primary-button"
-                disabled={!isMapId(boardMapId)}
-              >
-                Open board
-              </button>
-            </div>
-          </form>
-        </BuilderDialog>
       )}
     </main>
   );

@@ -7,6 +7,7 @@ export default defineConfig({
     "**/production.spec.ts",
     "**/compConcurrentSaves.spec.ts",
     "**/mapPicker.spec.ts",
+    "**/compMapPicker.spec.ts",
   ],
   forbidOnly: Boolean(process.env["CI"]),
   workers: 2,

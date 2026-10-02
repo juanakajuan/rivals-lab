@@ -17,13 +17,21 @@ async function pickHero(page: Page, slot: string, hero: string): Promise<void> {
     .click();
 }
 
+async function chooseCompMap(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "Comp map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose comp map", exact: true })
+    .getByRole("button", { name, exact: true })
+    .click();
+}
+
 test("named comps, notes, copies and JSON imports survive reload without data loss", async ({
   page,
 }) => {
   await page.goto("/");
   await openBuilder(page);
   await page.getByLabel("Comp name", { exact: true }).fill("Midtown dive");
-  await page.getByLabel("Comp map", { exact: true }).selectOption("midtown");
+  await chooseCompMap(page, "Midtown");
   const preview = page.locator(".selected-map-preview");
   await expect(preview).toHaveText("Midtown · Convoy");
   await expect(preview.locator("img")).toHaveAttribute(
@@ -114,7 +122,7 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await copy.click();
   await expect(preview).toHaveText("Midtown · Convoy");
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByLabel("Comp map", { exact: true }).selectOption("");
+  await chooseCompMap(page, "Any map");
   await expect(preview).toHaveCount(0);
   await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -263,7 +271,7 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await expect(page).toHaveURL(/\/builder$/);
   await pickHero(page, "Allies slot 1: Choose hero", "Hulk");
   await pickHero(page, "Opponents slot 1: Choose hero", "Loki");
-  await page.getByLabel("Comp map", { exact: true }).selectOption("midtown");
+  await chooseCompMap(page, "Midtown");
   await page
     .getByLabel("Comp notes", { exact: true })
     .fill("Preserve these notes.");
@@ -271,11 +279,11 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await expect(page.getByRole("dialog")).toContainText(
     "Midtown has no board image yet.",
   );
-  await page
-    .getByLabel("Board map", { exact: true })
-    .selectOption("museum-of-contemplation-convoy");
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Open board", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose a Position Board map", exact: true })
+    .getByRole("button", { name: "Museum of Contemplation", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/board$/);
   await expect(
     page.getByRole("heading", { name: "Museum of Contemplation", exact: true }),
@@ -316,8 +324,8 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await page.mouse.click(bounds.x + 268 * scale, bounds.y + 197 * scale);
   await expect(page.locator(".selection-name strong")).toHaveText("Hulk");
   await openBuilder(page);
-  await expect(page.getByLabel("Comp map", { exact: true })).toHaveValue(
-    "midtown",
+  await expect(page.locator(".selected-map-preview")).toHaveText(
+    "Midtown · Convoy",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Preserve these notes.",
@@ -365,7 +373,7 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
   await page.goto("/");
   await openBuilder(page);
   await page.getByLabel("Comp name", { exact: true }).fill("Deadpool support");
-  await page.getByLabel("Comp map").selectOption("museum-of-contemplation");
+  await chooseCompMap(page, "Museum of Contemplation");
   await pickHero(page, "Allies slot 1: Choose hero", "Deadpool · Strategist");
   await expect(
     page

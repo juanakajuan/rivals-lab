@@ -1,5 +1,13 @@
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function chooseCompMap(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "Comp map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose comp map", exact: true })
+    .getByRole("button", { name, exact: true })
+    .click();
+}
 
 test("serves built JavaScript and CSS without the development client", async ({
   page,
@@ -29,7 +37,7 @@ test("serves built JavaScript and CSS without the development client", async ({
 test("saved comp fields survive a production reload", async ({ page }) => {
   await page.goto("/builder");
   await page.getByLabel("Comp name", { exact: true }).fill("Midtown plan");
-  await page.getByLabel("Comp map", { exact: true }).selectOption("midtown");
+  await chooseCompMap(page, "Midtown");
   await page
     .getByRole("button", { name: "Allies slot 1: Choose hero", exact: true })
     .click();
@@ -58,8 +66,8 @@ test("saved comp fields survive a production reload", async ({ page }) => {
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Midtown plan",
   );
-  await expect(page.getByLabel("Comp map", { exact: true })).toHaveValue(
-    "midtown",
+  await expect(page.locator(".selected-map-preview")).toHaveText(
+    "Midtown · Convoy",
   );
   await expect(
     page.getByRole("button", {

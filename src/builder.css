@@ -344,12 +344,20 @@
   padding: 0 12px;
   font-size: 12px;
 }
+.comp-map-field,
 .comp-settings label,
 .dialog-form label {
   display: grid;
   gap: 7px;
   color: #aeb2be;
   font-size: 11px;
+}
+.comp-map-field .map-picker-trigger {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .settings-grid {
   display: grid;
