@@ -291,6 +291,7 @@
   display: grid;
   align-items: center;
   gap: 20px;
+  padding-block: 16px;
 }
 .comp-settings:has(.selected-map-preview) {
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -320,11 +321,11 @@
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 2 / 1;
   object-fit: cover;
 }
 .selected-map-preview figcaption {
-  padding: 12px;
+  padding: 8px;
   background: var(--surface);
   color: #f4f5f8;
   font-size: 12px;
@@ -890,6 +891,9 @@
     grid-row: 2;
     width: 140px;
   }
+  .selected-map-preview img {
+    aspect-ratio: 4 / 3;
+  }
   .selected-map-preview figcaption {
     padding: 10px;
     font-size: 11px;
@@ -934,6 +938,9 @@
     grid-row: 3;
     width: 100%;
     max-width: 360px;
+  }
+  .selected-map-preview img {
+    aspect-ratio: 2 / 1;
   }
   .hero-choice-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
