@@ -5,6 +5,7 @@ import { BoardPanel, DrawingMenu, HeroPanel, TokenMenu } from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
 import type { BoardDrawing, BoardTool } from "./boardDrawings";
 import { measureBoardNote } from "./boardNote";
+import { Changelog } from "./Changelog";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
 import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
@@ -20,10 +21,17 @@ import { BoardSession, type HeroPlacement } from "./boardSession";
 import { clampToBoard, type BoardToken } from "./boardTokens";
 import { getMap, isMapId, type MapId } from "./maps";
 
-type Page = "board" | "builder";
+type Page = "board" | "builder" | "changelog";
 
 function pageFromPath(): Page {
-  return window.location.pathname === "/builder" ? "builder" : "board";
+  switch (window.location.pathname) {
+    case "/builder":
+      return "builder";
+    case "/changelog":
+      return "changelog";
+    default:
+      return "board";
+  }
 }
 
 type BoardContextMenu = {
@@ -505,7 +513,9 @@ export default function App(): React.JSX.Element {
   }
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${page === "changelog" ? " changelog-active" : ""}`}
+    >
       <header className="topbar">
         <div className="title-group">
           <strong>Rivals Lab</strong>
@@ -524,6 +534,13 @@ export default function App(): React.JSX.Element {
             onClick={(event) => handlePageLink(event, "builder")}
           >
             Draft / Comp Builder
+          </a>
+          <a
+            href="/changelog"
+            aria-current={page === "changelog" ? "page" : undefined}
+            onClick={(event) => handlePageLink(event, "changelog")}
+          >
+            Changelog
           </a>
         </nav>
         <div className="header-actions" hidden={page !== "board"}>
@@ -610,6 +627,10 @@ export default function App(): React.JSX.Element {
 
       <div className="builder-page" hidden={page !== "builder"}>
         <CompBuilder onOpenBoard={openCompOnBoard} />
+      </div>
+
+      <div className="changelog-container" hidden={page !== "changelog"}>
+        <Changelog />
       </div>
 
       {contextMenu && contextToken && contextHero ? (
