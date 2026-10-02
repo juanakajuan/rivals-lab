@@ -589,77 +589,79 @@ export function CompBuilder({
           className="builder-card comp-settings"
           aria-label="Comp settings"
         >
-          <div className="comp-name-row">
-            <label>
-              Comp name
-              <input
-                value={comp.name}
-                maxLength={100}
-                placeholder="e.g. Midtown dive"
-                onChange={(event) =>
-                  edit({ kind: "name", value: event.currentTarget.value })
+          <div className="comp-settings-fields">
+            <div className="comp-name-row">
+              <label>
+                Comp name
+                <input
+                  value={comp.name}
+                  maxLength={100}
+                  placeholder="e.g. Midtown dive"
+                  onChange={(event) =>
+                    edit({ kind: "name", value: event.currentTarget.value })
+                  }
+                />
+              </label>
+              <span className={`status-tag status-${status.toLowerCase()}`}>
+                {status}
+              </span>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={writing}
+                onClick={() =>
+                  setNameRequest({
+                    kind: "copy",
+                    name: comp.name ? `${comp.name.slice(0, 93)} (copy)` : "",
+                  })
                 }
-              />
-            </label>
-            <span className={`status-tag status-${status.toLowerCase()}`}>
-              {status}
-            </span>
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={writing}
-              onClick={() =>
-                setNameRequest({
-                  kind: "copy",
-                  name: comp.name ? `${comp.name.slice(0, 93)} (copy)` : "",
-                })
-              }
-            >
-              Save As
-            </button>
-            <button
-              type="button"
-              className="primary-button"
-              disabled={writing}
-              aria-busy={writing}
-              onClick={() => void save(comp.name)}
-            >
-              Save
-            </button>
-          </div>
-          <div className="settings-grid">
-            <label>
-              Comp map
-              <select
-                aria-label="Comp map"
-                value={comp.mapId ?? ""}
-                onChange={(event) => changeMap(event.currentTarget.value)}
               >
-                <option value="">Any map</option>
-                {COMP_MAPS.map((map) => (
-                  <option key={map.id} value={map.id}>
-                    {map.name} · {map.mode}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Draft format
-              <select
-                aria-label="Draft format"
-                value={comp.draft?.format ?? "free"}
-                onChange={(event) => {
-                  const format = event.currentTarget.value;
-                  if (format === "free") changeDraft(null);
-                  else if (format === "mrc" || format === "ignite")
-                    changeDraft(format);
-                }}
+                Save As
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={writing}
+                aria-busy={writing}
+                onClick={() => void save(comp.name)}
               >
-                <option value="free">Free build</option>
-                <option value="mrc">MRC · 4 bans / 2 saves</option>
-                <option value="ignite">Ignite · 5 bans / 2 saves</option>
-              </select>
-            </label>
+                Save
+              </button>
+            </div>
+            <div className="settings-grid">
+              <label>
+                Comp map
+                <select
+                  aria-label="Comp map"
+                  value={comp.mapId ?? ""}
+                  onChange={(event) => changeMap(event.currentTarget.value)}
+                >
+                  <option value="">Any map</option>
+                  {COMP_MAPS.map((map) => (
+                    <option key={map.id} value={map.id}>
+                      {map.name} · {map.mode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Draft format
+                <select
+                  aria-label="Draft format"
+                  value={comp.draft?.format ?? "free"}
+                  onChange={(event) => {
+                    const format = event.currentTarget.value;
+                    if (format === "free") changeDraft(null);
+                    else if (format === "mrc" || format === "ignite")
+                      changeDraft(format);
+                  }}
+                >
+                  <option value="free">Free build</option>
+                  <option value="mrc">MRC · 4 bans / 2 saves</option>
+                  <option value="ignite">Ignite · 5 bans / 2 saves</option>
+                </select>
+              </label>
+            </div>
           </div>
           {selectedMap ? (
             <figure className="selected-map-preview">
