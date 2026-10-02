@@ -134,6 +134,8 @@ bundled with the deployed app. `releases/published.json` stores published histor
 `releases/pending.json` stores reviewed notes with stable IDs. Add a concise note
 for each user-visible change. Keep a pending note's ID when you edit its text.
 Use a new ID for a later change to an already published feature.
+Start each note's text with `Feature: ` for new capabilities or `Bug fix: ` for
+corrections to existing behavior.
 
 `npm run deploy` builds one production candidate and publishes that exact output
 with `cf deploy --prebuilt --mode production`. It then checks the unique build ID

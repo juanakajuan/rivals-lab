@@ -1,18 +1,22 @@
 [
   {
     "id": "builder-map-preview",
-    "text": "Preview the selected map in the Draft / Comp Builder."
+    "text": "Feature: Preview the selected map in the Draft / Comp Builder."
   },
   {
     "id": "public-changelog",
-    "text": "Read dated updates for deployed features on the Changelog page."
+    "text": "Feature: Read dated updates for deployed features on the Changelog page."
   },
   {
     "id": "map-image-picker",
-    "text": "Select maps by preview and search, or close the picker with its X button."
+    "text": "Feature: Select maps by preview and search, or close the picker with its X button."
   },
   {
     "id": "builder-map-preserves-draft",
-    "text": "Change the map of a comp and keep its draft bans and saves."
+    "text": "Bug fix: Change the map of a comp and keep its draft bans and saves."
+  },
+  {
+    "id": "changelog-note-labels",
+    "text": "Feature: See features and bug fixes labeled in the Changelog."
   }
 ]
