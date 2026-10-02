@@ -665,7 +665,11 @@ export function CompBuilder({
           </div>
           {selectedMap ? (
             <figure className="selected-map-preview">
-              <img src={selectedMap.previewImagePath} alt="" />
+              <img
+                src={selectedMap.previewImagePath}
+                alt=""
+                style={{ objectPosition: selectedMap.selectedCardPosition }}
+              />
               <figcaption>
                 {selectedMap.name} · {selectedMap.mode}
               </figcaption>
