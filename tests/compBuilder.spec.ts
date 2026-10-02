@@ -24,6 +24,13 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await openBuilder(page);
   await page.getByLabel("Comp name", { exact: true }).fill("Midtown dive");
   await page.getByLabel("Comp map", { exact: true }).selectOption("midtown");
+  const preview = page.locator(".selected-map-preview");
+  await expect(preview).toHaveText("Midtown · Convoy");
+  await expect(preview.locator("img")).toHaveAttribute(
+    "src",
+    "/map-previews/midtown.webp",
+  );
+  await expect(preview.locator("img")).toBeVisible();
   await pickHero(page, "Allies slot 1: Choose hero", "Doctor Strange");
   await pickHero(page, "Opponents slot 1: Choose hero", "Doctor Strange");
   await page.getByLabel("Allies slot 1 notes").fill("Hold the corner.");
@@ -35,11 +42,25 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
     .fill("Take high ground.\nSave portals for the rotation.");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved Midtown dive.");
+  const original = page.getByRole("button", {
+    name: "Load Midtown dive",
+    exact: true,
+  });
+  await expect(original.locator(".saved-comp-map")).toHaveText("Midtown");
+  await expect(original.locator(".saved-map-preview")).toHaveAttribute(
+    "src",
+    "/map-previews/midtown.webp",
+  );
   await page.reload();
   await openBuilder(page);
   await page
     .getByRole("button", { name: "Load Midtown dive", exact: true })
     .click();
+  await expect(preview).toHaveText("Midtown · Convoy");
+  await expect(preview.locator("img")).toHaveAttribute(
+    "src",
+    "/map-previews/midtown.webp",
+  );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Take high ground.\nSave portals for the rotation.",
   );
@@ -79,6 +100,28 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await expect(
     page.getByRole("button", { name: "Load Dive copy", exact: true }),
   ).toBeVisible();
+  const copy = page.getByRole("button", {
+    name: "Load Dive copy",
+    exact: true,
+  });
+  await expect(copy.locator(".saved-comp-map")).toHaveText("Midtown");
+  await expect(copy.locator(".saved-map-preview")).toHaveAttribute(
+    "src",
+    "/map-previews/midtown.webp",
+  );
+  await page.reload();
+  await openBuilder(page);
+  await copy.click();
+  await expect(preview).toHaveText("Midtown · Convoy");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByLabel("Comp map", { exact: true }).selectOption("");
+  await expect(preview).toHaveCount(0);
+  await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved Dive copy.");
+  await expect(copy.locator(".saved-map-preview")).toHaveCount(0);
+  await expect(copy.locator(".saved-comp-map")).toHaveText("Any map");
+  await expect(original.locator(".saved-comp-map")).toHaveText("Midtown");
   const exported = await exportCompLibrary(page);
   await page.getByLabel("Import comps JSON").setInputFiles({
     name: "comps.json",

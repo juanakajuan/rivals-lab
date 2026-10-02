@@ -102,6 +102,19 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       : canvas.getContext("2d");
   if (!drawingContext) throw new Error("This browser cannot create an image.");
   const context = drawingContext;
+  let mapImage: HTMLImageElement | undefined;
+  if (map) {
+    const image = new Image();
+    image.src = map.previewImagePath;
+    try {
+      await image.decode();
+      if (image.naturalWidth <= 0 || image.naturalHeight <= 0)
+        throw new Error("Invalid map image dimensions.");
+    } catch {
+      throw new Error(`${map.name} preview could not load. Try again.`);
+    }
+    mapImage = image;
+  }
   const heroIds = new Set([
     ...TEAMS.flatMap((team) =>
       comp.teams[team].flatMap((slot) => (slot.heroId ? [slot.heroId] : [])),
@@ -262,6 +275,19 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
         true,
       ) + 10;
   y += 18;
+  if (mapImage) {
+    const image = mapImage;
+    const scale = Math.min(
+      (WIDTH - PADDING * 2) / image.naturalWidth,
+      320 / image.naturalHeight,
+    );
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const left = (WIDTH - width) / 2;
+    const top = y;
+    commands.push(() => context.drawImage(image, left, top, width, height));
+    y += height + GAP;
+  }
 
   const teamWidth =
     teams.length === 1 ? WIDTH - PADDING * 2 : (WIDTH - PADDING * 2 - GAP) / 2;
