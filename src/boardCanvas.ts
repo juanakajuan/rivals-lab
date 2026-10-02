@@ -6,6 +6,7 @@ import {
   type BoardPoint,
   type BoardTool,
 } from "./boardDrawings";
+import { createBoardNote, measureBoardNote } from "./boardNote";
 
 import {
   HERO_BY_ID,
@@ -339,19 +340,17 @@ export function createBoardCanvas(
           fill: drawing.color + "33",
           dash: selected ? [10, 5] : [],
         });
-      case "note":
-        return new Konva.Text({
-          text: drawing.text,
-          width: 180,
-          padding: 8,
-          fontSize: 20,
+      case "note": {
+        const note = createBoardNote(drawing.text);
+        note.setAttrs({
           fill: drawing.color,
           shadowColor: "#000000",
           shadowBlur: 4,
           ...(selected ? { stroke: "#ffffff" } : {}),
           strokeWidth: selected ? 0.4 : 0,
-          wrap: "word",
         });
+        return note;
+      }
     }
   }
 
@@ -397,7 +396,13 @@ export function createBoardCanvas(
           entry.dragging = false;
           if (snapshot)
             events.onDrawingEdit?.(
-              moveDrawing(entry.drawing, group.x(), group.y(), snapshot.map),
+              moveDrawing(
+                entry.drawing,
+                group.x(),
+                group.y(),
+                snapshot.map,
+                measureBoardNote,
+              ),
             );
         });
         group.dragBoundFunc((point) => {
@@ -407,6 +412,7 @@ export function createBoardCanvas(
             point.x / stage.scaleX(),
             point.y / stage.scaleY(),
             snapshot.map,
+            measureBoardNote,
           );
           return { x: moved.x * stage.scaleX(), y: moved.y * stage.scaleY() };
         });
@@ -483,7 +489,13 @@ export function createBoardCanvas(
     if (drawing.kind === "zone" && (drawing.width < 8 || drawing.height < 8))
       return;
     events.onDrawingEdit?.(
-      moveDrawing(drawing, drawing.x, drawing.y, snapshot.map),
+      moveDrawing(
+        drawing,
+        drawing.x,
+        drawing.y,
+        snapshot.map,
+        measureBoardNote,
+      ),
     );
   });
   stage.on("pointerleave pointercancel", cancelGesture);

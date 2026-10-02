@@ -4,6 +4,7 @@ import { Redo2, Undo2 } from "lucide-react";
 import { BoardPanel, DrawingMenu, HeroPanel, TokenMenu } from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
 import type { BoardDrawing, BoardTool } from "./boardDrawings";
+import { measureBoardNote } from "./boardNote";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
 import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
@@ -43,7 +44,7 @@ export default function App(): React.JSX.Element {
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
-  const [session] = useState(() => new BoardSession());
+  const [session] = useState(() => new BoardSession(measureBoardNote));
   const [boardState, setBoardState] = useState(session.state);
   const [tool, setTool] = useState<BoardTool>("move");
   const [drawingColor, setDrawingColor] = useState("#ffd166");
