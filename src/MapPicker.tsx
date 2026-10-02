@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
@@ -96,9 +97,10 @@ export function MapPicker<Value extends string | null>({
           <button
             type="button"
             className="map-picker-close"
+            aria-label="Close map picker"
             onClick={() => dialogRef.current?.close()}
           >
-            Close map picker
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
         {description ? (
