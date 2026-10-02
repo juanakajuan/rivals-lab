@@ -135,7 +135,7 @@ test("comp picker shows every scenic map and a selectable Any map", async ({
   expect(exported).toContain('"mapId": null');
 });
 
-test("current map and rejected reset preserve all draft data; accepted reset keeps heroes and notes", async ({
+test("map changes preserve the complete draft without confirmation through save and reload", async ({
   page,
 }) => {
   await page.goto("/builder");
@@ -154,56 +154,54 @@ test("current map and rejected reset preserve all draft data; accepted reset kee
   let confirmations = 0;
   page.on("dialog", async (dialog) => {
     confirmations++;
-    await dialog.dismiss();
+    await dialog.accept();
   });
   await chooseMap(page, "Midtown");
   await expect(trigger(page)).toBeFocused();
   await expect(page.getByRole("status")).toHaveText("Saved Keep draft.");
   expect(confirmations).toBe(0);
-  await chooseMap(page, "Thebes");
-  await expect(picker(page)).toBeHidden();
-  await expect(trigger(page)).toBeFocused();
-  expect(confirmations).toBe(1);
-  await expect(page.locator(".selected-map-preview")).toHaveText(
-    "Midtown · Convoy",
-  );
-  await expect(
-    page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", {
-      name: "Opponents save 2: Luna Snow",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  expect(
-    parseCompLibrary(await exportCompLibrary(page)).map((entry) => entry.comp),
-  ).toEqual(before);
-  page.removeAllListeners("dialog");
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toBe(
-      "Change map and reset its draft? Heroes and notes will stay.",
-    );
-    await dialog.accept();
-  });
-  await chooseMap(page, "Any map");
-  await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
-  await expect(
-    page.getByRole("button", {
-      name: "Allies ban 4: Choose hero",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", {
-      name: "Opponents save 2: Choose hero",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /^Clear (Allies|Opponents) (ban|save)/ }),
-  ).toHaveCount(0);
+  for (const { name, mapId, text } of [
+    { name: "Thebes", mapId: "thebes", text: "Thebes · Convoy" },
+    { name: "Any map", mapId: null, text: "Any map" },
+  ]) {
+    await chooseMap(page, name);
+    await expect(picker(page)).toBeHidden();
+    await expect(trigger(page)).toBeFocused();
+    expect(confirmations).toBe(0);
+    await expect(trigger(page)).toHaveText(text);
+    await expect(
+      page.getByText("Unsaved changes", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Opponents save 2: Luna Snow",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    expect(
+      parseCompLibrary(await exportCompLibrary(page)).map(
+        (entry) => entry.comp,
+      ),
+    ).toEqual(before.map((comp) => ({ ...comp, mapId })));
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Load Keep draft", exact: true })
+      .click();
+    await expect(trigger(page)).toHaveText(text);
+    await expect(
+      page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Opponents save 2: Luna Snow",
+        exact: true,
+      }),
+    ).toBeVisible();
+  }
   await expect(page.getByLabel("Draft format")).toHaveValue("mrc");
   await expect(
     page.getByRole("button", {

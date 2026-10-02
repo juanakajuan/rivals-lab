@@ -183,7 +183,6 @@ export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
       return {
         ...comp,
         mapId: edit.mapId,
-        draft: comp.draft ? emptyDraft(comp.draft.format) : null,
       };
     default: {
       const exhaustive: never = edit;

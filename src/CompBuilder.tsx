@@ -311,13 +311,6 @@ export function CompBuilder({
 
   function changeMap(mapId: string | null): void {
     if (mapId === comp.mapId) return;
-    if (
-      hasDraftChoices(comp) &&
-      !window.confirm(
-        "Change map and reset its draft? Heroes and notes will stay.",
-      )
-    )
-      return;
     edit({ kind: "map", mapId });
   }
 

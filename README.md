@@ -89,8 +89,8 @@ Windows/Linux. These shortcuts leave editable fields to native text editing.
 `SavedCompSession` in `src/savedComps.ts` owns library operations, saved revisions,
 and the editor baseline. `CompBuilder` keeps display state, file selection,
 confirmations, and messages. `comps.ts` validates and migrates stored data.
-`compEdits.ts` owns hero choice rules, slot edits, draft and map resets, and comp
-status. Display code sends typed edits through the saved session. Picker checks
+`compEdits.ts` owns hero choice rules, slot edits, draft resets, map changes, and
+comp status. Display code sends typed edits through the saved session. Picker checks
 and edits use the same choice rules. The edit module has no mutable state.
 The session publishes saved state only after an IndexedDB transaction commits.
 Each transaction reads the current library, checks revisions and limits, and
@@ -134,6 +134,8 @@ bundled with the deployed app. `releases/published.json` stores published histor
 `releases/pending.json` stores reviewed notes with stable IDs. Add a concise note
 for each user-visible change. Keep a pending note's ID when you edit its text.
 Use a new ID for a later change to an already published feature.
+Start each note's text with `Feature: ` for new capabilities or `Bug fix: ` for
+corrections to existing behavior.
 
 `npm run deploy` builds one production candidate and publishes that exact output
 with `cf deploy --prebuilt --mode production`. It then checks the unique build ID
