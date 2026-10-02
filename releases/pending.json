@@ -10,5 +10,9 @@
   {
     "id": "map-image-picker",
     "text": "Select maps by preview and search, or close the picker with its X button."
+  },
+  {
+    "id": "builder-map-preserves-draft",
+    "text": "Change the map of a comp and keep its draft bans and saves."
   }
 ]

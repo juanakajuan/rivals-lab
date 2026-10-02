@@ -89,8 +89,8 @@ Windows/Linux. These shortcuts leave editable fields to native text editing.
 `SavedCompSession` in `src/savedComps.ts` owns library operations, saved revisions,
 and the editor baseline. `CompBuilder` keeps display state, file selection,
 confirmations, and messages. `comps.ts` validates and migrates stored data.
-`compEdits.ts` owns hero choice rules, slot edits, draft and map resets, and comp
-status. Display code sends typed edits through the saved session. Picker checks
+`compEdits.ts` owns hero choice rules, slot edits, draft resets, map changes, and
+comp status. Display code sends typed edits through the saved session. Picker checks
 and edits use the same choice rules. The edit module has no mutable state.
 The session publishes saved state only after an IndexedDB transaction commits.
 Each transaction reads the current library, checks revisions and limits, and
