@@ -753,11 +753,21 @@ export function CompBuilder({
               target="_blank"
               rel="noreferrer"
             >
-              Ignite Stage 2 map pool
+              8 September Ignite Stage 2 map pool
+            </a>
+            {" · "}
+            <a
+              href="https://www.marvelrivals.com/gameupdate/20260923/41548_1314808.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              24 September update · The God Quarry
             </a>
           </p>
           <p>
-            The map list is for planning. Check your event’s current map pool.
+            The planning list includes The God Quarry from the 24 September 2026
+            update. It is separate from the 8 September Ignite Stage 2 event
+            pool. Check your event's current map pool.
           </p>
         </details>
       </div>

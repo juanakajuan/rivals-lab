@@ -10,8 +10,8 @@ interface CompMap {
   readonly boardMapId?: MapId;
 }
 
-/** Map names from the official Ignite Stage 2 pool, published 8 September 2026.
- * This is a planning list, not enforcement of an MRC event's map pool.
+/** Planning maps include the 8 September Ignite Stage 2 pool and later additions.
+ * This list does not enforce an event's map pool.
  */
 export const COMP_MAPS: readonly CompMap[] = [
   {
@@ -47,6 +47,14 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/celestial-husk.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "0% 50%",
+  },
+  {
+    id: "god-quarry",
+    name: "The God Quarry",
+    mode: "Domination",
+    previewImagePath: "/map-previews/god-quarry.jpg",
+    previewImageSize: [3840, 2160],
+    selectedCardPosition: "50% 50%",
   },
   {
     id: "yggdrasill-path",

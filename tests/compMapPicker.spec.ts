@@ -60,7 +60,7 @@ test("comp picker shows every scenic map and a selectable Any map", async ({
   await page.goto("/builder");
   await trigger(page).click();
   const dialog = picker(page);
-  await expect(dialog.getByRole("button")).toHaveCount(18);
+  await expect(dialog.getByRole("button")).toHaveCount(19);
   const anyMap = dialog.getByRole("button", { name: "Any map", exact: true });
   await expect(anyMap).toBeFocused();
   await expect(anyMap).toHaveAttribute("aria-pressed", "true");
@@ -73,6 +73,7 @@ test("comp picker shows every scenic map and a selectable Any map", async ({
     ["Hell’s Heaven", "Domination", "/map-previews/hells-heaven.webp"],
     ["Krakoa", "Domination", "/map-previews/krakoa.webp"],
     ["Celestial Husk", "Domination", "/map-previews/celestial-husk.webp"],
+    ["The God Quarry", "Domination", "/map-previews/god-quarry.jpg"],
     ["Yggdrasill Path", "Convoy", "/map-previews/yggdrasill-path.webp"],
     ["Spider-Islands", "Convoy", "/map-previews/spider-islands.webp"],
     ["Midtown", "Convoy", "/map-previews/midtown.webp"],
@@ -137,6 +138,7 @@ test("comp picker shows every scenic map and a selectable Any map", async ({
 
 test("map changes preserve the complete draft without confirmation through save and reload", async ({
   page,
+  browser,
 }) => {
   await page.goto("/builder");
   await chooseMap(page, "Midtown");
@@ -163,6 +165,11 @@ test("map changes preserve the complete draft without confirmation through save 
   for (const { name, mapId, text } of [
     { name: "Thebes", mapId: "thebes", text: "Thebes · Convoy" },
     { name: "Any map", mapId: null, text: "Any map" },
+    {
+      name: "The God Quarry",
+      mapId: "god-quarry",
+      text: "The God Quarry · Domination",
+    },
   ]) {
     await chooseMap(page, name);
     await expect(picker(page)).toBeHidden();
@@ -215,6 +222,33 @@ test("map changes preserve the complete draft without confirmation through save 
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Keep high ground",
   );
+  const exported = await exportCompLibrary(page);
+  const importedContext = await browser.newContext();
+  try {
+    const importedPage = await importedContext.newPage();
+    await importedPage.goto(page.url());
+    await importedPage.getByLabel("Import comps JSON").setInputFiles({
+      name: "god-quarry.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(exported),
+    });
+    await expect(importedPage.getByRole("status")).toHaveText(
+      "Imported 1 comp as copies.",
+    );
+    await importedPage
+      .getByRole("button", { name: "Load Keep draft", exact: true })
+      .click();
+    await expect(trigger(importedPage)).toHaveText(
+      "The God Quarry · Domination",
+    );
+    expect(
+      parseCompLibrary(await exportCompLibrary(importedPage)).map(
+        (entry) => entry.comp,
+      ),
+    ).toEqual(before.map((comp) => ({ ...comp, mapId: "god-quarry" })));
+  } finally {
+    await importedContext.close();
+  }
 });
 
 test("comp search matches apostrophes and modes, keeps the current map while typing, and selects Any map", async ({
@@ -239,7 +273,7 @@ test("comp search matches apostrophes and modes, keeps the current map while typ
   for (const [query, count] of [
     ["  CONVOY  ", 6],
     ["convergence", 6],
-    ["domination", 4],
+    ["domination", 5],
   ] satisfies readonly (readonly [string, number])[]) {
     await search.fill(query);
     await expect(dialog.locator(".map-picker-card")).toHaveCount(count);
@@ -251,7 +285,7 @@ test("comp search matches apostrophes and modes, keeps the current map while typ
   await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
   await expect(trigger(page)).toHaveText("Any map");
   await search.fill("");
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(17);
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(18);
   await expect(dialog.getByRole("status")).toHaveCount(0);
   await expect(
     dialog.getByRole("button", { name: "Any map", exact: true }),
