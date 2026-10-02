@@ -473,6 +473,32 @@ button:focus-visible,
   font-size: 18px;
 }
 
+.map-picker-search {
+  flex: 0 0 auto;
+  padding: 12px 16px 0;
+}
+
+.map-picker-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  color: #f4f5f8;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.map-picker-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 16px 0;
+  color: var(--muted);
+  text-align: center;
+}
+
 .map-picker-cards {
   min-height: 0;
   display: grid;
@@ -511,6 +537,7 @@ button:focus-visible,
 
 .map-picker-trigger:focus-visible,
 .map-picker-close:focus-visible,
+.map-picker-search input:focus-visible,
 .map-picker-card:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
@@ -576,6 +603,14 @@ button:focus-visible,
 
   .map-picker-header {
     padding: 12px;
+  }
+
+  .map-picker-search {
+    padding: 12px 12px 0;
+  }
+
+  .map-picker-search input {
+    font-size: 16px;
   }
 
   .map-picker-header h2 {

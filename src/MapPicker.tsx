@@ -1,4 +1,5 @@
-import { useId, useRef, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 export interface MapPickerOption<Value extends string | null> {
   readonly value: Value;
@@ -20,6 +21,10 @@ interface MapPickerProps<Value extends string | null> {
   readonly onChoose: (value: NoInfer<Value>) => void;
 }
 
+function normalizeSearch(text: string): string {
+  return text.trim().toLowerCase().replace(/['’]/g, "");
+}
+
 export function MapPicker<Value extends string | null>({
   options,
   selectedValue,
@@ -36,6 +41,11 @@ export function MapPicker<Value extends string | null>({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
+  const [query, setQuery] = useState("");
+  const searchTerm = normalizeSearch(query);
+  const visibleOptions = options.filter((option) =>
+    normalizeSearch(`${option.name} ${option.detail}`).includes(searchTerm),
+  );
   const initialValue = options.some((option) => option.value === selectedValue)
     ? selectedValue
     : options[0]?.value;
@@ -43,6 +53,7 @@ export function MapPicker<Value extends string | null>({
   function openPicker(): void {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
+    flushSync(() => setQuery(""));
     dialog.showModal();
     selectedCardRef.current?.focus();
   }
@@ -65,14 +76,18 @@ export function MapPicker<Value extends string | null>({
         aria-labelledby={headingId}
         aria-describedby={description ? descriptionId : undefined}
         ref={dialogRef}
-        onKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            event.currentTarget.close();
+          }
+        }}
         onClose={() => {
+          if (dialogRef.current?.open) return;
+          setQuery("");
           const trigger = triggerRef.current;
-          if (
-            !dialogRef.current?.open &&
-            trigger?.isConnected &&
-            trigger.getClientRects().length > 0
-          )
+          if (trigger?.isConnected && trigger.getClientRects().length > 0)
             trigger.focus({ preventScroll: true });
         }}
       >
@@ -91,8 +106,22 @@ export function MapPicker<Value extends string | null>({
             {description}
           </p>
         ) : null}
+        <div className="map-picker-search">
+          <input
+            type="search"
+            aria-label="Search maps"
+            placeholder="Search by map name or mode"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+        </div>
         <div className="map-picker-cards">
-          {options.map((option) => (
+          {visibleOptions.length === 0 ? (
+            <p className="map-picker-empty" role="status">
+              No maps match your search.
+            </p>
+          ) : null}
+          {visibleOptions.map((option) => (
             <button
               type="button"
               className="map-picker-card"

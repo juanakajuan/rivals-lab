@@ -6,5 +6,9 @@
   {
     "id": "public-changelog",
     "text": "Read dated updates for deployed features on the Changelog page."
+  },
+  {
+    "id": "map-image-picker",
+    "text": "Select maps by preview and search on the Position Board and Draft / Comp Builder."
   }
 ]

@@ -40,6 +40,9 @@ async function tabInPicker(
 
 async function chooseMap(page: Page, name: string): Promise<void> {
   await trigger(page).click();
+  await picker(page)
+    .getByRole("searchbox", { name: "Search maps", exact: true })
+    .fill(name);
   await picker(page).getByRole("button", { name, exact: true }).click();
 }
 
@@ -216,6 +219,75 @@ test("current map and rejected reset preserve all draft data; accepted reset kee
   );
 });
 
+test("comp search matches apostrophes and modes, keeps the current map while typing, and selects Any map", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  await trigger(page).click();
+  const dialog = picker(page);
+  const search = dialog.getByRole("searchbox", {
+    name: "Search maps",
+    exact: true,
+  });
+  const hellsHeaven = dialog.getByRole("button", {
+    name: "Hell’s Heaven",
+    exact: true,
+  });
+  for (const query of ["  HELLS  ", "Hell's", "Hell’s"]) {
+    await search.fill(query);
+    await expect(dialog.locator(".map-picker-card")).toHaveCount(1);
+    await expect(hellsHeaven).toBeVisible();
+  }
+  for (const [query, count] of [
+    ["  CONVOY  ", 6],
+    ["convergence", 6],
+    ["domination", 4],
+  ] satisfies readonly (readonly [string, number])[]) {
+    await search.fill(query);
+    await expect(dialog.locator(".map-picker-card")).toHaveCount(count);
+  }
+  await search.fill("unknown map");
+  await expect(dialog.getByRole("status")).toHaveText(
+    "No maps match your search.",
+  );
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
+  await expect(trigger(page)).toHaveText("Any map");
+  await search.fill("");
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(17);
+  await expect(dialog.getByRole("status")).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: "Any map", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await search.fill("hells");
+  await tabInPicker(page, "Tab", hellsHeaven);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(trigger(page)).toBeFocused();
+  await expect(trigger(page)).toHaveText("Hell’s Heaven · Domination");
+  await trigger(page).click();
+  await expect(search).toHaveValue("");
+  await expect(hellsHeaven).toBeFocused();
+  await search.fill("any");
+  await expect(hellsHeaven).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger(page)).toBeFocused();
+  await trigger(page).click();
+  await expect(search).toHaveValue("");
+  await expect(hellsHeaven).toBeFocused();
+  await search.fill("restriction");
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(1);
+  await tabInPicker(
+    page,
+    "Tab",
+    dialog.getByRole("button", { name: "Any map", exact: true }),
+  );
+  await page.keyboard.press("Space");
+  await expect(dialog).toBeHidden();
+  await expect(trigger(page)).toBeFocused();
+  await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
+});
+
 test("keyboard selects maps, focuses the current card, and closes without edits", async ({
   page,
 }) => {
@@ -316,6 +388,9 @@ for (const width of [320, 390]) {
         ratio: 1,
       });
       await expect(
+        dialog.getByRole("searchbox", { name: "Search maps", exact: true }),
+      ).toBeInViewport({ ratio: 1 });
+      await expect(
         dialog.getByRole("button", { name: "Close map picker", exact: true }),
       ).toBeInViewport({ ratio: 1 });
     });
@@ -350,6 +425,9 @@ for (const width of [320, 390]) {
         exact: true,
       });
       await expect(close).toBeInViewport({ ratio: 1 });
+      await expect(
+        dialog.getByRole("searchbox", { name: "Search maps", exact: true }),
+      ).toBeInViewport({ ratio: 1 });
       await expect(
         dialog.getByRole("heading", { name: "Choose comp map", exact: true }),
       ).toBeInViewport({ ratio: 1 });
@@ -417,9 +495,28 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
       fallback.getByRole("button", { name, exact: true }).locator("img"),
     ).toHaveAttribute("src", src);
   }
+  const search = fallback.getByRole("searchbox", {
+    name: "Search maps",
+    exact: true,
+  });
+  await search.fill("  CONVOY  ");
+  await expect(fallback.locator(".map-picker-card")).toHaveCount(1);
+  await expect(
+    fallback.getByRole("button", {
+      name: "Museum of Contemplation",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".selected-map-preview")).toHaveText(
+    "Midtown · Convoy",
+  );
   await page.keyboard.press("Escape");
+  await expect(fallback).toBeHidden();
   await expect(transfer).toBeFocused();
   await transfer.click();
+  await expect(search).toHaveValue("");
+  await expect(first).toBeFocused();
+  await search.fill("museum");
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain(
       "Replace the current Position Board placements",
@@ -452,6 +549,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await transfer.click();
+  await search.fill("convoy");
   page.once("dialog", (dialog) => dialog.accept());
   await fallback
     .getByRole("button", { name: "Museum of Contemplation", exact: true })

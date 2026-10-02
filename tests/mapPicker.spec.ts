@@ -169,6 +169,67 @@ test("native keyboard focus stays in the picker; Enter, Space, Escape and Close 
   await expect(trigger(page)).toBeFocused();
 });
 
+test("search matches names and modes without edits, recovers from no results, and resets on reopen", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await trigger(page).click();
+  const dialog = picker(page);
+  const search = dialog.getByRole("searchbox", {
+    name: "Search maps",
+    exact: true,
+  });
+  await expect(
+    dialog.getByRole("button", { name: wakanda, exact: true }),
+  ).toBeFocused();
+  await tabInPicker(page, "Shift+Tab", search);
+  for (const query of ["  HELLS  ", "Hell's", "Hell’s"]) {
+    await search.fill(query);
+    await expect(dialog.locator(".map-picker-card")).toHaveCount(1);
+    await expect(
+      dialog.getByRole("button", { name: hydra, exact: true }),
+    ).toBeVisible();
+  }
+  await search.fill("  CONVOY  ");
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(1);
+  await expect(
+    dialog.getByRole("button", { name: museum, exact: true }),
+  ).toBeVisible();
+  await search.fill("domination");
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(2);
+  await expect(
+    dialog.getByRole("button", { name: wakanda, exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await search.fill("unknown map");
+  await expect(dialog.getByRole("status")).toHaveText(
+    "No maps match your search.",
+  );
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await search.fill("");
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(3);
+  await expect(dialog.getByRole("status")).toHaveCount(0);
+  await expect(search).toBeFocused();
+  await page.keyboard.type("museum");
+  const museumCard = dialog.getByRole("button", { name: museum, exact: true });
+  await tabInPicker(page, "Tab", museumCard);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(museum);
+  await expect(trigger(page)).toBeFocused();
+  await trigger(page).click();
+  await expect(search).toHaveValue("");
+  await expect(museumCard).toBeFocused();
+  await search.fill("hydra");
+  await expect(museumCard).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close map picker" }).click();
+  await expect(trigger(page)).toBeFocused();
+  await trigger(page).click();
+  await expect(search).toHaveValue("");
+  await expect(museumCard).toBeFocused();
+  await expect(museumCard).toHaveAttribute("aria-pressed", "true");
+});
+
 test("picker keys cannot undo, redo, delete or move board drawings", async ({
   page,
 }) => {
@@ -197,6 +258,9 @@ test("picker keys cannot undo, redo, delete or move board drawings", async ({
     );
   const before = await boardPixels();
   await trigger(page).click();
+  await picker(page)
+    .getByRole("searchbox", { name: "Search maps", exact: true })
+    .fill("museum");
   for (const key of [
     "Control+z",
     "Meta+z",
@@ -295,6 +359,9 @@ for (const width of [390, 320]) {
       ).toBeInViewport({ ratio: 1 });
       await expect(
         dialog.getByText("Selected", { exact: true }),
+      ).toBeInViewport({ ratio: 1 });
+      await expect(
+        dialog.getByRole("searchbox", { name: "Search maps", exact: true }),
       ).toBeInViewport({ ratio: 1 });
       const close = dialog.getByRole("button", {
         name: "Close map picker",
