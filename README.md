@@ -39,7 +39,7 @@ Prettier handles formatting. Generated output and agent files are excluded.
 
 ## Deployment
 
-Live app: https://rivals-lab.juanix.workers.dev
+Live app: https://rivalslab.dev/
 
 Sign in to Cloudflare with `npx cf auth login`, then run `npm run deploy`.
 The `rivals-lab` Worker serves static files built by Vite. Build output is in
