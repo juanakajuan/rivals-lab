@@ -6,6 +6,8 @@ Use Node.js 22.18.0 or later. Install dependencies with `npm ci`.
 
 - `npm run dev`: start the development server.
 - `npm run check`: check TypeScript types.
+- `npm run lint`: check code with ESLint.
+- `npm run lint:fix`: fix code issues that ESLint can correct automatically.
 - `npm run build`: create the production build.
 - `npm run deploy`: build and deploy to Cloudflare Workers.
 - `npm test`: run browser tests. See [test setup](tests/README.md).
@@ -27,6 +29,14 @@ before and after the update. No findings remain in this audit.
 - `npm run format`: format supported project files with Prettier.
 - `npm run format:check`: check formatting without changing files.
 
+## Linting
+
+ESLint checks JavaScript and TypeScript files, including tests and configuration.
+It uses the recommended JavaScript and type-aware TypeScript rules, plus React
+hook order and dependency checks. See `eslint.config.mjs`.
+It rejects unsafe type assertions and TypeScript suppression comments.
+Prettier handles formatting. Generated output and agent files are excluded.
+
 ## Deployment
 
 Live app: https://rivals-lab.juanix.workers.dev
@@ -41,8 +51,8 @@ The project uses the default Prettier rules in `.prettierrc.json`.
 Dependencies, build output, coverage, and generated test reports are excluded
 through `.prettierignore`.
 
-Before a pull request, run `npm run format:check`, `npm run check`, and
-`npm run build`.
+Before a pull request, run `npm run format:check`, `npm run lint`,
+`npm run check`, and `npm run build`.
 The Release checks workflow runs these checks, the development regressions, and
 the production browser flows for pull requests and pushes to `main`. Check both
 jobs on the pull request before merge or release. Failed browser runs include

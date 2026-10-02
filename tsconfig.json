@@ -6,6 +6,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
@@ -25,6 +27,7 @@
     "vite.config.ts",
     "playwright.config.ts",
     "playwright.production.config.ts",
-    "cloudflare.config.ts"
+    "cloudflare.config.ts",
+    "eslint.config.mjs"
   ]
 }

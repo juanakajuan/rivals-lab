@@ -12,7 +12,10 @@ export async function readStoredCompLibrary(
           opening.transaction?.abort();
           reject(new Error("The comp database does not exist."));
         };
-        opening.onerror = () => reject(opening.error);
+        opening.onerror = () =>
+          reject(
+            opening.error ?? new Error("The comp database could not open."),
+          );
         opening.onsuccess = () => {
           const database = opening.result;
           const transaction = database.transaction(

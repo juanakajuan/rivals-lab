@@ -140,6 +140,7 @@ test("downloads and copies the same full PNG without changing saved data", async
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
     ]) {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
       const fillText = prototype.fillText;
       prototype.fillText = function (text, x, y, maxWidth) {
         window.imageCopyTest.text.push(text);
@@ -551,20 +552,21 @@ for (const failure of workerFailures) {
         workerStops: 0,
         localEncodes: 0,
       };
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the bitmap receiver with call.
       const close = ImageBitmap.prototype.close;
       ImageBitmap.prototype.close = function () {
         window.imageFallbackTest.bitmapCloses++;
         close.call(this);
       };
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
       const convertToBlob = OffscreenCanvas.prototype.convertToBlob;
       OffscreenCanvas.prototype.convertToBlob = function (options) {
         window.imageFallbackTest.localEncodes++;
         return convertToBlob.call(this, options);
       };
       if (failure === "snapshot") {
-        window.createImageBitmap = async () => {
-          throw new Error("Cannot copy the canvas");
-        };
+        window.createImageBitmap = () =>
+          Promise.reject(new Error("Cannot copy the canvas"));
       }
       class FailingWorker extends Worker {
         constructor(scriptURL: string | URL, options?: WorkerOptions) {
@@ -587,8 +589,12 @@ for (const failure of workerFailures) {
           if (Array.isArray(options)) super.postMessage(message, options);
           else super.postMessage(message, options);
           if (failure === "messageerror")
-            queueMicrotask(() =>
-              this.onmessageerror?.call(this, new MessageEvent("messageerror")),
+            queueMicrotask(
+              () =>
+                void this.onmessageerror?.call(
+                  this,
+                  new MessageEvent("messageerror"),
+                ),
             );
         }
 
@@ -724,9 +730,8 @@ test("image generation failure produces no download or clipboard image", async (
   page.on("download", () => downloads++);
   await page.addInitScript(() => {
     window.imageCopyTest = { text: [], writes: 0 };
-    OffscreenCanvas.prototype.convertToBlob = async () => {
-      throw new Error("Local PNG encoding failed.");
-    };
+    OffscreenCanvas.prototype.convertToBlob = () =>
+      Promise.reject(new Error("Local PNG encoding failed."));
     Object.defineProperty(navigator, "clipboard", {
       value: {
         write: async (items: ClipboardItem[]) => {
@@ -772,6 +777,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
     ]) {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
       const fillText = prototype.fillText;
       prototype.fillText = function (text, x, y, maxWidth) {
         window.imageCopyTest.text.push(text);

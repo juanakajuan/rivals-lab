@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   checks:
-    name: Format, types, and build
+    name: Format, lint, types, and build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -23,6 +23,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run format:check
+      - run: npm run lint
       - run: npm run check
       - run: npm run build
 

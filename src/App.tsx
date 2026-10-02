@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 
 import { BoardPanel, DrawingMenu, HeroPanel, TokenMenu } from "./AppPanels";
@@ -96,6 +96,24 @@ export default function App(): React.JSX.Element {
     hero.name.toLocaleLowerCase().includes(normalizedHeroSearch),
   );
 
+  const showDrawingEdit = useCallback(
+    (drawing: BoardDrawing): void => {
+      setBoardState(session.state);
+      setSelectedDrawingId(drawing.id);
+      setSelectedTokenId(null);
+      setAnnouncement(`${drawing.kind} updated.`);
+    },
+    [session],
+  );
+
+  const editDrawing = useCallback(
+    (drawing: BoardDrawing): void => {
+      session.editDrawing(drawing);
+      showDrawingEdit(drawing);
+    },
+    [session, showDrawingEdit],
+  );
+
   useEffect(() => {
     function handlePopState(): void {
       setPage(pageFromPath());
@@ -183,7 +201,7 @@ export default function App(): React.JSX.Element {
       board.destroy();
       boardRef.current = null;
     };
-  }, []);
+  }, [editDrawing, session]);
 
   useEffect(() => {
     boardRef.current?.update({
@@ -367,18 +385,6 @@ export default function App(): React.JSX.Element {
     );
     setContextMenu(null);
     setAnnouncement(`${heroName} removed from the board.`);
-  }
-
-  function showDrawingEdit(drawing: BoardDrawing): void {
-    setBoardState(session.state);
-    setSelectedDrawingId(drawing.id);
-    setSelectedTokenId(null);
-    setAnnouncement(`${drawing.kind} updated.`);
-  }
-
-  function editDrawing(drawing: BoardDrawing): void {
-    session.editDrawing(drawing);
-    showDrawingEdit(drawing);
   }
 
   function moveSelectedDrawing(dx: number, dy: number): void {

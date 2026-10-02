@@ -25,8 +25,8 @@ class MemoryStorage implements CompStorage {
     this.source = source;
   }
 
-  async read(): Promise<string | null> {
-    return this.source;
+  read(): Promise<string | null> {
+    return Promise.resolve(this.source);
   }
 
   async update(transform: (source: string | null) => string): Promise<void> {
@@ -37,7 +37,7 @@ class MemoryStorage implements CompStorage {
     await this.afterCommit?.();
   }
 
-  subscribe(_onChange: () => void): () => void {
+  subscribe(): () => void {
     return () => {};
   }
 
@@ -67,7 +67,7 @@ function entry(session: SavedCompSession, id = saved.id): SavedComp {
 function importFile(source: string): CompImportFile {
   return {
     size: new TextEncoder().encode(source).byteLength,
-    text: async () => source,
+    text: () => Promise.resolve(source),
   };
 }
 
