@@ -106,10 +106,13 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
     },
   });
   await expect(allies).toHaveText("Allies 2");
-  await expect(page.locator(".coordinates")).toHaveText(
-    /^x (499|500|501), y (249|250|251)$/,
-  );
   const moved = await page.locator(".coordinates").innerText();
+  const coordinates = /^x (\d+), y (\d+)$/.exec(moved);
+  if (!coordinates?.[1] || !coordinates[2])
+    throw new Error("Missing token coordinates");
+  const tolerance = Math.ceil(1200 / bounds.width);
+  expect(Math.abs(Number(coordinates[1]) - 500)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(Number(coordinates[2]) - 250)).toBeLessThanOrEqual(tolerance);
   const removeHulk = page.getByRole("button", {
     name: "Remove Hulk from Allies",
     exact: true,

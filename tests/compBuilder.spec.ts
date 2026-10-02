@@ -288,8 +288,8 @@ test("board transfer requires a supported map and confirms replacement; edits st
     page.getByRole("button", { name: "Opponents 1", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.getByRole("combobox")).toHaveValue(
-    "birnin-tchalla-domination",
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Intergalactic Empire of Wakanda: Birnin T'Challa",
   );
   await expect(
     page.getByRole("button", { name: "Allies 3", exact: true }),
@@ -301,8 +301,8 @@ test("board transfer requires a supported map and confirms replacement; edits st
     page.getByRole("button", { name: "Undo", exact: true }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Redo", exact: true }).click();
-  await expect(page.getByRole("combobox")).toHaveValue(
-    "museum-of-contemplation-convoy",
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Museum of Contemplation",
   );
   await expect(
     page.getByRole("button", { name: "Allies 1", exact: true }),

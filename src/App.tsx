@@ -19,7 +19,7 @@ import {
 } from "./heroes";
 import { BoardSession, type HeroPlacement } from "./boardSession";
 import { clampToBoard, type BoardToken } from "./boardTokens";
-import { getMap, isMapId, type MapId } from "./maps";
+import { getMap, type MapId } from "./maps";
 
 type Page = "board" | "builder" | "changelog";
 
@@ -478,10 +478,9 @@ export default function App(): React.JSX.Element {
     setAnnouncement("The board is clear.");
   }
 
-  function changeMap(value: string): void {
-    if (!isMapId(value)) return;
-    const map = getMap(value);
-    setBoardState(session.changeMap({ mapId: value, iconSize }));
+  function changeMap(mapId: MapId): void {
+    const map = getMap(mapId);
+    setBoardState(session.changeMap({ mapId, iconSize }));
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);

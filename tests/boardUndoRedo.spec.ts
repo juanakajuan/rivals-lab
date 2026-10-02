@@ -114,7 +114,14 @@ test("one drag is one edit; selection and unchanged edits preserve redo", async 
   await page.mouse.move(end.x, end.y, { steps: 4 });
   await page.mouse.move(start.x, start.y, { steps: 4 });
   await page.mouse.up();
-  await page.getByRole("combobox").selectOption("birnin-tchalla-domination");
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", {
+      name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
+      exact: true,
+    })
+    .click();
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(undo).toBeDisabled();
   await expect(redo).toBeEnabled();
@@ -136,17 +143,30 @@ test("map changes restore clamped positions in the same step", async ({
   page,
 }) => {
   await page.goto("/");
-  const map = page.getByRole("combobox");
-  await map.selectOption("museum-of-contemplation-convoy");
+  const mapHeading = page.getByRole("heading", { level: 1 });
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", { name: "Museum of Contemplation", exact: true })
+    .click();
   await dropHero(page, "strange", 0, 700);
   await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
-  await map.selectOption("birnin-tchalla-domination");
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", {
+      name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
+      exact: true,
+    })
+    .click();
   await expect(page.locator(".coordinates")).toHaveText("x 24, y 630");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(map).toHaveValue("museum-of-contemplation-convoy");
+  await expect(mapHeading).toHaveText("Museum of Contemplation");
   await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
   await page.getByRole("button", { name: "Redo", exact: true }).click();
-  await expect(map).toHaveValue("birnin-tchalla-domination");
+  await expect(mapHeading).toHaveText(
+    "Intergalactic Empire of Wakanda: Birnin T'Challa",
+  );
   await expect(page.locator(".coordinates")).toHaveText("x 24, y 630");
 });
 

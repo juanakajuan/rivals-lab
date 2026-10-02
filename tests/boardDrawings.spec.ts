@@ -169,18 +169,38 @@ test("map drawings are isolated; Clear and Reset preserve other maps", async ({
 }) => {
   await page.goto("/");
   await draw(page, "zone");
-  const map = page.getByRole("combobox");
-  await map.selectOption("hells-heaven-domination");
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", {
+      name: "Hydra Charteris Base: Hell's Heaven",
+      exact: true,
+    })
+    .click();
   await expectSelection(page, null);
   await draw(page, "arrow");
-  await map.selectOption("birnin-tchalla-domination");
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", {
+      name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
+      exact: true,
+    })
+    .click();
   await expectSelection(page, "zone");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
     "Allies 0",
   );
   await expectSelection(page, null);
-  await map.selectOption("hells-heaven-domination");
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", {
+      name: "Hydra Charteris Base: Hell's Heaven",
+      exact: true,
+    })
+    .click();
   await expectSelection(page, "arrow");
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
