@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { BoardSession, type BoardState } from "../src/boardSession";
-import type { BoardDrawing } from "../src/boardDrawings";
+import type { BoardDrawing, MeasureBoardNote } from "../src/boardDrawings";
 import { emptyComp } from "../src/comps";
 import { DEFAULT_MAP_ID } from "../src/maps";
+
+const measureNote: MeasureBoardNote = () => ({ width: 180, height: 36 });
 
 const initial: BoardState = {
   mapId: DEFAULT_MAP_ID,
@@ -13,7 +15,7 @@ const initial: BoardState = {
 };
 
 test("map changes and position bounds form one reversible edit", () => {
-  const session = new BoardSession({
+  const session = new BoardSession(measureNote, {
     ...initial,
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 635 },
@@ -46,7 +48,7 @@ test("map changes and position bounds form one reversible edit", () => {
 });
 
 test("unchanged edits retain the state reference and redo; a new edit clears redo", () => {
-  const session = new BoardSession(initial);
+  const session = new BoardSession(measureNote, initial);
   session.clear();
   const restored = session.undo();
   expect(restored.canRedo).toBe(true);
@@ -80,13 +82,13 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   expect(session.clear()).toBe(edited);
   expect(session.redo()).toBe(edited);
   expect(session.undo().tokens).toEqual(initial.tokens);
-  const defaults = new BoardSession();
+  const defaults = new BoardSession(measureNote);
   const unchanged = defaults.state;
   expect(defaults.reset()).toBe(unchanged);
 });
 
 test("history retains the last 100 edits in order and supports branching", () => {
-  const session = new BoardSession(initial);
+  const session = new BoardSession(measureNote, initial);
   for (let x = 300; x <= 404; x++) {
     session.moveToken({ id: "ally-strange", point: { x, y: 435 } });
   }
@@ -111,7 +113,7 @@ test("history retains the last 100 edits in order and supports branching", () =>
 });
 
 test("placement bounds, team identity, and free positions use the supplied icon size", () => {
-  const session = new BoardSession({ ...initial, tokens: [] });
+  const session = new BoardSession(measureNote, { ...initial, tokens: [] });
   expect(
     session.placeHero({
       heroId: "angela",
@@ -175,7 +177,7 @@ test("placement bounds, team identity, and free positions use the supplied icon 
 });
 
 test("free placement uses visible positions, falls back to the other half, and preserves a full board", () => {
-  const session = new BoardSession({
+  const session = new BoardSession(measureNote, {
     ...initial,
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 0, y: 0 },
@@ -185,7 +187,7 @@ test("free placement uses visible positions, falls back to the other half, and p
     session.addHero({ heroId: "angela", team: "ally", iconSize: 150 }),
   ).toMatchObject({ token: { x: 152, y: 76 } });
 
-  const occupied = new BoardSession({
+  const occupied = new BoardSession(measureNote, {
     ...initial,
     tokens: [
       { id: "enemy-strange", heroId: "strange", team: "enemy", x: 292, y: 292 },
@@ -204,7 +206,7 @@ test("free placement uses visible positions, falls back to the other half, and p
 });
 
 test("drawings remain isolated by map through edit, clear, reset, and history", () => {
-  const session = new BoardSession(initial);
+  const session = new BoardSession(measureNote, initial);
   const note: BoardDrawing = {
     id: "note",
     kind: "note",
@@ -218,7 +220,7 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
   expect(session.editDrawing({ ...note })).toBe(withNote);
   expect(
     session.moveDrawing({ id: "note", delta: { x: -10, y: 9999 } }),
-  ).toEqual({ ...note, x: 20, y: 584 });
+  ).toEqual({ ...note, x: 20, y: 618 });
   expect(session.undo().drawingsByMap[DEFAULT_MAP_ID]).toEqual([note]);
   session.changeMap({ mapId: "hells-heaven-domination", iconSize: 100 });
   const arrow = session.addDrawing({ kind: "arrow", color: "#ff6268" });
@@ -260,7 +262,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
     color: "#ffd166",
     text: "Rotate",
   };
-  const session = new BoardSession({
+  const session = new BoardSession(measureNote, {
     ...initial,
     drawingsByMap: { [DEFAULT_MAP_ID]: [note] },
   });

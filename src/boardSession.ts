@@ -4,6 +4,7 @@ import {
   moveDrawing,
   type BoardDrawing,
   type BoardPoint,
+  type MeasureBoardNote,
 } from "./boardDrawings";
 import { clampToBoard, tokenBoundary, type BoardToken } from "./boardTokens";
 import type { Comp } from "./comps";
@@ -76,6 +77,7 @@ export class BoardSession {
   private current: BoardSessionState;
 
   constructor(
+    private readonly measureNote: MeasureBoardNote,
     board: BoardState = {
       mapId: DEFAULT_MAP_ID,
       tokens: initialTokens(),
@@ -185,10 +187,20 @@ export class BoardSession {
 
   editDrawing(drawing: BoardDrawing): BoardSessionState {
     const drawings = this.board.drawingsByMap[this.board.mapId] ?? [];
+    const bounded =
+      drawing.kind === "note"
+        ? moveDrawing(
+            drawing,
+            drawing.x,
+            drawing.y,
+            getMap(this.board.mapId),
+            this.measureNote,
+          )
+        : drawing;
     return this.commitDrawings(
       drawings.some((item) => item.id === drawing.id)
-        ? drawings.map((item) => (item.id === drawing.id ? drawing : item))
-        : [...drawings, drawing],
+        ? drawings.map((item) => (item.id === drawing.id ? bounded : item))
+        : [...drawings, bounded],
     );
   }
 
@@ -200,12 +212,16 @@ export class BoardSession {
     readonly color: string;
   }): BoardDrawing {
     const map = getMap(this.board.mapId);
-    const drawing = createDrawing(
+    const created = createDrawing(
       kind,
       { x: map.width / 2 - 80, y: map.height / 2 - 40 },
       { x: map.width / 2 + 80, y: map.height / 2 + 40 },
       color,
     );
+    const drawing =
+      created.kind === "note"
+        ? moveDrawing(created, created.x, created.y, map, this.measureNote)
+        : created;
     this.editDrawing(drawing);
     return drawing;
   }
@@ -226,6 +242,7 @@ export class BoardSession {
       drawing.x + delta.x,
       drawing.y + delta.y,
       getMap(this.board.mapId),
+      this.measureNote,
     );
     this.editDrawing(moved);
     return moved;

@@ -17,6 +17,11 @@ export interface BoardPoint {
   readonly x: number;
   readonly y: number;
 }
+export interface BoardSize {
+  readonly width: number;
+  readonly height: number;
+}
+export type MeasureBoardNote = (text: string) => BoardSize;
 
 export function createDrawing(
   kind: BoardDrawing["kind"],
@@ -47,25 +52,20 @@ export function moveDrawing(
   x: number,
   y: number,
   map: MapDefinition,
+  measureNote: MeasureBoardNote,
 ): BoardDrawing {
   const left = drawing.kind === "arrow" ? Math.min(0, drawing.dx) : 0;
   const top = drawing.kind === "arrow" ? Math.min(0, drawing.dy) : 0;
-  const right =
-    drawing.kind === "arrow"
-      ? Math.max(0, drawing.dx)
+  const size: BoardSize =
+    drawing.kind === "note"
+      ? measureNote(drawing.text)
       : drawing.kind === "zone"
-        ? drawing.width
-        : 180;
-  const bottom =
-    drawing.kind === "arrow"
-      ? Math.max(0, drawing.dy)
-      : drawing.kind === "zone"
-        ? drawing.height
-        : 70;
+        ? drawing
+        : { width: Math.max(0, drawing.dx), height: Math.max(0, drawing.dy) };
   return {
     ...drawing,
-    x: Math.round(Math.max(-left, Math.min(map.width - right, x))),
-    y: Math.round(Math.max(-top, Math.min(map.height - bottom, y))),
+    x: Math.round(Math.max(-left, Math.min(map.width - size.width, x))),
+    y: Math.round(Math.max(-top, Math.min(map.height - size.height, y))),
   };
 }
 
