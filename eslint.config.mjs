@@ -8,6 +8,7 @@ export default defineConfig(
   globalIgnores([
     ".agents/",
     ".cloudflare/",
+    ".release/",
     ".svelte-kit/",
     ".wrangler/",
     "dist/",

@@ -16,7 +16,10 @@
     "lint:fix": "npm run lint -- --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "deploy": "cf deploy"
+    "deploy": "node scripts/releases.ts",
+    "deploy:confirm": "node scripts/releases.ts --confirm",
+    "deploy:discard": "node scripts/releases.ts --discard",
+    "test:releases": "node --test tests/releases.test.ts"
   },
   "dependencies": {
     "konva": "10.3.2",

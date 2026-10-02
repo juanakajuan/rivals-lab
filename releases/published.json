@@ -1,0 +1,16 @@
+[
+  {
+    "id": "snapshot-2026-10-01",
+    "date": "2026-10-01",
+    "notes": [
+      {
+        "id": "snapshot-board",
+        "text": "First recorded release. Place heroes on maps and draw positions and rotations with undo and redo."
+      },
+      {
+        "id": "snapshot-builder",
+        "text": "Build and save team comps. Import and export saved comps, download comp images, and open comps on the Position Board."
+      }
+    ]
+  }
+]

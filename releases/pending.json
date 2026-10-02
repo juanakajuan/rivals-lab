@@ -1,0 +1,10 @@
+[
+  {
+    "id": "builder-map-preview",
+    "text": "Preview the selected map in the Draft / Comp Builder."
+  },
+  {
+    "id": "public-changelog",
+    "text": "Read dated updates for deployed features on the Changelog page."
+  }
+]

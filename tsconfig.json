@@ -28,6 +28,7 @@
     "playwright.config.ts",
     "playwright.production.config.ts",
     "cloudflare.config.ts",
-    "eslint.config.mjs"
+    "eslint.config.mjs",
+    "scripts"
   ]
 }

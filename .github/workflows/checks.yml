@@ -25,6 +25,7 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run check
+      - run: npm run test:releases
       - run: npm run build
 
   browsers:
