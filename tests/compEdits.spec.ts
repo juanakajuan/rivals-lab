@@ -109,7 +109,7 @@ test("picker and edit rules agree on duplicates and team-scoped bans", () => {
   }
 });
 
-test("map and draft resets preserve heroes and notes; team reset clears only its team", () => {
+test("map changes preserve the draft; explicit resets preserve heroes and notes", () => {
   let comp = applyCompEdit(emptyComp(), { kind: "name", value: "Dive" });
   comp = applyCompEdit(comp, { kind: "notes", value: "Take high ground." });
   comp = applyCompEdit(comp, {
@@ -143,7 +143,16 @@ test("map and draft resets preserve heroes and notes; team reset clears only its
   expect(comp.mapId).toBe("midtown");
   expect(comp.draft?.teams.ally).toEqual({
     ban: [null, null, null, null],
-    save: [null, null],
+    save: ["strange", null],
+  });
+  comp = applyCompEdit(comp, { kind: "map", mapId: null });
+  expect(comp.mapId).toBeNull();
+  expect(comp.draft).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: [null, null, null, null], save: ["strange", null] },
+      enemy: { ban: [null, null, null, null], save: [null, null] },
+    },
   });
   comp = applyCompEdit(comp, {
     kind: "chooseHero",
