@@ -22,7 +22,7 @@ function transaction<T>(
     const write = database.transaction(STORE, mode);
     const store = write.objectStore(STORE);
     let result: { readonly value: T } | null = null;
-    let failure: unknown;
+    let failure: Error | null = null;
     write.oncomplete = () => {
       if (result) resolve(result.value);
       else reject(new Error("The saved comp transaction did not complete."));
@@ -39,7 +39,10 @@ function transaction<T>(
         const value: unknown = request.result;
         result = { value: operation(store, value) };
       } catch (cause) {
-        failure = cause;
+        failure =
+          cause instanceof Error
+            ? cause
+            : new Error("The saved comp transaction failed.", { cause });
         write.abort();
       }
     };
@@ -108,7 +111,8 @@ class BrowserCompStorage implements CompStorage {
       request.onupgradeneeded = () => {
         request.result.createObjectStore(STORE);
       };
-      request.onerror = () => reject(request.error);
+      request.onerror = () =>
+        reject(request.error ?? new Error("The comp database could not open."));
       request.onsuccess = () => {
         const database = request.result;
         database.onversionchange = () => {
@@ -123,7 +127,13 @@ class BrowserCompStorage implements CompStorage {
           () => resolve(database),
           (cause: unknown) => {
             database.close();
-            reject(cause);
+            reject(
+              cause instanceof Error
+                ? cause
+                : new Error("The comp database could not initialize.", {
+                    cause,
+                  }),
+            );
           },
         );
       };

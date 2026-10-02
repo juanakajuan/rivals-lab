@@ -21,7 +21,13 @@ async function saveAt(page: Page, timestamp: number): Promise<void> {
             button.click();
             resolve();
           } catch (error) {
-            reject(error);
+            reject(
+              error instanceof Error
+                ? error
+                : new Error("The Save button could not be clicked.", {
+                    cause: error,
+                  }),
+            );
           }
         }, timestamp - Date.now());
       }),
@@ -34,7 +40,10 @@ async function holdLibraryTransaction(page: Page): Promise<void> {
     (key) =>
       new Promise<void>((resolve, reject) => {
         const opening = indexedDB.open("rivals-lab", 1);
-        opening.onerror = () => reject(opening.error);
+        opening.onerror = () =>
+          reject(
+            opening.error ?? new Error("The comp database could not open."),
+          );
         opening.onsuccess = () => {
           const database = opening.result;
           const transaction = database.transaction(
@@ -60,7 +69,10 @@ async function holdLibraryTransaction(page: Page): Promise<void> {
           transaction.oncomplete = () => database.close();
           transaction.onabort = () => {
             database.close();
-            reject(transaction.error);
+            reject(
+              transaction.error ??
+                new Error("The comp transaction was aborted."),
+            );
           };
           keepActive();
         };
