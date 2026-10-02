@@ -1,4 +1,55 @@
 import { expect, test, type Page } from "@playwright/test";
+import type Konva from "konva";
+
+declare global {
+  interface Window {
+    readonly Konva?: typeof Konva;
+  }
+}
+
+type NoteLayout = ReturnType<Konva.Text["getClientRect"]> & {
+  readonly text: string;
+  readonly boardWidth: number;
+  readonly boardHeight: number;
+};
+
+async function noteLayout(
+  page: Page,
+  expectedText: string,
+): Promise<NoteLayout> {
+  await point(page, 0, 0);
+  return page.evaluate((expectedText) => {
+    const konva = window.Konva;
+    if (!konva) throw new Error("Missing Konva");
+    const stage = konva.stages.find((stage) =>
+      stage.container().matches(".stage-host"),
+    );
+    if (!stage) throw new Error("Missing board stage");
+    const note = stage
+      .find("Text")
+      .find(
+        (node) => node instanceof konva.Text && node.text() === expectedText,
+      );
+    if (!(note instanceof konva.Text)) throw new Error("Missing rendered note");
+    return {
+      ...note.getClientRect({
+        relativeTo: stage,
+        skipStroke: true,
+        skipShadow: true,
+      }),
+      text: note.text(),
+      boardWidth: stage.width() / stage.scaleX(),
+      boardHeight: stage.height() / stage.scaleY(),
+    };
+  }, expectedText);
+}
+
+function expectNoteInsideBoard(note: NoteLayout): void {
+  expect(note.x).toBeGreaterThanOrEqual(0);
+  expect(note.y).toBeGreaterThanOrEqual(0);
+  expect(note.x + note.width).toBeLessThanOrEqual(note.boardWidth + 0.5);
+  expect(note.y + note.height).toBeLessThanOrEqual(note.boardHeight + 0.5);
+}
 
 type DrawingKind = "arrow" | "zone" | "note";
 
@@ -313,5 +364,60 @@ for (const kind of ["arrow", "zone", "note"] as const) {
     await click(page, x, y, "right");
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(page.getByRole("menu")).toHaveCount(0);
+  });
+}
+
+for (const { name, text } of [
+  {
+    name: "eight lines",
+    text: "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8",
+  },
+  {
+    name: "wrapped text",
+    text: "Hold the point and watch the left flank. Wait for the team before moving forward. Keep cover near the objective and regroup here when the enemy pushes.",
+  },
+]) {
+  test(`notes with ${name} stay inside the map after pointer and keyboard movement`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await draw(page, "note");
+    await page
+      .getByRole("textbox", { name: "Note text", exact: true })
+      .fill(text);
+    await page.getByRole("button", { name: "Save note", exact: true }).click();
+    const before = await noteLayout(page, text);
+    await drag(page, before.x + 20, before.y + 15, before.x + 20, 640);
+    const moved = await noteLayout(page, text);
+    expect(moved.y).toBeGreaterThan(before.y);
+    expectNoteInsideBoard(moved);
+    await page.locator(".stage-host").focus();
+    for (let step = 0; step < 20; step++)
+      await page.keyboard.press("ArrowDown");
+    expectNoteInsideBoard(await noteLayout(page, text));
+  });
+
+  test(`expanding a note to ${name} at the bottom keeps text and position in one undo step`, async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await draw(page, "note");
+    await drag(page, 420, 215, 420, 640);
+    const before = await noteLayout(page, "New note");
+    const editor = page.getByRole("textbox", {
+      name: "Note text",
+      exact: true,
+    });
+    await editor.fill(text);
+    await page.getByRole("button", { name: "Save note", exact: true }).click();
+    const expanded = await noteLayout(page, text);
+    expectNoteInsideBoard(expanded);
+    expect(expanded.y).toBeLessThan(before.y);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(editor).toHaveValue("New note");
+    expect(await noteLayout(page, "New note")).toEqual(before);
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(editor).toHaveValue(text);
+    expect(await noteLayout(page, text)).toEqual(expanded);
   });
 }
