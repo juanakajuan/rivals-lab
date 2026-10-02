@@ -166,7 +166,11 @@ test("map changes preserve the draft; explicit resets preserve heroes and notes"
     target: draftTarget,
     selection: { heroId: "strange" },
   });
+  comp = applyCompEdit(comp, { kind: "map", mapId: "god-quarry" });
+  expect(comp.mapId).toBe("god-quarry");
+  expect(comp.draft?.teams.ally.save).toEqual(["strange", null]);
   comp = applyCompEdit(comp, { kind: "draftFormat", format: "ignite" });
+  expect(comp.mapId).toBe("god-quarry");
   expect(comp.draft?.teams.ally).toEqual({
     ban: [null, null, null, null, null],
     save: [null, null],

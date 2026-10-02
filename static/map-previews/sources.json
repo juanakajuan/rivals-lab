@@ -24,6 +24,12 @@
     "image": "https://cdn.psylocke.gg/marvel-rivals/objects/94/9421f2507dc5da1ff2df49ce91e9d149f0fda4e5c9c5efb221b4e9192214643b?width=1920&format=webp"
   },
   {
+    "mapId": "god-quarry",
+    "file": "god-quarry.jpg",
+    "source": "https://www.marvelrivals.com/gameupdate/20260923/41548_1314808.html",
+    "image": "https://r.res.easebar.com/pic/20260923/a02e6206-2674-423c-b7d6-c9b8897d5493.jpg"
+  },
+  {
     "mapId": "yggdrasill-path",
     "file": "yggdrasill-path.webp",
     "source": "https://psylocke.gg/assets?category=map-bg",

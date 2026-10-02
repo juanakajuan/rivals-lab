@@ -85,7 +85,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   const comp: Comp = {
     ...empty,
     name: "Saved build",
-    mapId: "midtown",
+    mapId: "god-quarry",
     teams: {
       ally: [
         {
@@ -301,7 +301,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   const text = result.text.join("\n");
   for (const expected of [
     "Unsaved team plan",
-    "Midtown",
+    "Map: The God Quarry · Domination",
     "Allies",
     "Opponents",
     "Deadpool",
