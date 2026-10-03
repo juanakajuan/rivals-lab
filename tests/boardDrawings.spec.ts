@@ -170,6 +170,11 @@ test("map drawings are isolated; Clear and Reset preserve other maps", async ({
   await page.goto("/");
   await draw(page, "zone");
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Choose map", exact: true })
+      .getByRole("button", { pressed: true }),
+  ).toBeFocused();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", {
@@ -180,6 +185,11 @@ test("map drawings are isolated; Clear and Reset preserve other maps", async ({
   await expectSelection(page, null);
   await draw(page, "arrow");
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Choose map", exact: true })
+      .getByRole("button", { pressed: true }),
+  ).toBeFocused();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", {
@@ -194,6 +204,11 @@ test("map drawings are isolated; Clear and Reset preserve other maps", async ({
   );
   await expectSelection(page, null);
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Choose map", exact: true })
+      .getByRole("button", { pressed: true }),
+  ).toBeFocused();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", {
@@ -441,3 +456,58 @@ for (const { name, text } of [
     expect(await noteLayout(page, text)).toEqual(expanded);
   });
 }
+
+test("color drafts stay local through composing Escape and page changes", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await draw(page, "note");
+  const color = page.getByRole("button", {
+    name: "Drawing color",
+    exact: true,
+  });
+  const popup = page.getByRole("dialog", {
+    name: "Choose drawing color",
+    exact: true,
+  });
+  const hex = popup.getByRole("textbox", { name: "Hex color", exact: true });
+  await color.click();
+  await expect(hex).toBeFocused();
+  await hex.fill("#AB12EF");
+  await hex.dispatchEvent("keydown", {
+    key: "Escape",
+    code: "Escape",
+    isComposing: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  await expect(popup).toBeVisible();
+  await popup.getByRole("button", { name: "Blue", exact: true }).focus();
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Escape");
+  await expect(popup).toHaveCount(0);
+  await expect(color).toBeFocused();
+  await expect(
+    page.getByRole("textbox", { name: "Note text", exact: true }),
+  ).toHaveValue("New note");
+  await color.click();
+  await expect(hex).toHaveValue("#ffd166");
+  await hex.fill("#AB12EF");
+  await popup.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(popup).toHaveCount(0);
+  await color.click();
+  await expect(hex).toHaveValue("#ab12ef");
+  await popup.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await color.click();
+  await expect(hex).toHaveValue("#ffd166");
+  await hex.fill("#123456");
+  await page
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
+    .click();
+  await expect(popup).toHaveCount(0);
+  await page.getByRole("link", { name: "Position Board", exact: true }).click();
+  await expect(popup).toHaveCount(0);
+  await color.click();
+  await expect(hex).toHaveValue("#ffd166");
+});

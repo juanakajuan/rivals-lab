@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import {
   ArrowUpRight,
   Download,
@@ -8,7 +8,7 @@ import {
   Upload,
 } from "lucide-react";
 import {
-  BuilderDialog,
+  BuilderModal,
   DraftPanel,
   HeroPicker,
   TeamEditor,
@@ -37,11 +37,85 @@ import {
 import type { MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS, COMP_MAP_OPTIONS } from "./mapPickerOptions";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
+import { Badge } from "./components/ui/badge";
+import { Card } from "./components/ui/card";
+import { Alert } from "./components/ui/alert";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "./components/ui/native-select";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "./components/ui/collapsible";
+import { DialogContent } from "./components/ui/dialog";
+import { ConfirmAction, type ConfirmationCopy } from "./ConfirmAction";
+import { visibleFocusTarget } from "./overlayFocus";
 import "./builder.css";
 
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
   | { readonly kind: "rename"; readonly id: string; readonly name: string };
+
+type BuilderConfirmation =
+  | { readonly kind: "load"; readonly entry: SavedComp | null }
+  | { readonly kind: "delete"; readonly entry: SavedComp }
+  | Extract<CompEdit, { kind: "resetTeam" | "draftFormat" | "resetDraft" }>;
+
+function confirmationCopy(
+  intent: BuilderConfirmation | null,
+): ConfirmationCopy {
+  switch (intent?.kind) {
+    case "load":
+      return {
+        title: "Discard unsaved comp edits?",
+        description: "Your unsaved changes will be lost.",
+        confirmLabel: "Discard edits",
+      };
+    case "delete":
+      return {
+        title: "Delete comp?",
+        description: `Delete “${intent.entry.comp.name}” from this browser?`,
+        confirmLabel: "Delete comp",
+      };
+    case "resetTeam":
+      return {
+        title: `Reset ${teamLabel(intent.team)}?`,
+        description: `Clear all heroes and slot notes for ${teamLabel(intent.team)}?`,
+        confirmLabel: "Reset team",
+      };
+    case "draftFormat":
+      return {
+        title: "Change draft settings?",
+        description:
+          "Change draft settings and reset all bans and saves? Heroes and notes will stay.",
+        confirmLabel: "Change draft",
+      };
+    case "resetDraft":
+      return {
+        title: "Reset draft?",
+        description:
+          "Reset all bans and saves? Comp heroes and notes will stay.",
+        confirmLabel: "Reset draft",
+      };
+    case undefined:
+      return {
+        title: "Confirm action",
+        description: "",
+        confirmLabel: "Confirm",
+      };
+  }
+}
+
+function focusedElement(): HTMLElement | null {
+  return document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+}
 
 const TEAMS: readonly Team[] = ["ally", "enemy"];
 
@@ -65,21 +139,40 @@ function downloadJson(source: string, filename: string): void {
 }
 
 function NameDialog({
+  open,
   request,
   pending,
   onClose,
   onSubmit,
+  finalFocus,
 }: {
-  readonly request: NameRequest;
+  readonly finalFocus: ComponentProps<typeof DialogContent>["finalFocus"];
+  readonly open: boolean;
+  readonly request: NameRequest | null;
   readonly pending: boolean;
   readonly onClose: () => void;
   readonly onSubmit: (name: string) => void;
 }): React.JSX.Element {
-  const [name, setName] = useState(request.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [closedTitle, setClosedTitle] = useState("Save comp as");
+  const title = request
+    ? request.kind === "copy"
+      ? "Save comp as"
+      : "Rename comp"
+    : closedTitle;
+  useEffect(() => {
+    if (!request) return;
+    setName(request.name);
+    setClosedTitle(request.kind === "copy" ? "Save comp as" : "Rename comp");
+  }, [request]);
   return (
-    <BuilderDialog
-      title={request.kind === "copy" ? "Save comp as" : "Rename comp"}
+    <BuilderModal
+      open={open}
+      title={title}
       onClose={onClose}
+      initialFocus={inputRef}
+      finalFocus={finalFocus}
     >
       <form
         className="dialog-form"
@@ -89,37 +182,39 @@ function NameDialog({
           if (trimmedName) onSubmit(trimmedName);
         }}
       >
-        <label>
+        <Label>
           Comp name
-          <input
-            autoFocus
+          <Input
+            ref={inputRef}
             required
             maxLength={100}
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
           />
-        </label>
+        </Label>
         <div className="dialog-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            className="primary-button"
-            disabled={pending || !name.trim()}
-          >
+          </Button>
+          <Button type="submit" disabled={pending || !name.trim()}>
             Save name
-          </button>
+          </Button>
         </div>
       </form>
-    </BuilderDialog>
+    </BuilderModal>
   );
 }
 
 export function CompBuilder({
+  active,
   onOpenBoard,
 }: {
-  readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
+  readonly active: boolean;
+  readonly onOpenBoard: (
+    comp: Comp,
+    mapId: MapId,
+    opener?: HTMLElement | null,
+  ) => void;
 }): React.JSX.Element {
   const [session] = useState(() => new SavedCompSession());
   const [savedState, setSavedState] = useState(() => session.state);
@@ -127,6 +222,15 @@ export function CompBuilder({
   const [librarySearch, setLibrarySearch] = useState("");
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
+  const [confirmation, setConfirmation] = useState<BuilderConfirmation | null>(
+    null,
+  );
+  const confirmationOpener = useRef<HTMLElement | null>(null);
+  const pickerOpener = useRef<HTMLElement | null>(null);
+  const nameOpener = useRef<HTMLElement | null>(null);
+  const activeRef = useRef(active);
+  const activeCycle = useRef(0);
+  activeRef.current = active;
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [exportingImage, setExportingImage] = useState(false);
@@ -150,6 +254,24 @@ export function CompBuilder({
   else if (message) saveStatus = message;
   else if (dirty) saveStatus = "Unsaved changes";
   else if (savedId) saveStatus = "All changes saved";
+
+  useEffect(() => {
+    if (active) return;
+    activeCycle.current += 1;
+    setPicker(null);
+    setNameRequest(null);
+    setConfirmation(null);
+  }, [active]);
+
+  function openHeroPicker(target: CompHeroTarget): void {
+    pickerOpener.current = focusedElement();
+    setPicker(target);
+  }
+
+  function openNameDialog(request: NameRequest): void {
+    nameOpener.current = focusedElement();
+    setNameRequest(request);
+  }
 
   useEffect(() => {
     function warnBeforeUnload(event: BeforeUnloadEvent): void {
@@ -206,10 +328,6 @@ export function CompBuilder({
     }
   }
 
-  function canDiscard(): boolean {
-    return !dirty || window.confirm("Discard unsaved comp edits?");
-  }
-
   function edit(change: CompEdit): boolean {
     try {
       setSavedState(session.edit(change));
@@ -223,11 +341,66 @@ export function CompBuilder({
   }
 
   function load(entry: SavedComp | null): void {
-    if (!canDiscard()) return;
     setSavedState(session.load(entry));
     setPicker(null);
     setMessage(entry ? `Loaded ${entry.comp.name}.` : "New comp.");
     setError(null);
+  }
+
+  async function applyConfirmation(intent: BuilderConfirmation): Promise<void> {
+    if (intent.kind === "load" || intent.kind === "delete") {
+      const entry = intent.entry;
+      if (entry) {
+        const currentComp = session.state.comp;
+        const requestedCycle = activeCycle.current;
+        await session.refresh();
+        setSavedState(session.state);
+        if (!activeRef.current || activeCycle.current !== requestedCycle)
+          return;
+        if (intent.kind === "load" && session.state.comp !== currentComp) {
+          setError(
+            "Your comp changed while loading. Your edits were kept. Choose the saved comp again.",
+          );
+          return;
+        }
+        const current = session.state.library.entries.find(
+          (item) => item.id === entry.id,
+        );
+        if (!current || JSON.stringify(current) !== JSON.stringify(entry)) {
+          setError(
+            current
+              ? "This comp changed in another tab. Your edits were kept. Choose the saved comp again."
+              : "This comp was deleted in another tab. Your edits were kept.",
+          );
+          return;
+        }
+      }
+      if (intent.kind === "load") load(intent.entry);
+      else if (await commit(() => session.remove(intent.entry.id)))
+        setMessage(`Deleted ${intent.entry.comp.name}.`);
+      return;
+    }
+    edit(intent);
+  }
+
+  function request(intent: BuilderConfirmation): void {
+    const requiresApproval =
+      (intent.kind !== "load" && intent.kind !== "draftFormat") ||
+      (intent.kind === "load" && session.state.dirty) ||
+      (intent.kind === "draftFormat" && hasDraftChoices(session.state.comp));
+    if (!requiresApproval) {
+      void applyConfirmation(intent);
+      return;
+    }
+    confirmationOpener.current = focusedElement();
+    setConfirmation(intent);
+  }
+
+  function confirmPending(): void {
+    if (!active || !confirmation) return;
+    const intent = confirmation;
+    setConfirmation(null);
+    void applyConfirmation(intent);
   }
 
   async function save(name: string, asCopy = false): Promise<void> {
@@ -257,13 +430,6 @@ export function CompBuilder({
     setMessage(`Renamed comp to ${name}.`);
   }
 
-  async function deleteComp(entry: SavedComp): Promise<void> {
-    if (!window.confirm(`Delete “${entry.comp.name}” from this browser?`))
-      return;
-    if (!(await commit(() => session.remove(entry.id)))) return;
-    setMessage(`Deleted ${entry.comp.name}.`);
-  }
-
   async function importFile(file: File): Promise<void> {
     try {
       const result = await session.importFile(file);
@@ -281,14 +447,6 @@ export function CompBuilder({
     }
   }
 
-  function resetTeam(team: Team): void {
-    if (
-      !window.confirm(`Clear all heroes and slot notes for ${teamLabel(team)}?`)
-    )
-      return;
-    edit({ kind: "resetTeam", team });
-  }
-
   function choiceError(heroId: string): string | null {
     return picker ? compChoiceError(comp, picker, heroId) : "No selection.";
   }
@@ -299,14 +457,7 @@ export function CompBuilder({
   }
 
   function changeDraft(format: DraftFormat | null): void {
-    if (
-      hasDraftChoices(comp) &&
-      !window.confirm(
-        "Change draft settings and reset all bans and saves? Heroes and notes will stay.",
-      )
-    )
-      return;
-    edit({ kind: "draftFormat", format });
+    request({ kind: "draftFormat", format });
   }
 
   function changeMap(mapId: string | null): void {
@@ -359,40 +510,43 @@ export function CompBuilder({
         <div className="library-heading">
           <FolderOpen size={18} />
           <h2 id="library-heading">Saved comps</h2>
-          <span>{library.entries.length}</span>
+          <Badge variant="secondary">{library.entries.length}</Badge>
         </div>
-        <button
+        <Button
           type="button"
-          className="primary-button wide-button"
-          onClick={() => load(null)}
+          className="wide-button"
+          onClick={() => request({ kind: "load", entry: null })}
         >
           <Plus size={15} />
           New comp
-        </button>
-        <label className="builder-search">
+        </Button>
+        <Label className="builder-search">
           <Search size={15} />
-          <input
+          <Input
             type="search"
             placeholder="Search comps…"
             aria-label="Search saved comps"
             value={librarySearch}
             onChange={(event) => setLibrarySearch(event.currentTarget.value)}
           />
-        </label>
+        </Label>
         <div className="library-list">
           {filteredComps.map((entry) => {
             const savedMap = COMP_MAPS.find(
               (map) => map.id === entry.comp.mapId,
             );
             return (
-              <article
-                className={`saved-comp${entry.id === savedId ? " selected" : ""}`}
+              <Card
+                render={<article />}
+                size="sm"
+                className={`saved-comp shrink-0${entry.id === savedId ? " selected" : ""}`}
                 key={entry.id}
               >
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   className="load-comp"
-                  onClick={() => load(entry)}
+                  onClick={() => request({ kind: "load", entry })}
                   aria-label={`Load ${entry.comp.name}`}
                 >
                   {savedMap && (
@@ -424,14 +578,16 @@ export function CompBuilder({
                       ),
                     )}
                   </span>
-                </button>
+                </Button>
                 <div className="saved-comp-actions">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     type="button"
                     aria-label={`Rename ${entry.comp.name}`}
                     disabled={writing}
                     onClick={() =>
-                      setNameRequest({
+                      openNameDialog({
                         kind: "rename",
                         id: entry.id,
                         name: entry.comp.name,
@@ -439,8 +595,10 @@ export function CompBuilder({
                     }
                   >
                     Rename
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     type="button"
                     aria-label={`Export ${entry.comp.name}`}
                     onClick={() =>
@@ -448,17 +606,19 @@ export function CompBuilder({
                     }
                   >
                     Export
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="xs"
                     type="button"
                     aria-label={`Delete ${entry.comp.name}`}
                     disabled={writing}
-                    onClick={() => void deleteComp(entry)}
+                    onClick={() => request({ kind: "delete", entry })}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
-              </article>
+              </Card>
             );
           })}
           {!filteredComps.length && (
@@ -479,24 +639,24 @@ export function CompBuilder({
         </div>
         <div className="library-footer">
           <div className="library-file-actions">
-            <button
+            <Button
               type="button"
-              className="secondary-button"
+              variant="outline"
               disabled={writing}
               onClick={() => fileInput.current?.click()}
             >
               <Upload size={14} />
               Import
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="secondary-button"
+              variant="outline"
               disabled={!library.entries.length && !library.error}
               onClick={() => void exportStoredData("rivals-comps.json")}
             >
               <Download size={14} />
               Export all
-            </button>
+            </Button>
           </div>
           <input
             ref={fileInput}
@@ -523,27 +683,28 @@ export function CompBuilder({
             <h1>Draft / Comp Builder</h1>
           </div>
           <div className="builder-heading-actions">
-            <button
+            <Button
               type="button"
-              className="secondary-button"
+              variant="outline"
               disabled={exportingImage}
               aria-busy={exportingImage}
               onClick={() => void shareImage()}
             >
               <Download size={15} />
               {exportingImage ? "Preparing image…" : "Download & Copy"}
-            </button>
+            </Button>
             {supportedBoardMapId !== undefined ? (
-              <button
+              <Button
                 type="button"
-                className="secondary-button"
+                variant="outline"
                 onClick={() => onOpenBoard(comp, supportedBoardMapId)}
                 disabled={boardTransferDisabled}
               >
                 Open on Position Board <ArrowUpRight size={15} />
-              </button>
+              </Button>
             ) : (
               <MapPicker<MapId>
+                active={active}
                 options={BOARD_MAP_OPTIONS}
                 selectedValue={undefined}
                 triggerLabel="Open on Position Board"
@@ -552,51 +713,51 @@ export function CompBuilder({
                     Open on Position Board <ArrowUpRight size={15} />
                   </>
                 }
-                triggerClassName="secondary-button"
                 disabled={boardTransferDisabled}
                 title="Choose a Position Board map"
                 description={`${selectedMap ? `${selectedMap.name} has no board image yet.` : "This comp has no map selected."} Choose a supported map. The saved comp’s map will stay unchanged.`}
-                onChoose={(mapId) => onOpenBoard(comp, mapId)}
+                onChoose={(mapId, opener) => onOpenBoard(comp, mapId, opener)}
               />
             )}
           </div>
         </div>
         {library.error && (
-          <div className="builder-error" role="alert">
+          <Alert variant="destructive" className="builder-error">
             <p>
               {library.error}{" "}
               {library.unavailableCount
                 ? "Entries that cannot be loaded stay stored for recovery."
                 : "Existing data will not be overwritten."}
             </p>
-            <button
+            <Button
               type="button"
-              className="secondary-button"
+              variant="outline"
               onClick={() =>
                 void exportStoredData("rivals-comps-recovery.json")
               }
             >
               Export stored data for recovery
-            </button>
-          </div>
+            </Button>
+          </Alert>
         )}
         {error && (
-          <p className="builder-error" role="alert">
+          <Alert variant="destructive" className="builder-error">
             {error}
-          </p>
+          </Alert>
         )}
         <div className="save-status" role="status">
           {saveStatus}
         </div>
-        <section
+        <Card
+          render={<section />}
           className="builder-card comp-settings"
           aria-label="Comp settings"
         >
           <div className="comp-settings-fields">
             <div className="comp-name-row">
-              <label>
+              <Label>
                 Comp name
-                <input
+                <Input
                   value={comp.name}
                   maxLength={100}
                   placeholder="e.g. Midtown dive"
@@ -604,37 +765,40 @@ export function CompBuilder({
                     edit({ kind: "name", value: event.currentTarget.value })
                   }
                 />
-              </label>
-              <span className={`status-tag status-${status.toLowerCase()}`}>
+              </Label>
+              <Badge
+                variant="secondary"
+                className={`status-tag status-${status.toLowerCase()}`}
+              >
                 {status}
-              </span>
-              <button
+              </Badge>
+              <Button
                 type="button"
-                className="secondary-button"
+                variant="outline"
                 disabled={writing}
                 onClick={() =>
-                  setNameRequest({
+                  openNameDialog({
                     kind: "copy",
                     name: comp.name ? `${comp.name.slice(0, 93)} (copy)` : "",
                   })
                 }
               >
                 Save As
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="primary-button"
                 disabled={writing}
                 aria-busy={writing}
                 onClick={() => void save(comp.name)}
               >
                 Save
-              </button>
+              </Button>
             </div>
             <div className="settings-grid">
               <div className="comp-map-field">
                 <span>Comp map</span>
                 <MapPicker<string | null>
+                  active={active}
                   options={COMP_MAP_OPTIONS}
                   selectedValue={comp.mapId}
                   triggerLabel="Comp map"
@@ -647,9 +811,9 @@ export function CompBuilder({
                   onChoose={changeMap}
                 />
               </div>
-              <label>
+              <Label>
                 Draft format
-                <select
+                <NativeSelect
                   aria-label="Draft format"
                   value={comp.draft?.format ?? "free"}
                   onChange={(event) => {
@@ -659,11 +823,17 @@ export function CompBuilder({
                       changeDraft(format);
                   }}
                 >
-                  <option value="free">Free build</option>
-                  <option value="mrc">MRC · 4 bans / 2 saves</option>
-                  <option value="ignite">Ignite · 5 bans / 2 saves</option>
-                </select>
-              </label>
+                  <NativeSelectOption value="free">
+                    Free build
+                  </NativeSelectOption>
+                  <NativeSelectOption value="mrc">
+                    MRC · 4 bans / 2 saves
+                  </NativeSelectOption>
+                  <NativeSelectOption value="ignite">
+                    Ignite · 5 bans / 2 saves
+                  </NativeSelectOption>
+                </NativeSelect>
+              </Label>
             </div>
           </div>
           {selectedMap ? (
@@ -680,19 +850,20 @@ export function CompBuilder({
           ) : (
             <p className="selected-map-neutral">Any map</p>
           )}
-        </section>
+        </Card>
         {comp.draft && (
           <DraftPanel
             draft={comp.draft}
             onEdit={edit}
-            onChoose={(slot) => setPicker({ kind: "draft", slot })}
+            onChoose={(slot) => openHeroPicker({ kind: "draft", slot })}
+            onResetDraft={() => request({ kind: "resetDraft" })}
           />
         )}
         {status === "Conflict" && (
-          <p className="builder-error">
+          <Alert variant="destructive" className="builder-error">
             A comp hero is banned. Replace that hero or change the draft. You
             can still save this plan.
-          </p>
+          </Alert>
         )}
         {TEAMS.map((team) => (
           <TeamEditor
@@ -700,13 +871,13 @@ export function CompBuilder({
             team={team}
             slots={comp.teams[team]}
             banned={effects.banned[team]}
-            onChoose={(index) => setPicker({ kind: "slot", team, index })}
+            onChoose={(index) => openHeroPicker({ kind: "slot", team, index })}
             onEdit={edit}
-            onReset={() => resetTeam(team)}
+            onReset={() => request({ kind: "resetTeam", team })}
           />
         ))}
-        <section className="builder-card comp-notes">
-          <label>
+        <Card render={<section />} className="builder-card comp-notes">
+          <Label>
             <h2>Comp Notes</h2>
             <p className="muted-copy">
               Win conditions, opening plan, swaps, and reminders.
@@ -721,76 +892,89 @@ export function CompBuilder({
                 edit({ kind: "notes", value: event.currentTarget.value })
               }
             />
-          </label>
-        </section>
-        <details className="rules-reference">
-          <summary>Rules and map sources</summary>
-          <p>
-            Configured 23 September 2026. These sequences use the agreed MRC and
-            Ignite rules. Public rulebooks can describe older formats. Saves
-            protect heroes from later bans; they do not reverse bans. Every
-            action is required in this planner.
-          </p>
-          <p>
-            <a
-              href="https://www.marvelrivals.com/Marvel_Rivals_Championship_S7_Tournament_Rules_V1.7_EN.pdf"
-              target="_blank"
-              rel="noreferrer"
-            >
-              MRC Season 7 reference
-            </a>
-            {" · "}
-            <a
-              href="https://www.marvelrivals.com/Marvel_Rivals_Ignite_2026_Rules_Stage1_2026.5.9_V2.0.pdf"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Ignite Stage 1 reference
-            </a>
-            {" · "}
-            <a
-              href="https://www.marvelrivalsesports.com/20260908/42828_1313342.html"
-              target="_blank"
-              rel="noreferrer"
-            >
-              8 September Ignite Stage 2 map pool
-            </a>
-            {" · "}
-            <a
-              href="https://www.marvelrivals.com/gameupdate/20260923/41548_1314808.html"
-              target="_blank"
-              rel="noreferrer"
-            >
-              24 September update · The God Quarry
-            </a>
-          </p>
-          <p>
-            The planning list includes The God Quarry from the 24 September 2026
-            update. It is separate from the 8 September Ignite Stage 2 event
-            pool. Check your event's current map pool.
-          </p>
-        </details>
+          </Label>
+        </Card>
+        <Collapsible className="rules-reference">
+          <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+            Rules and map sources
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p>
+              Configured 23 September 2026. These sequences use the agreed MRC
+              and Ignite rules. Public rulebooks can describe older formats.
+              Saves protect heroes from later bans; they do not reverse bans.
+              Every action is required in this planner.
+            </p>
+            <p>
+              <a
+                href="https://www.marvelrivals.com/Marvel_Rivals_Championship_S7_Tournament_Rules_V1.7_EN.pdf"
+                target="_blank"
+                rel="noreferrer"
+              >
+                MRC Season 7 reference
+              </a>
+              {" · "}
+              <a
+                href="https://www.marvelrivals.com/Marvel_Rivals_Ignite_2026_Rules_Stage1_2026.5.9_V2.0.pdf"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Ignite Stage 1 reference
+              </a>
+              {" · "}
+              <a
+                href="https://www.marvelrivalsesports.com/20260908/42828_1313342.html"
+                target="_blank"
+                rel="noreferrer"
+              >
+                8 September Ignite Stage 2 map pool
+              </a>
+              {" · "}
+              <a
+                href="https://www.marvelrivals.com/gameupdate/20260923/41548_1314808.html"
+                target="_blank"
+                rel="noreferrer"
+              >
+                24 September update · The God Quarry
+              </a>
+            </p>
+            <p>
+              The planning list includes The God Quarry from the 24 September
+              2026 update. It is separate from the 8 September Ignite Stage 2
+              event pool. Check your event's current map pool.
+            </p>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
-      {picker && (
+      {active && picker && (
         <HeroPicker
           title={pickerTitle}
           mode={picker.kind === "slot" ? "comp" : "draft"}
           unavailable={choiceError}
           onChoose={chooseHero}
           onClose={() => setPicker(null)}
+          finalFocus={() => visibleFocusTarget(pickerOpener.current)}
         />
       )}
-      {nameRequest && (
-        <NameDialog
-          request={nameRequest}
-          pending={writing}
-          onClose={() => setNameRequest(null)}
-          onSubmit={(name) => {
-            if (nameRequest.kind === "copy") void save(name, true);
-            else void rename(nameRequest.id, name);
-          }}
-        />
-      )}
+      <NameDialog
+        open={active && nameRequest !== null}
+        request={nameRequest}
+        finalFocus={() => visibleFocusTarget(nameOpener.current)}
+        pending={writing}
+        onClose={() => setNameRequest(null)}
+        onSubmit={(name) => {
+          if (!active || !nameRequest) return;
+          if (nameRequest.kind === "copy") void save(name, true);
+          else void rename(nameRequest.id, name);
+        }}
+      />
+      <ConfirmAction
+        open={active && confirmation !== null}
+        copy={confirmationCopy(confirmation)}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={confirmPending}
+        finalFocus={() => visibleFocusTarget(confirmationOpener.current)}
+      />
     </main>
   );
 }

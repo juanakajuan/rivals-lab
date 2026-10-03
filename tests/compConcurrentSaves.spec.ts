@@ -205,8 +205,11 @@ for (const change of ["edit", "load"]) {
     if (change === "edit") {
       await page.getByLabel("Comp notes", { exact: true }).fill("Later edit");
     } else {
-      page.once("dialog", (dialog) => void dialog.accept());
       await page.getByRole("button", { name: "New comp", exact: true }).click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Discard edits", exact: true })
+        .click();
     }
     await page.evaluate(() =>
       window.dispatchEvent(new Event("release-library-transaction")),
@@ -261,3 +264,46 @@ test("a browser without IndexedDB keeps edits and stored data", async ({
     await page.evaluate((key) => localStorage.getItem(key), COMP_STORAGE_KEY),
   ).toBe(source);
 });
+
+for (const change of ["edit", "new"] as const) {
+  test(`a delayed saved comp load keeps a later ${change}`, async ({
+    page,
+  }) => {
+    await page.goto("/builder");
+    await page.getByLabel("Comp name", { exact: true }).fill("Stored plan");
+    await page.getByLabel("Comp notes", { exact: true }).fill("Stored notes");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("Saved Stored plan.");
+    const stored = await readStoredCompLibrary(page);
+    await page.getByRole("button", { name: "New comp", exact: true }).click();
+    await page.getByLabel("Comp notes", { exact: true }).fill("Before load");
+    await holdLibraryTransaction(page);
+    await page
+      .getByRole("button", { name: "Load Stored plan", exact: true })
+      .click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Discard edits", exact: true })
+      .click();
+    if (change === "edit") {
+      await page.getByLabel("Comp notes", { exact: true }).fill("Later edit");
+    } else {
+      await page.getByRole("button", { name: "New comp", exact: true }).click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Discard edits", exact: true })
+        .click();
+    }
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("release-library-transaction")),
+    );
+    await expect(page.getByRole("alert")).toContainText(
+      "changed while loading",
+    );
+    await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      change === "edit" ? "Later edit" : "",
+    );
+    expect(await readStoredCompLibrary(page)).toBe(stored);
+  });
+}

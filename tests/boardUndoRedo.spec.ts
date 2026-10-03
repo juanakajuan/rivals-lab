@@ -115,6 +115,11 @@ test("one drag is one edit; selection and unchanged edits preserve redo", async 
   await page.mouse.move(start.x, start.y, { steps: 4 });
   await page.mouse.up();
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Choose map", exact: true })
+      .getByRole("button", { pressed: true }),
+  ).toBeFocused();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", {
@@ -145,6 +150,11 @@ test("map changes restore clamped positions in the same step", async ({
   await page.goto("/");
   const mapHeading = page.getByRole("heading", { level: 1 });
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Choose map", exact: true })
+      .getByRole("button", { pressed: true }),
+  ).toBeFocused();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", { name: "Museum of Contemplation", exact: true })
@@ -152,6 +162,11 @@ test("map changes restore clamped positions in the same step", async ({
   await dropHero(page, "strange", 0, 700);
   await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Choose map", exact: true })
+      .getByRole("button", { pressed: true }),
+  ).toBeFocused();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", {

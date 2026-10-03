@@ -1,6 +1,22 @@
 import { X } from "lucide-react";
-import { useId, useRef, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Badge } from "./components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "./components/ui/dialog";
+import { visibleFocusTarget } from "./overlayFocus";
 
 export interface MapPickerOption<Value extends string | null> {
   readonly value: Value;
@@ -11,6 +27,7 @@ export interface MapPickerOption<Value extends string | null> {
 }
 
 interface MapPickerProps<Value extends string | null> {
+  readonly active: boolean;
   readonly options: readonly MapPickerOption<Value>[];
   readonly selectedValue: NoInfer<Value> | undefined;
   readonly triggerLabel: string;
@@ -19,7 +36,10 @@ interface MapPickerProps<Value extends string | null> {
   readonly disabled?: boolean;
   readonly title: string;
   readonly description?: string;
-  readonly onChoose: (value: NoInfer<Value>) => void;
+  readonly onChoose: (
+    value: NoInfer<Value>,
+    opener: HTMLButtonElement | null,
+  ) => void;
   readonly renderActions?: (close: () => void) => ReactNode;
   readonly onClose?: () => void;
 }
@@ -29,6 +49,7 @@ function normalizeSearch(text: string): string {
 }
 
 export function MapPicker<Value extends string | null>({
+  active,
   options,
   selectedValue,
   triggerLabel,
@@ -41,10 +62,9 @@ export function MapPicker<Value extends string | null>({
   renderActions,
   onClose,
 }: MapPickerProps<Value>): React.JSX.Element {
-  const headingId = useId();
-  const descriptionId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const openRef = useRef(false);
+  const [open, setOpen] = useState(false);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const searchTerm = normalizeSearch(query);
@@ -56,25 +76,45 @@ export function MapPicker<Value extends string | null>({
     : options[0]?.value;
 
   function openPicker(): void {
-    const dialog = dialogRef.current;
-    if (!dialog || dialog.open) return;
-    flushSync(() => setQuery(""));
-    dialog.showModal();
-    selectedCardRef.current?.focus();
+    if (openRef.current || !active) return;
+    setQuery("");
+    openRef.current = true;
+    setOpen(true);
   }
 
-  function closePicker(): void {
-    const dialog = dialogRef.current;
-    if (!dialog?.open) return;
+  const closePicker = useCallback((): void => {
+    if (!openRef.current) return;
+    openRef.current = false;
+    setOpen(false);
     onClose?.();
-    dialog.close();
-  }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!active) closePicker();
+  }, [active, closePicker]);
 
   return (
-    <>
-      <button
+    <Dialog
+      open={open && active}
+      disablePointerDismissal
+      onOpenChange={(nextOpen, details) => {
+        if (details.reason === "escape-key" && details.event.isComposing) {
+          details.cancel();
+          return;
+        }
+        if (nextOpen) openPicker();
+        else closePicker();
+      }}
+      onOpenChangeComplete={(nextOpen) => {
+        if (nextOpen)
+          selectedCardRef.current?.scrollIntoView({ block: "nearest" });
+        else setQuery("");
+      }}
+    >
+      <DialogTrigger
+        render={<Button variant="outline" />}
         type="button"
-        className={triggerClassName}
+        className={`h-auto min-h-11 shrink-0 px-3 py-2 text-xs ${triggerClassName}`}
         aria-label={triggerLabel}
         aria-haspopup="dialog"
         disabled={disabled}
@@ -82,49 +122,37 @@ export function MapPicker<Value extends string | null>({
         onClick={openPicker}
       >
         {triggerContent ?? triggerLabel}
-      </button>
-      <dialog
-        className="map-picker-dialog"
-        aria-labelledby={headingId}
-        aria-describedby={description ? descriptionId : undefined}
-        ref={dialogRef}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape" && !event.nativeEvent.isComposing) {
-            event.preventDefault();
-            closePicker();
-          }
-        }}
-        onCancel={(event) => {
-          event.preventDefault();
-          closePicker();
-        }}
-        onClose={() => {
-          if (dialogRef.current?.open) return;
-          setQuery("");
-          const trigger = triggerRef.current;
-          if (trigger?.isConnected && trigger.getClientRects().length > 0)
-            trigger.focus({ preventScroll: true });
-        }}
+      </DialogTrigger>
+      <DialogContent
+        className="map-picker-dialog flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[960px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[960px]"
+        showCloseButton={false}
+        initialFocus={() => selectedCardRef.current ?? true}
+        finalFocus={
+          active ? true : () => visibleFocusTarget(triggerRef.current)
+        }
+        onKeyDown={(event) => event.stopPropagation()}
       >
         <div className="map-picker-header">
-          <h2 id={headingId}>{title}</h2>
-          <button
+          <DialogTitle className="text-lg">{title}</DialogTitle>
+          <Button
             type="button"
-            className="map-picker-close"
+            variant="ghost"
+            size="icon"
+            className="map-picker-close size-11 shrink-0"
             aria-label="Close map picker"
             onClick={closePicker}
           >
             <X size={18} aria-hidden="true" />
-          </button>
+          </Button>
         </div>
         {description ? (
-          <p className="map-picker-description" id={descriptionId}>
+          <DialogDescription className="map-picker-description">
             {description}
-          </p>
+          </DialogDescription>
         ) : null}
         <div className="map-picker-search">
-          <input
+          <Input
+            className="h-11 w-full text-sm"
             type="search"
             aria-label="Search maps"
             placeholder="Search by map name or mode"
@@ -142,16 +170,18 @@ export function MapPicker<Value extends string | null>({
             </p>
           ) : null}
           {visibleOptions.map((option) => (
-            <button
+            <Button
               type="button"
-              className="map-picker-card"
+              variant="outline"
+              className="map-picker-card flex h-auto min-h-11 min-w-0 flex-col items-stretch justify-start gap-0 overflow-hidden whitespace-normal rounded-lg border-2 bg-background p-0 text-left aria-pressed:border-primary"
               key={option.value === null ? "any-map" : `map:${option.value}`}
               ref={option.value === initialValue ? selectedCardRef : null}
               aria-label={option.name}
               aria-pressed={option.value === selectedValue}
               onClick={() => {
+                if (!openRef.current || !active) return;
                 closePicker();
-                onChoose(option.value);
+                onChoose(option.value, triggerRef.current);
               }}
             >
               {option.imagePath ? (
@@ -172,13 +202,18 @@ export function MapPicker<Value extends string | null>({
                 <span className="map-picker-card-name">{option.name}</span>
                 <span className="map-picker-card-mode">{option.detail}</span>
                 {option.value === selectedValue ? (
-                  <span className="map-picker-selected">Selected</span>
+                  <Badge
+                    variant="outline"
+                    className="map-picker-selected border-primary"
+                  >
+                    Selected
+                  </Badge>
                 ) : null}
               </span>
-            </button>
+            </Button>
           ))}
         </div>
-      </dialog>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }

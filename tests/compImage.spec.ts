@@ -157,6 +157,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   await page
     .getByRole("button", { name: "Load Saved build", exact: true })
     .click();
+  await expect(page.getByRole("status")).toHaveText("Loaded Saved build.");
   await page.getByLabel("Comp name", { exact: true }).fill("Unsaved team plan");
   const notes =
     "Keep the high ground.\n".repeat(270) + "FINAL NOTE BELOW THE SCROLL AREA";
@@ -469,6 +470,7 @@ test("uses the intact local image when the encoder worker cannot load", async ({
   await page
     .getByRole("button", { name: "Load Saved plan", exact: true })
     .click();
+  await expect(page.getByRole("status")).toHaveText("Loaded Saved plan.");
   await page.getByLabel("Comp name", { exact: true }).fill("Unsaved plan");
   await page
     .getByLabel("Comp notes", { exact: true })
@@ -688,6 +690,7 @@ test("map image failure reports the map and permits retry without changing saved
   await page
     .getByRole("button", { name: "Load Map plan", exact: true })
     .click();
+  await expect(page.getByRole("status")).toHaveText("Loaded Map plan.");
   await page
     .getByLabel("Comp notes", { exact: true })
     .fill("Keep these edits.");
@@ -855,6 +858,7 @@ test("sparse export omits empty sections and rejects an empty build", async ({
     .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await page.getByRole("button", { name: "Load Sparse", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Loaded Sparse.");
   const sparseDownload = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Download & Copy", exact: true })

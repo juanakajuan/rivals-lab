@@ -1,4 +1,6 @@
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { lockBuildOutput, readReleaseFeed } from "./scripts/releases.ts";
@@ -10,6 +12,7 @@ export default defineConfig(async ({ command }) => {
   return {
     plugins: [
       react(),
+      tailwindcss(),
       {
         name: "release-feed",
         async buildStart() {
@@ -46,5 +49,8 @@ export default defineConfig(async ({ command }) => {
       cloudflare(),
     ],
     publicDir: "static",
+    resolve: {
+      alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    },
   };
 });

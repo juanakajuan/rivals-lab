@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
+import { Button, buttonVariants } from "./components/ui/button";
+import { ConfirmAction, type ConfirmationCopy } from "./ConfirmAction";
+import { visibleFocusTarget } from "./overlayFocus";
 
 import {
   BoardPanel,
@@ -56,6 +59,17 @@ type BoardContextMenu = {
   | { readonly kind: "drawing"; readonly id: string }
 );
 
+interface BoardReplacement {
+  readonly comp: Comp;
+  readonly mapId: MapId;
+}
+
+const BOARD_REPLACEMENT_COPY: ConfirmationCopy = {
+  title: "Replace board placements?",
+  description: "Replace the current Position Board placements with this comp?",
+  confirmLabel: "Replace placements",
+};
+
 const EMPTY_DRAWINGS: readonly BoardDrawing[] = [];
 
 const HERO_DRAG_TYPE = "application/x-rivals-hero";
@@ -63,6 +77,9 @@ const TEAM_DRAG_TYPE = "application/x-rivals-team";
 
 export default function App(): React.JSX.Element {
   const [page, setPage] = useState<Page>(pageFromPath);
+  const [boardReplacement, setBoardReplacement] =
+    useState<BoardReplacement | null>(null);
+  const replacementOpener = useRef<HTMLElement | null>(null);
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
@@ -152,6 +169,7 @@ export default function App(): React.JSX.Element {
     function handlePopState(): void {
       setPage(pageFromPath());
       setContextMenu(null);
+      setBoardReplacement(null);
     }
 
     window.addEventListener("popstate", handlePopState);
@@ -165,6 +183,7 @@ export default function App(): React.JSX.Element {
     }
     setPage(nextPage);
     setContextMenu(null);
+    setBoardReplacement(null);
   }
 
   function handlePageLink(
@@ -222,8 +241,8 @@ export default function App(): React.JSX.Element {
         setContextMenu({
           kind: "token",
           id: token.id,
-          x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
-          y: Math.max(8, Math.min(clientY, window.innerHeight - 52)),
+          x: clientX,
+          y: clientY,
         });
         setAnnouncement(
           `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} menu opened.`,
@@ -284,23 +303,17 @@ export default function App(): React.JSX.Element {
   }, [tokens]);
 
   useEffect(() => {
-    function handleClick(): void {
-      setContextMenu(null);
-    }
-
     function handleKeydown(event: KeyboardEvent): void {
       if (page !== "board") return;
-      if (event.key === "Escape") {
-        setContextMenu(null);
-        return;
-      }
       const target = event.target;
       if (
         event.defaultPrevented ||
         event.isComposing ||
         (target instanceof HTMLElement &&
           (target.isContentEditable ||
-            target.closest("input, textarea, select")))
+            target.closest(
+              'input, textarea, select, [role="slider"], [role="dialog"], [role="alertdialog"], [data-slot="popover-content"]',
+            )))
       )
         return;
       const key = event.key.toLowerCase();
@@ -334,10 +347,8 @@ export default function App(): React.JSX.Element {
       }
     }
 
-    window.addEventListener("click", handleClick);
     window.addEventListener("keydown", handleKeydown);
     return () => {
-      window.removeEventListener("click", handleClick);
       window.removeEventListener("keydown", handleKeydown);
     };
   });
@@ -447,8 +458,8 @@ export default function App(): React.JSX.Element {
     setContextMenu({
       kind: "drawing",
       id: drawing.id,
-      x: Math.max(8, Math.min(clientX, window.innerWidth - 168)),
-      y: Math.max(8, Math.min(clientY, window.innerHeight - 52)),
+      x: clientX,
+      y: clientY,
     });
     setAnnouncement(`${drawing.kind} menu opened.`);
   }
@@ -540,21 +551,32 @@ export default function App(): React.JSX.Element {
     setAnnouncement(`${map.name} selected.`);
   }
 
-  function openCompOnBoard(comp: Comp, mapId: MapId): void {
+  function openCompOnBoard(
+    comp: Comp,
+    mapId: MapId,
+    opener?: HTMLElement | null,
+  ): void {
     cancelUpload();
-    if (
-      tokens.length &&
-      !window.confirm(
-        "Replace the current Position Board placements with this comp?",
-      )
-    )
+    if (tokens.length) {
+      replacementOpener.current =
+        opener ??
+        (document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null);
+      setBoardReplacement({ comp, mapId });
       return;
-    const map = getMap(mapId);
-    setBoardState(session.openComp({ comp, mapId }));
+    }
+    applyBoardReplacement({ comp, mapId });
+  }
+
+  function applyBoardReplacement(request: BoardReplacement): void {
+    setBoardReplacement(null);
+    const map = getMap(request.mapId);
+    setBoardState(session.openComp(request));
     setSelectedTokenId(null);
     setContextMenu(null);
     navigate("board");
-    setAnnouncement(`${comp.name || "Comp"} opened on ${map.name}.`);
+    setAnnouncement(`${request.comp.name || "Comp"} opened on ${map.name}.`);
   }
 
   function restoreBoard(type: "undo" | "redo"): void {
@@ -577,6 +599,10 @@ export default function App(): React.JSX.Element {
         </div>
         <nav className="page-navigation" aria-label="Pages">
           <a
+            className={buttonVariants({
+              variant: page === "board" ? "secondary" : "ghost",
+              size: "sm",
+            })}
             href="/board"
             aria-current={page === "board" ? "page" : undefined}
             onClick={(event) => handlePageLink(event, "board")}
@@ -584,6 +610,10 @@ export default function App(): React.JSX.Element {
             Position Board
           </a>
           <a
+            className={buttonVariants({
+              variant: page === "builder" ? "secondary" : "ghost",
+              size: "sm",
+            })}
             href="/builder"
             aria-current={page === "builder" ? "page" : undefined}
             onClick={(event) => handlePageLink(event, "builder")}
@@ -591,6 +621,10 @@ export default function App(): React.JSX.Element {
             Draft / Comp Builder
           </a>
           <a
+            className={buttonVariants({
+              variant: page === "changelog" ? "secondary" : "ghost",
+              size: "sm",
+            })}
             href="/changelog"
             aria-current={page === "changelog" ? "page" : undefined}
             onClick={(event) => handlePageLink(event, "changelog")}
@@ -599,8 +633,9 @@ export default function App(): React.JSX.Element {
           </a>
         </nav>
         <div className="header-actions" hidden={page !== "board"}>
-          <button
-            className="secondary-button history-button"
+          <Button
+            variant="outline"
+            size="icon"
             type="button"
             disabled={!boardState.canUndo}
             onClick={() => restoreBoard("undo")}
@@ -609,9 +644,10 @@ export default function App(): React.JSX.Element {
             aria-keyshortcuts="Control+z Meta+z"
           >
             <Undo2 size={16} aria-hidden="true" />
-          </button>
-          <button
-            className="secondary-button history-button"
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
             type="button"
             disabled={!boardState.canRedo}
             onClick={() => restoreBoard("redo")}
@@ -620,17 +656,13 @@ export default function App(): React.JSX.Element {
             aria-keyshortcuts="Control+Shift+z Meta+Shift+z"
           >
             <Redo2 size={16} aria-hidden="true" />
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={clearBoard}
-          >
+          </Button>
+          <Button variant="outline" type="button" onClick={clearBoard}>
             Clear
-          </button>
-          <button className="primary-button" type="button" onClick={resetBoard}>
+          </Button>
+          <Button type="button" onClick={resetBoard}>
             Reset
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -650,8 +682,10 @@ export default function App(): React.JSX.Element {
           onHeroRemove={removeToken}
         />
         <BoardPanel
+          active={page === "board"}
           drawingControls={
             <DrawingTools
+              active={page === "board"}
               tool={tool}
               color={drawingColor}
               selected={selectedDrawing}
@@ -685,7 +719,10 @@ export default function App(): React.JSX.Element {
       </main>
 
       <div className="builder-page" hidden={page !== "builder"}>
-        <CompBuilder onOpenBoard={openCompOnBoard} />
+        <CompBuilder
+          active={page === "builder"}
+          onOpenBoard={openCompOnBoard}
+        />
       </div>
 
       <div className="changelog-container" hidden={page !== "changelog"}>
@@ -699,6 +736,8 @@ export default function App(): React.JSX.Element {
           token={contextToken}
           hero={contextHero}
           onRemove={removeToken}
+          onClose={() => setContextMenu(null)}
+          finalFocus={() => visibleFocusTarget(boardHostRef.current)}
         />
       ) : null}
       {contextMenu && contextDrawing ? (
@@ -707,8 +746,19 @@ export default function App(): React.JSX.Element {
           y={contextMenu.y}
           drawing={contextDrawing}
           onRemove={removeDrawing}
+          onClose={() => setContextMenu(null)}
+          finalFocus={() => visibleFocusTarget(boardHostRef.current)}
         />
       ) : null}
+      <ConfirmAction
+        open={boardReplacement !== null}
+        copy={BOARD_REPLACEMENT_COPY}
+        onCancel={() => setBoardReplacement(null)}
+        onConfirm={() => {
+          if (boardReplacement) applyBoardReplacement(boardReplacement);
+        }}
+        finalFocus={() => visibleFocusTarget(replacementOpener.current)}
+      />
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>

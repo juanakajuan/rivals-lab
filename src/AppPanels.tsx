@@ -1,5 +1,7 @@
 import {
   Fragment,
+  type ComponentProps,
+  type KeyboardEvent,
   type DragEvent,
   type ReactNode,
   type RefObject,
@@ -22,6 +24,19 @@ import type {
 } from "./boardMaps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
+import { Avatar, AvatarImage } from "./components/ui/avatar";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
+import { Separator } from "./components/ui/separator";
+import { Slider } from "./components/ui/slider";
+import { Toggle } from "./components/ui/toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./components/ui/dropdown-menu";
 
 export type BoardUploadState =
   | { readonly kind: "idle" }
@@ -68,23 +83,27 @@ export function HeroPanel({
           <p>Choose a team, then add or drag a hero onto the map.</p>
         </div>
 
-        <div className="team-picker" aria-label="Team for new heroes">
-          <button
-            className={`team-option blue${selectedTeam === "ally" ? " active" : ""}`}
-            type="button"
-            aria-pressed={selectedTeam === "ally"}
-            onClick={() => onTeamChange("ally")}
+        <div
+          className="team-picker"
+          role="group"
+          aria-label="Team for new heroes"
+        >
+          <Toggle
+            size="sm"
+            variant="outline"
+            pressed={selectedTeam === "ally"}
+            onPressedChange={() => onTeamChange("ally")}
           >
-            Allies <span>{allyCount}</span>
-          </button>
-          <button
-            className={`team-option red${selectedTeam === "enemy" ? " active" : ""}`}
-            type="button"
-            aria-pressed={selectedTeam === "enemy"}
-            onClick={() => onTeamChange("enemy")}
+            Allies <Badge variant="secondary">{allyCount}</Badge>
+          </Toggle>
+          <Toggle
+            size="sm"
+            variant="outline"
+            pressed={selectedTeam === "enemy"}
+            onPressedChange={() => onTeamChange("enemy")}
           >
-            Opponents <span>{enemyCount}</span>
-          </button>
+            Opponents <Badge variant="secondary">{enemyCount}</Badge>
+          </Toggle>
         </div>
 
         <div className="hero-search">
@@ -92,7 +111,7 @@ export function HeroPanel({
             <circle cx="7" cy="7" r="4.25" />
             <path d="m10.25 10.25 3.25 3.25" />
           </svg>
-          <input
+          <Input
             type="search"
             value={heroSearch}
             onChange={(event) => onSearchChange(event.currentTarget.value)}
@@ -100,13 +119,15 @@ export function HeroPanel({
             aria-label="Search heroes"
           />
           {heroSearch.length > 0 ? (
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               type="button"
               onClick={() => onSearchChange("")}
               aria-label="Clear hero search"
             >
               Clear
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -119,7 +140,7 @@ export function HeroPanel({
           return (
             <Fragment key={hero.id}>
               {index > 0 && visibleHeroes[index - 1]?.role !== hero.role ? (
-                <hr className="hero-role-divider" />
+                <Separator className="hero-role-divider" />
               ) : null}
               <HeroRow
                 hero={hero}
@@ -175,14 +196,16 @@ function HeroRow({
       onDragStart={(event) => onDragStart(event, hero)}
       onDragEnd={onDragEnd}
     >
-      <span className="hero-avatar">
-        <img src={heroImagePath(hero.id)} alt="" />
-      </span>
+      <Avatar>
+        <AvatarImage src={heroImagePath(hero.id)} alt="" />
+      </Avatar>
       <span className="hero-name">
         <strong>{hero.name}</strong>
         <small>{hero.role}</small>
       </span>
-      <button
+      <Button
+        variant="outline"
+        size="icon"
         className="row-action"
         type="button"
         aria-label={actionLabel}
@@ -194,12 +217,13 @@ function HeroRow({
         ) : (
           <Plus size={18} aria-hidden="true" />
         )}
-      </button>
+      </Button>
     </div>
   );
 }
 
 interface BoardPanelProps {
+  readonly active: boolean;
   readonly drawingControls: ReactNode;
   readonly iconSize: number;
   readonly onIconSizeChange: (size: number) => void;
@@ -219,6 +243,7 @@ interface BoardPanelProps {
 }
 
 export function BoardPanel({
+  active,
   drawingControls,
   iconSize,
   onIconSizeChange,
@@ -262,6 +287,7 @@ export function BoardPanel({
         </div>
         <div className="board-heading-actions">
           <MapPicker<BoardMapId>
+            active={active}
             options={mapOptions}
             selectedValue={selectedMapId}
             triggerLabel="Choose map"
@@ -270,13 +296,13 @@ export function BoardPanel({
             onClose={onMapPickerClose}
             renderActions={(close) => (
               <>
-                <button
+                <Button
                   type="button"
-                  className="map-picker-trigger"
+                  variant="outline"
                   onClick={() => uploadInput.current?.click()}
                 >
                   Upload image
-                </button>
+                </Button>
                 <input
                   className="sr-only"
                   type="file"
@@ -333,24 +359,27 @@ export function BoardPanel({
       </div>
 
       <div className="board-toolbar">
-        <label className="icon-size-control">
-          <span>Hero icon size</span>
-          <input
-            type="range"
-            min={50}
-            max={150}
-            step={10}
-            value={iconSize}
-            aria-valuetext={`${iconSize}%`}
-            onChange={(event) => {
-              const size = event.currentTarget.valueAsNumber;
-              if (Number.isFinite(size) && size >= 50 && size <= 150) {
-                onIconSizeChange(size);
-              }
-            }}
-          />
+        <div className="icon-size-control">
+          <Label>Hero icon size</Label>
+          {active ? (
+            <Slider
+              className="icon-size-slider"
+              min={50}
+              max={150}
+              step={10}
+              value={[iconSize]}
+              thumbProps={{
+                "aria-label": "Hero icon size",
+                "aria-valuetext": `${iconSize}%`,
+              }}
+              onValueChange={(value) => {
+                const size = typeof value === "number" ? value : value[0];
+                if (size !== undefined) onIconSizeChange(size);
+              }}
+            />
+          ) : null}
           <span aria-hidden="true">{iconSize}%</span>
-        </label>
+        </div>
         {selectedToken && selectedHero ? (
           <SelectionSummary token={selectedToken} hero={selectedHero} />
         ) : (
@@ -391,66 +420,120 @@ function SelectionSummary({
   );
 }
 
-interface TokenMenuProps {
+interface CanvasMenuProps {
   readonly x: number;
   readonly y: number;
+  readonly label: string;
+  readonly action: string;
+  readonly onRemove: () => void;
+  readonly onClose: () => void;
+  readonly finalFocus: NonNullable<
+    ComponentProps<typeof DropdownMenuContent>["finalFocus"]
+  >;
+}
+
+function CanvasMenu({
+  x,
+  y,
+  label,
+  action,
+  onRemove,
+  onClose,
+  finalFocus,
+}: CanvasMenuProps): React.JSX.Element {
+  const removeRef = useRef<HTMLDivElement>(null);
+  function containKeys(event: KeyboardEvent<HTMLDivElement>): void {
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      (event.key.toLowerCase() === "z" || event.key.toLowerCase() === "y") &&
+      !event.nativeEvent.isComposing
+    )
+      return;
+    event.stopPropagation();
+  }
+
+  return (
+    <DropdownMenu
+      open
+      onOpenChangeComplete={(open) => {
+        if (open) removeRef.current?.focus();
+      }}
+      onOpenChange={(open, details) => {
+        if (details.reason === "escape-key" && details.event.isComposing) {
+          details.cancel();
+          return;
+        }
+        if (!open) onClose();
+      }}
+      modal={false}
+    >
+      <DropdownMenuContent
+        anchor={{ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) }}
+        positionMethod="fixed"
+        sideOffset={0}
+        className="w-auto min-w-40"
+        aria-label={label}
+        finalFocus={finalFocus}
+        onKeyDown={containKeys}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <DropdownMenuItem
+          ref={removeRef}
+          variant="destructive"
+          onClick={onRemove}
+        >
+          <Trash2 aria-hidden="true" />
+          {action}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface TokenMenuProps extends Pick<
+  CanvasMenuProps,
+  "x" | "y" | "onClose" | "finalFocus"
+> {
   readonly token: BoardToken;
   readonly hero: HeroDefinition;
   readonly onRemove: (token: BoardToken) => void;
 }
 
 export function TokenMenu({
-  x,
-  y,
   token,
   hero,
   onRemove,
+  ...props
 }: TokenMenuProps): React.JSX.Element {
   return (
-    <div
-      className="token-context-menu"
-      style={{ left: x, top: y }}
-      role="menu"
-      aria-label={`${hero.name} actions`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button type="button" role="menuitem" onClick={() => onRemove(token)}>
-        <svg aria-hidden="true" viewBox="0 0 20 20">
-          <path d="M3.5 5.5h13M8 3h4l1 2.5H7L8 3Zm-2.5 2.5.8 11h7.4l.8-11M8.3 8v6M11.7 8v6" />
-        </svg>
-        Remove {hero.name}
-      </button>
-    </div>
+    <CanvasMenu
+      {...props}
+      label={`${hero.name} actions`}
+      action={`Remove ${hero.name}`}
+      onRemove={() => onRemove(token)}
+    />
   );
 }
 
-export function DrawingMenu({
-  x,
-  y,
-  drawing,
-  onRemove,
-}: {
-  readonly x: number;
-  readonly y: number;
+interface DrawingMenuProps extends Pick<
+  CanvasMenuProps,
+  "x" | "y" | "onClose" | "finalFocus"
+> {
   readonly drawing: BoardDrawing;
   readonly onRemove: (drawing: BoardDrawing) => void;
-}): React.JSX.Element {
+}
+
+export function DrawingMenu({
+  drawing,
+  onRemove,
+  ...props
+}: DrawingMenuProps): React.JSX.Element {
   return (
-    <div
-      className="token-context-menu"
-      style={{ left: x, top: y }}
-      role="menu"
-      aria-label={`${drawing.kind} actions`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        autoFocus
-        onClick={() => onRemove(drawing)}
-      >
-        Remove {drawing.kind}
-      </button>
-    </div>
+    <CanvasMenu
+      {...props}
+      label={`${drawing.kind} actions`}
+      action={`Remove ${drawing.kind}`}
+      onRemove={() => onRemove(drawing)}
+    />
   );
 }

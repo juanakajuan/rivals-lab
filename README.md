@@ -24,6 +24,25 @@ On 2026-09-30, `npm audit --json` changed from five affected development package
 (one high, four moderate) to zero. `npm audit --omit=dev --json` reported zero
 before and after the update. No findings remain in this audit.
 
+## Shared UI components
+
+The site uses the shadcn Base UI components in `src/components/ui`.
+`components.json` selects the `base-nova` style. The sources were generated with
+shadcn CLI 4.21.1. Base UI provides keyboard, focus, and popup behavior.
+
+Use these components for shared controls. Keep domain layouts in `app.css` and
+`builder.css`. The dark theme tokens are in `app.css` and `theme.css`.
+Use plain anchors with `buttonVariants` for navigation links.
+
+To add a component, run `npx shadcn@4.21.1 add <component>`.
+Review the generated changes and retain only the components that the site uses.
+Keep the Base UI variants. Check `package.json`, `package-lock.json`, and source
+imports for Radix packages after each update.
+
+Close page-owned popups when the page becomes inactive. The editor pages stay
+mounted to preserve unsaved changes. `ConfirmAction` shares confirmation layout.
+Each domain owner keeps its typed pending action.
+
 ## Formatting
 
 - `npm run format`: format supported project files with Prettier.

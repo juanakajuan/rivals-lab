@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { emptyComp } from "../src/comps";
+import { emptyComp, type SavedComp } from "../src/comps";
 import { emptyDraft } from "../src/draft";
 import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
 
@@ -121,7 +121,6 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await openBuilder(page);
   await copy.click();
   await expect(preview).toHaveText("Midtown · Convoy");
-  page.once("dialog", (dialog) => dialog.accept());
   await chooseCompMap(page, "Any map");
   await expect(preview).toHaveCount(0);
   await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
@@ -175,7 +174,7 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
     .locator(".draft-slot-button")
     .boundingBox();
   expect(buttonBounds).toEqual(boxBounds);
-  await firstBox.click({ position: { x: 2, y: 2 } });
+  await firstBox.click({ position: { x: 6, y: 6 } });
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "Close dialog" }).click();
 
@@ -200,7 +199,7 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   );
   const filledBounds = await firstBox.boundingBox();
   if (!filledBounds) throw new Error("Missing draft box");
-  await firstBox.click({ position: { x: 2, y: filledBounds.height - 2 } });
+  await firstBox.click({ position: { x: 6, y: filledBounds.height - 6 } });
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "Close dialog" }).click();
 
@@ -250,8 +249,11 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   await pickHero(page, "Allies save 2: Choose hero", "Doctor Strange");
   await pickHero(page, "Allies ban 5: Choose hero", "Doctor Strange");
   await expect(page.locator(".has-conflict")).toHaveCount(0);
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Reset draft", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Reset draft", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: /^Clear (Allies|Opponents) (ban|save)/ }),
   ).toHaveCount(0);
@@ -279,10 +281,13 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await expect(page.getByRole("dialog")).toContainText(
     "Midtown has no board image yet.",
   );
-  page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("dialog", { name: "Choose a Position Board map", exact: true })
     .getByRole("button", { name: "Museum of Contemplation", exact: true })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Replace placements", exact: true })
     .click();
   await expect(page).toHaveURL(/\/board$/);
   await expect(
@@ -340,8 +345,16 @@ test("board transfer requires a supported map and confirms replacement; edits st
     page.getByRole("button", { name: "Allies 1", exact: true }),
   ).toBeVisible();
   await openBuilder(page);
-  page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "New comp", exact: true }).click();
+  await expect(
+    page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Preserve these notes.",
   );
@@ -416,8 +429,11 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
   await expect(page.getByLabel("Allies slot 1 Deadpool role")).toHaveValue(
     "Duelist",
   );
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Open on Position Board" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Replace placements", exact: true })
+    .click();
   const bounds = await page.locator(".stage-host canvas").first().boundingBox();
   if (!bounds) throw new Error("Missing board bounds");
   const scale = bounds.width / 1200;
@@ -511,6 +527,7 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await page
     .getByRole("button", { name: "Load Valid comp", exact: true })
     .click();
+  await expect(page.getByRole("status")).toHaveText("Loaded Valid comp.");
   await page.getByLabel("Comp notes", { exact: true }).fill("Still editable");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved Valid comp.");
@@ -521,6 +538,9 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await page.getByRole("button", { name: "Save name", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText(
     "Renamed comp to Renamed valid.",
+  );
+  await expect(page.getByRole("dialog", { includeHidden: true })).toHaveCount(
+    0,
   );
   await page.getByRole("button", { name: "New comp", exact: true }).click();
   await page.getByLabel("Comp name", { exact: true }).fill("New valid");
@@ -534,9 +554,12 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await expect(page.getByRole("status")).toHaveText(
     "Imported 1 comp as copies.",
   );
-  page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("button", { name: "Delete New valid", exact: true })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Delete comp", exact: true })
     .click();
   await expect(page.getByRole("status")).toHaveText("Deleted New valid.");
   await page.reload();
@@ -588,6 +611,7 @@ for (const renameBeforeSave of [false, true]) {
     await stale
       .getByRole("button", { name: "Load Shared comp", exact: true })
       .click();
+    await expect(stale.getByRole("status")).toHaveText("Loaded Shared comp.");
     await page
       .getByLabel("Comp notes", { exact: true })
       .fill("New notes from tab A");
@@ -672,12 +696,16 @@ test("stale tab cannot restore a deleted comp and can save its edits as a new co
   await stale
     .getByRole("button", { name: "Load Deleted comp", exact: true })
     .click();
+  await expect(stale.getByRole("status")).toHaveText("Loaded Deleted comp.");
   await stale
     .getByLabel("Comp notes", { exact: true })
     .fill("Edits from tab B");
-  page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("button", { name: "Delete Deleted comp", exact: true })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Delete comp", exact: true })
     .click();
   await expect(page.getByRole("status")).toHaveText("Deleted Deleted comp.");
   const storedBefore = await readStoredCompLibrary(page);
@@ -706,3 +734,241 @@ test("stale tab cannot restore a deleted comp and can save its edits as a new co
   );
   await expect(stale.locator(".saved-comp")).toHaveCount(1);
 });
+
+for (const action of ["load", "delete"] as const) {
+  for (const mutation of ["changes", "deletes"] as const) {
+    test(`a pending ${action} keeps edits when another tab ${mutation} the requested saved comp`, async ({
+      page,
+      context,
+    }) => {
+      await page.goto("/builder");
+      await page.getByLabel("Comp name", { exact: true }).fill("Shared plan");
+      await page.getByLabel("Comp notes", { exact: true }).fill("Saved notes");
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(page.getByRole("status")).toHaveText("Saved Shared plan.");
+      const other = await context.newPage();
+      await other.goto("/builder");
+      await other
+        .getByRole("button", { name: "Load Shared plan", exact: true })
+        .click();
+      await expect(other.getByLabel("Comp notes", { exact: true })).toHaveValue(
+        "Saved notes",
+      );
+      await page
+        .getByLabel("Comp notes", { exact: true })
+        .fill("Keep my unsaved edits");
+      const trigger = page.getByRole("button", {
+        name: `${action === "load" ? "Load" : "Delete"} Shared plan`,
+        exact: true,
+      });
+      await trigger.click();
+      const confirmation = page.getByRole("alertdialog");
+      await expect(
+        confirmation.getByRole("button", { name: "Cancel", exact: true }),
+      ).toBeFocused();
+      await confirmation
+        .getByRole("button", { name: "Cancel", exact: true })
+        .click();
+      await expect(trigger).toBeFocused();
+      await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+        "Keep my unsaved edits",
+      );
+      await trigger.click();
+      if (mutation === "changes") {
+        await other
+          .getByLabel("Comp notes", { exact: true })
+          .fill("Newer saved notes");
+        await other.getByRole("button", { name: "Save", exact: true }).click();
+        await expect(other.getByRole("status")).toHaveText(
+          "Saved Shared plan.",
+        );
+      } else {
+        await other
+          .getByRole("button", { name: "Delete Shared plan", exact: true })
+          .click();
+        await other
+          .getByRole("alertdialog")
+          .getByRole("button", { name: "Delete comp", exact: true })
+          .click();
+        await expect(other.getByRole("status")).toHaveText(
+          "Deleted Shared plan.",
+        );
+      }
+      const stored = await readStoredCompLibrary(other);
+      await confirmation
+        .getByRole("button", {
+          name: action === "load" ? "Discard edits" : "Delete comp",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole("alert")).toContainText(
+        mutation === "changes"
+          ? "changed in another tab"
+          : "deleted in another tab",
+      );
+      await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+        "Keep my unsaved edits",
+      );
+      expect(await readStoredCompLibrary(page)).toBe(stored);
+      await expect(
+        page.getByRole("button", { name: "Load Shared plan", exact: true }),
+      ).toHaveCount(mutation === "changes" ? 1 : 0);
+      await other.close();
+    });
+  }
+}
+
+test("renaming a filtered saved comp returns focus to visible navigation when its button is removed", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  await page.getByRole("button", { name: "Save As", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Comp name").fill("Shadcn check");
+  await page.getByRole("button", { name: "Save name", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved Shadcn check.");
+  await page
+    .getByRole("searchbox", { name: "Search saved comps" })
+    .fill("Shadcn");
+  await page
+    .getByRole("button", { name: "Rename Shadcn check", exact: true })
+    .click();
+  await expect(page.getByRole("dialog").getByLabel("Comp name")).toHaveValue(
+    "Shadcn check",
+  );
+  await page
+    .getByRole("dialog")
+    .getByLabel("Comp name")
+    .fill("Focus fallback check");
+  await page.getByRole("button", { name: "Save name", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Renamed comp to Focus fallback check.",
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Rename Shadcn check", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Draft / Comp Builder", exact: true }),
+  ).toBeFocused();
+  await page.getByRole("searchbox", { name: "Search saved comps" }).fill("");
+  await page
+    .getByRole("button", { name: "Rename Focus fallback check", exact: true })
+    .click();
+  await expect(page.getByRole("dialog").getByLabel("Comp name")).toHaveValue(
+    "Focus fallback check",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Rename Focus fallback check",
+      exact: true,
+    }),
+  ).toBeFocused();
+});
+
+for (const width of [1280, 390]) {
+  test(`a long saved library at ${width}px scrolls to all actions on the last comp`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/builder");
+    const comps: SavedComp[] = Array.from({ length: 12 }, (_, index) => ({
+      id: `library-scroll-${index + 1}`,
+      updatedAt: "2026-10-03T00:00:00.000Z",
+      comp: {
+        ...emptyComp(),
+        name: `Plan ${index + 1}`,
+        mapId: "midtown",
+        notes: `Notes for plan ${index + 1}`,
+      },
+    }));
+    const fileChooserReady = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Import", exact: true }).click();
+    await (
+      await fileChooserReady
+    ).setFiles({
+      name: "long-library.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify({ version: 1, comps })),
+    });
+    await expect(page.getByRole("status")).toHaveText(
+      "Imported 12 comps as copies.",
+    );
+    await expect(page.locator(".saved-comp")).toHaveCount(12);
+    const library = page.locator(".library-list");
+    expect(
+      await library.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await library.scrollIntoViewIfNeeded();
+    await library.hover();
+    const lastComp = page.locator(".saved-comp").filter({
+      has: page.getByRole("button", { name: "Load Plan 12", exact: true }),
+    });
+    await expect(async () => {
+      await page.mouse.wheel(0, 10_000);
+      await expect(
+        lastComp.getByRole("button", { name: "Delete Plan 12", exact: true }),
+      ).toBeInViewport({ timeout: 250 });
+    }).toPass({ intervals: [100], timeout: 10_000 });
+    for (const action of ["Load", "Rename", "Export", "Delete"]) {
+      await expect(
+        lastComp.getByRole("button", {
+          name: `${action} Plan 12`,
+          exact: true,
+        }),
+      ).toBeInViewport();
+    }
+    await lastComp
+      .getByRole("button", { name: "Load Plan 12", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toHaveText("Loaded Plan 12.");
+    await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      "Notes for plan 12",
+    );
+    await lastComp
+      .getByRole("button", { name: "Rename Plan 12", exact: true })
+      .click();
+    const renameDialog = page.getByRole("dialog", {
+      name: "Rename comp",
+      exact: true,
+    });
+    await renameDialog
+      .getByLabel("Comp name", { exact: true })
+      .fill("Last renamed plan");
+    await renameDialog
+      .getByRole("button", { name: "Save name", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toHaveText(
+      "Renamed comp to Last renamed plan.",
+    );
+    await expect(
+      page.getByRole("dialog", {
+        name: "Rename comp",
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
+      "Last renamed plan",
+    );
+    await page
+      .getByRole("button", { name: "Load Last renamed plan", exact: true })
+      .scrollIntoViewIfNeeded();
+    const renamedComp = page.locator(".saved-comp").filter({
+      has: page.getByRole("button", {
+        name: "Load Last renamed plan",
+        exact: true,
+      }),
+    });
+    for (const action of ["Rename", "Export", "Delete"]) {
+      await expect(
+        renamedComp.getByRole("button", {
+          name: `${action} Last renamed plan`,
+          exact: true,
+        }),
+      ).toBeInViewport();
+    }
+  });
+}

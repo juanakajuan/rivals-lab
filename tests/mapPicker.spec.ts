@@ -43,7 +43,7 @@ test("map cards show complete names and uncropped images; selection closes and r
   });
   await page.goto("/");
   await expect(page.locator(".stage-host canvas").first()).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await expect(page.locator("#board-heading")).toHaveText(wakanda);
   expect(requestedMaps.some((url) => url.includes("hells-heaven"))).toBe(false);
   expect(requestedMaps.some((url) => url.includes("museum"))).toBe(false);
   await trigger(page).click();
@@ -113,7 +113,7 @@ test("map cards show complete names and uncropped images; selection closes and r
   ).toBeVisible();
   await dialog.getByRole("button", { name: hydra, exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(hydra);
+  await expect(page.locator("#board-heading")).toHaveText(hydra);
   await expect(trigger(page)).toBeFocused();
   await trigger(page).click();
   const selected = dialog.getByRole("button", { name: hydra, exact: true });
@@ -143,14 +143,14 @@ test("native keyboard focus stays in the picker; Enter, Space, Escape and Close 
   await tabInPicker(page, "Tab", museumCard);
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(museum);
+  await expect(page.locator("#board-heading")).toHaveText(museum);
   await expect(trigger(page)).toBeFocused();
   await page.keyboard.press("Space");
   await expect(museumCard).toBeFocused();
   await tabInPicker(page, "Shift+Tab", hydraCard);
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(hydra);
+  await expect(page.locator("#board-heading")).toHaveText(hydra);
   await expect(trigger(page)).toBeFocused();
   await page.keyboard.press("Space");
   await expect(
@@ -158,17 +158,17 @@ test("native keyboard focus stays in the picker; Enter, Space, Escape and Close 
   ).toBeFocused();
   await tabInPicker(page, "Shift+Tab", current);
   await page.keyboard.press("Space");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await expect(page.locator("#board-heading")).toHaveText(wakanda);
   await expect(trigger(page)).toBeFocused();
   await trigger(page).click();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await expect(page.locator("#board-heading")).toHaveText(wakanda);
   await expect(trigger(page)).toBeFocused();
   await trigger(page).click();
   await close.click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await expect(page.locator("#board-heading")).toHaveText(wakanda);
   await expect(trigger(page)).toBeFocused();
 });
 
@@ -208,7 +208,7 @@ test("search matches names and modes without edits, recovers from no results, an
     "No maps match your search.",
   );
   await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await expect(page.locator("#board-heading")).toHaveText(wakanda);
   await search.fill("");
   await expect(dialog.locator(".map-picker-card")).toHaveCount(3);
   await expect(dialog.getByRole("status")).toHaveCount(0);
@@ -218,7 +218,7 @@ test("search matches names and modes without edits, recovers from no results, an
   await tabInPicker(page, "Tab", museumCard);
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(museum);
+  await expect(page.locator("#board-heading")).toHaveText(museum);
   await expect(trigger(page)).toBeFocused();
   await trigger(page).click();
   await expect(search).toHaveValue("");
@@ -351,7 +351,7 @@ for (const width of [390, 320]) {
       ).toBe(true);
       await dialog.getByRole("button", { name: museum, exact: true }).tap();
       await expect(dialog).toBeHidden();
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText(museum);
+      await expect(page.locator("#board-heading")).toHaveText(museum);
       await expect(trigger(page)).toBeFocused();
       await trigger(page).tap();
       await expect(
@@ -377,7 +377,7 @@ for (const width of [390, 320]) {
       await close.tap();
       await expect(dialog).toBeHidden();
       await expect(trigger(page)).toBeFocused();
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText(museum);
+      await expect(page.locator("#board-heading")).toHaveText(museum);
     });
   });
 }

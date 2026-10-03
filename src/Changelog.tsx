@@ -1,4 +1,6 @@
 import { releases } from "virtual:releases";
+import { Card } from "./components/ui/card";
+import { Separator } from "./components/ui/separator";
 
 const releaseDate = new Intl.DateTimeFormat("en", {
   year: "numeric",
@@ -16,8 +18,9 @@ export function Changelog(): React.JSX.Element {
           Updates to deployed features. Latest first. Dates use UTC.
         </p>
         {releases.map((release) => (
-          <article
-            className="release-entry"
+          <Card
+            render={<article />}
+            className="release-entry gap-4 p-5"
             key={release.id}
             data-release-id={release.id}
           >
@@ -26,14 +29,15 @@ export function Changelog(): React.JSX.Element {
                 {releaseDate.format(new Date(`${release.date}T00:00:00Z`))}
               </time>
             </h2>
-            <ul>
+            <Separator />
+            <ul className="list-disc space-y-2 pl-5 leading-relaxed">
               {release.notes.map((note) => (
                 <li key={note.id} data-note-id={note.id}>
                   {note.text}
                 </li>
               ))}
             </ul>
-          </article>
+          </Card>
         ))}
       </div>
     </main>

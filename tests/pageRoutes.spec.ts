@@ -85,6 +85,62 @@ test("links and Back/Forward keep both pages' in-session edits", async ({
   );
 });
 
+test("a direct builder load transfers to a visible slider and keeps edits through history", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  await page
+    .getByLabel("Comp notes", { exact: true })
+    .fill("Keep after board transfer");
+  await page
+    .getByRole("button", { name: "Allies slot 1: Choose hero", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Angela", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Open on Position Board", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Choose a Position Board map", exact: true })
+    .getByRole("button", {
+      name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("alertdialog", { name: "Replace board placements?" })
+    .getByRole("button", { name: "Replace placements", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/board$/);
+  await expect(
+    page.getByRole("button", { name: "Allies 1", exact: true }),
+  ).toBeVisible();
+  const thumb = page.locator('[data-slot="slider-thumb"]');
+  const slider = page.getByRole("slider", { name: "Hero icon size" });
+  await expect(thumb).toBeVisible();
+  await expect(slider).toHaveAttribute("aria-valuenow", "100");
+  await slider.focus();
+  await slider.press("Home");
+  await expect(slider).toHaveAttribute("aria-valuenow", "50");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/builder$/);
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Keep after board transfer",
+  );
+  await expect(
+    page.getByRole("button", { name: "Allies slot 1: Angela", exact: true }),
+  ).toBeVisible();
+  await page.goForward();
+  await expect(page).toHaveURL(/\/board$/);
+  await expect(thumb).toBeVisible();
+  await expect(slider).toHaveAttribute("aria-valuenow", "50");
+  await expect(
+    page.getByRole("button", { name: "Allies 1", exact: true }),
+  ).toBeVisible();
+});
+
 test("changelog direct load, refresh, and history preserve editor changes", async ({
   page,
 }) => {
@@ -133,4 +189,62 @@ test("changelog direct load, refresh, and history preserve editor changes", asyn
   );
   await page.goForward();
   await expect(link).toHaveAttribute("aria-current", "page");
+});
+
+test("Back closes builder dialogs and confirmations while keeping edits", async ({
+  page,
+}) => {
+  await page.goto("/board");
+  await page
+    .getByRole("link", { name: "Draft / Comp Builder", exact: true })
+    .click();
+  await page
+    .getByLabel("Comp notes", { exact: true })
+    .fill("Keep through open overlays");
+  await page.getByRole("button", { name: "Comp map", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Choose comp map", exact: true }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/board$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Position Board", exact: true }),
+  ).toBeFocused();
+  await page.goForward();
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Keep through open overlays",
+  );
+  await page.getByRole("button", { name: "New comp", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await page.goForward();
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Keep through open overlays",
+  );
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+});
+
+test("Back closes a board color popover and keeps board history", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  await page.getByRole("link", { name: "Position Board", exact: true }).click();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Drawing color", exact: true })
+    .click();
+  await expect(page.getByLabel("Hex color", { exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/builder$/);
+  await expect(page.getByLabel("Hex color", { exact: true })).toHaveCount(0);
+  await page.goForward();
+  await expect(
+    page.getByRole("button", { name: "Allies 0", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Undo", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel("Hex color", { exact: true })).toHaveCount(0);
 });

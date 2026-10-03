@@ -1,9 +1,7 @@
-import { useLayoutEffect, useRef, type TextareaHTMLAttributes } from "react";
+import { Textarea } from "./components/ui/textarea";
+import { useLayoutEffect, useRef, type ComponentProps } from "react";
 
-type AutoGrowTextareaProps = Omit<
-  TextareaHTMLAttributes<HTMLTextAreaElement>,
-  "value"
-> & {
+type AutoGrowTextareaProps = Omit<ComponentProps<typeof Textarea>, "value"> & {
   readonly value: string;
 };
 
@@ -41,5 +39,12 @@ export function AutoGrowTextarea({
     };
   }, [value, props.rows]);
 
-  return <textarea {...props} ref={ref} value={value} />;
+  return (
+    <Textarea
+      {...props}
+      ref={ref}
+      value={value}
+      className={`auto-grow-textarea ${props.className ?? ""}`}
+    />
+  );
 }

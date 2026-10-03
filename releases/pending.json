@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "shadcn-base-ui-site-controls",
+    "text": "Feature: Use consistent controls, keyboard menus, and confirmation dialogs across the board and comp builder."
+  }
+]

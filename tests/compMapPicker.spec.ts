@@ -11,7 +11,11 @@ function picker(page: Page): Locator {
 }
 
 function trigger(page: Page): Locator {
-  return page.getByRole("button", { name: "Comp map", exact: true });
+  return page.getByRole("button", {
+    name: "Comp map",
+    exact: true,
+    includeHidden: true,
+  });
 }
 
 async function tabInPicker(
@@ -549,16 +553,47 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
   await expect(search).toHaveValue("");
   await expect(first).toBeFocused();
   await search.fill("museum");
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain(
-      "Replace the current Position Board placements",
-    );
-    await dialog.dismiss();
-  });
   await fallback
     .getByRole("button", { name: "Museum of Contemplation", exact: true })
     .click();
   await expect(fallback).toBeHidden();
+  const confirmation = page.getByRole("alertdialog", {
+    name: "Replace board placements?",
+  });
+  await expect(confirmation).toContainText(
+    "Replace the current Position Board placements",
+  );
+  await expect(
+    page.getByRole("dialog", {
+      name: "Choose a Position Board map",
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    confirmation.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    confirmation.getByRole("button", {
+      name: "Replace placements",
+      exact: true,
+    }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    confirmation.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    confirmation.getByRole("button", {
+      name: "Replace placements",
+      exact: true,
+    }),
+  ).toBeFocused();
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/builder$/);
   await expect(transfer).toBeFocused();
   await expect(page.locator(".selected-map-preview")).toHaveText(
@@ -582,9 +617,11 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     .click();
   await transfer.click();
   await search.fill("convoy");
-  page.once("dialog", (dialog) => dialog.accept());
   await fallback
     .getByRole("button", { name: "Museum of Contemplation", exact: true })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Replace placements", exact: true })
     .click();
   await expect(page).toHaveURL(/\/board$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(

@@ -224,3 +224,79 @@ test("late map images cannot replace the current map or selection", async ({
     });
   expect(ringPixel).toEqual([255, 255, 255, 255]);
 });
+
+test("existing and new portraits and rings scale together after delayed image loading", async ({
+  page,
+}) => {
+  let releaseImages: () => void = () => undefined;
+  const ready = new Promise<void>((resolve) => {
+    releaseImages = resolve;
+  });
+  await page.route("**/hero-icons/**", async (route) => {
+    await ready;
+    await route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#00ff00"/></svg>',
+    });
+  });
+  await page.goto("/tests/fixtures/board.html", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForFunction(() => Boolean(window.boardHarness));
+  await page.evaluate(() => {
+    const harness = window.boardHarness;
+    harness.snapshot = { ...harness.snapshot, iconSize: 150 };
+    harness.board.update(harness.snapshot);
+  });
+  releaseImages();
+  await page.waitForLoadState("networkidle");
+  for (const size of [150, 50]) {
+    await page.evaluate((iconSize) => {
+      const harness = window.boardHarness;
+      const existing = harness.snapshot.tokens[0];
+      if (!existing) throw new Error("Missing existing token");
+      harness.snapshot = {
+        ...harness.snapshot,
+        iconSize,
+        tokens: [
+          existing,
+          { id: "enemy-hulk", heroId: "hulk", team: "enemy", x: 400, y: 200 },
+        ],
+      };
+      harness.board.update(harness.snapshot);
+    }, size);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+    const pixels = await page
+      .locator("#board canvas")
+      .last()
+      .evaluate((canvas, iconSize) => {
+        if (!(canvas instanceof HTMLCanvasElement))
+          throw new Error("Missing canvas");
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Missing context");
+        return [100, 200].map((center) => {
+          const pixel = (offset: number) => [
+            ...context.getImageData(Math.floor(center + offset), 100, 1, 1)
+              .data,
+          ];
+          return {
+            portrait: pixel((10 * iconSize) / 100 / 2),
+            ring: pixel((22 * iconSize) / 100 / 2),
+            outside: pixel((25 * iconSize) / 100 / 2 + 1),
+          };
+        });
+      }, size);
+    expect(pixels).toHaveLength(2);
+    for (const pixel of pixels) {
+      expect(pixel.portrait).toEqual([0, 255, 0, 255]);
+      expect(pixel.ring[3]).toBeGreaterThan(0);
+      expect(pixel.ring.slice(0, 3)).not.toEqual([0, 255, 0]);
+      expect(pixel.outside[3]).toBe(0);
+    }
+  }
+});

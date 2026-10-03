@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { draftSlots, type DraftState, type DraftSlot } from "./draft";
@@ -18,42 +18,69 @@ import {
   type HeroRole,
 } from "./heroes";
 import type { CompSlot } from "./comps";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
+import { Badge } from "./components/ui/badge";
+import { Card } from "./components/ui/card";
+import { Toggle } from "./components/ui/toggle";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "./components/ui/native-select";
+import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 
-export function BuilderDialog({
+export function BuilderModal({
+  open = true,
   title,
   onClose,
   children,
+  initialFocus,
+  finalFocus,
 }: {
+  readonly open?: boolean;
   readonly title: string;
   readonly onClose: () => void;
   readonly children: ReactNode;
+  readonly initialFocus: ComponentProps<typeof DialogContent>["initialFocus"];
+  readonly finalFocus: ComponentProps<typeof DialogContent>["finalFocus"];
 }): React.JSX.Element {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, []);
   return (
-    <dialog
-      ref={ref}
-      className="builder-dialog"
-      aria-label={title}
-      onCancel={onClose}
+    <Dialog
+      open={open}
+      onOpenChange={(open, details) => {
+        if (
+          details.reason === "outside-press" ||
+          (details.reason === "escape-key" && details.event.isComposing)
+        ) {
+          details.cancel();
+          return;
+        }
+        if (!open) onClose();
+      }}
     >
-      <div className="dialog-heading">
-        <h2>{title}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={onClose}
-        >
-          <X size={18} />
-        </button>
-      </div>
-      {children}
-    </dialog>
+      <DialogContent
+        className="builder-dialog"
+        showCloseButton={false}
+        initialFocus={initialFocus}
+        finalFocus={finalFocus}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <div className="dialog-heading">
+          <DialogTitle>{title}</DialogTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close dialog"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </Button>
+        </div>
+        {children}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -67,13 +94,16 @@ export function HeroPicker({
   unavailable,
   onChoose,
   onClose,
+  finalFocus,
 }: {
+  readonly finalFocus: ComponentProps<typeof DialogContent>["finalFocus"];
   readonly title: string;
   readonly mode: "comp" | "draft";
   readonly unavailable: (heroId: string) => string | null;
   readonly onChoose: (selection: HeroSelection) => void;
   readonly onClose: () => void;
 }): React.JSX.Element {
+  const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<HeroRole | "All">("All");
   const roles: readonly (HeroRole | "All")[] =
@@ -95,28 +125,33 @@ export function HeroPicker({
       (role === "All" || hero.role === role || hero.role === "All Roles"),
   );
   return (
-    <BuilderDialog title={title} onClose={onClose}>
-      <label className="builder-search">
+    <BuilderModal
+      title={title}
+      onClose={onClose}
+      initialFocus={searchRef}
+      finalFocus={finalFocus}
+    >
+      <Label className="builder-search">
         <Search size={16} />
-        <input
-          autoFocus
+        <Input
+          ref={searchRef}
           type="search"
           aria-label="Find a hero"
           placeholder="Find a hero…"
           value={search}
           onChange={(event) => setSearch(event.currentTarget.value)}
         />
-      </label>
+      </Label>
       <div className="role-filters" aria-label="Hero roles">
         {roles.map((item) => (
-          <button
-            type="button"
+          <Toggle
             key={item}
-            aria-pressed={role === item}
-            onClick={() => setRole(item)}
+            variant="outline"
+            pressed={role === item}
+            onPressedChange={() => setRole(item)}
           >
             {item}
-          </button>
+          </Toggle>
         ))}
       </div>
       <div className="hero-choice-grid">
@@ -127,9 +162,10 @@ export function HeroPicker({
             ? { heroId: hero.id, deadpoolRole: hero.deadpoolRole }
             : { heroId: hero.id };
           return (
-            <button
+            <Button
               key={`${hero.id}-${hero.deadpoolRole ?? ""}`}
               type="button"
+              variant="outline"
               className="hero-choice"
               disabled={reason !== null}
               title={reason ?? hero.role}
@@ -139,14 +175,14 @@ export function HeroPicker({
               <img src={heroImagePath(hero.id)} alt="" />
               <strong>{hero.name}</strong>
               <small>{reason ?? hero.role}</small>
-            </button>
+            </Button>
           );
         })}
       </div>
       {heroes.length === 0 && (
         <p className="empty-copy">No heroes match this search.</p>
       )}
-    </BuilderDialog>
+    </BuilderModal>
   );
 }
 
@@ -154,7 +190,9 @@ export function DraftPanel({
   draft,
   onEdit,
   onChoose,
+  onResetDraft,
 }: {
+  readonly onResetDraft: () => void;
   readonly draft: DraftState;
   readonly onEdit: (edit: CompEdit) => void;
   readonly onChoose: (slot: DraftSlot) => void;
@@ -163,7 +201,8 @@ export function DraftPanel({
   const filled = slots.filter((slot) => slot.heroId !== null).length;
   const teams: readonly Team[] = ["ally", "enemy"];
   return (
-    <section
+    <Card
+      render={<section />}
       className="builder-card draft-panel"
       aria-labelledby="draft-heading"
     >
@@ -174,9 +213,9 @@ export function DraftPanel({
           </p>
           <h2 id="draft-heading">Bans And Saves</h2>
         </div>
-        <span className="status-tag">
+        <Badge variant="secondary" className="status-tag">
           {filled} / {slots.length} choices set
-        </span>
+        </Badge>
       </div>
       <p className="muted-copy">
         {draft.format === "mrc"
@@ -213,8 +252,9 @@ export function DraftPanel({
                       className={`draft-step${hero ? " done" : ""}`}
                       data-action={slot.kind}
                     >
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
                         className="draft-slot-button"
                         aria-label={`${label}: ${hero?.name ?? "Choose hero"}`}
                         onClick={() => onChoose(slot)}
@@ -255,11 +295,13 @@ export function DraftPanel({
                             <strong>{hero?.name ?? "Choose hero"}</strong>
                           </span>
                         </span>
-                      </button>
+                      </Button>
                       {hero && (
-                        <button
+                        <Button
                           type="button"
-                          className="draft-clear icon-button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="draft-clear"
                           aria-label={`Clear ${label}`}
                           onClick={() =>
                             onEdit({
@@ -269,7 +311,7 @@ export function DraftPanel({
                           }
                         >
                           <X size={14} />
-                        </button>
+                        </Button>
                       )}
                     </li>
                   );
@@ -279,23 +321,16 @@ export function DraftPanel({
         ))}
       </div>
       <div className="draft-controls">
-        <button
+        <Button
           type="button"
-          className="secondary-button"
+          variant="outline"
           disabled={!filled}
-          onClick={() => {
-            if (
-              window.confirm(
-                "Reset all bans and saves? Comp heroes and notes will stay.",
-              )
-            )
-              onEdit({ kind: "resetDraft" });
-          }}
+          onClick={onResetDraft}
         >
           Reset draft
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -322,7 +357,8 @@ export function TeamEditor({
     if (role) roles.set(role, (roles.get(role) ?? 0) + 1);
   }
   return (
-    <section
+    <Card
+      render={<section />}
       className="builder-card team-editor"
       data-team={team}
       aria-label={`${label} composition`}
@@ -336,9 +372,9 @@ export function TeamEditor({
           <span className="muted-copy">
             {team === "enemy" ? "Optional" : "Any role mix"}
           </span>
-          <button
+          <Button
             type="button"
-            className="secondary-button"
+            variant="outline"
             aria-label={`Reset ${label}`}
             disabled={
               !slots.some(
@@ -348,7 +384,7 @@ export function TeamEditor({
             onClick={onReset}
           >
             Reset
-          </button>
+          </Button>
         </div>
       </div>
       <p className="role-counts">
@@ -362,11 +398,13 @@ export function TeamEditor({
           const conflict = Boolean(slot.heroId && banned.has(slot.heroId));
           const slotLabel = `${label} slot ${index + 1}`;
           return (
-            <div
+            <Card
+              size="sm"
               key={index}
               className={`comp-slot${conflict ? " has-conflict" : ""}`}
             >
-              <button
+              <Button
+                variant="ghost"
                 className="slot-select"
                 type="button"
                 onClick={() => onChoose(index)}
@@ -386,11 +424,13 @@ export function TeamEditor({
                       "Empty slot"}
                   </small>
                 </span>
-              </button>
+              </Button>
               {hero && (
-                <button
+                <Button
                   type="button"
-                  className="slot-remove icon-button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="slot-remove"
                   aria-label={`Remove ${hero.name} from ${label}`}
                   onClick={() =>
                     onEdit({
@@ -400,10 +440,10 @@ export function TeamEditor({
                   }
                 >
                   <X size={14} />
-                </button>
+                </Button>
               )}
               {hero?.id === "deadpool" && (
-                <select
+                <NativeSelect
                   className="deadpool-role"
                   aria-label={`${slotLabel} Deadpool role`}
                   value={slot.deadpoolRole ?? ""}
@@ -418,15 +458,15 @@ export function TeamEditor({
                       });
                   }}
                 >
-                  <option value="" disabled>
+                  <NativeSelectOption value="" disabled>
                     Choose Deadpool role
-                  </option>
+                  </NativeSelectOption>
                   {DEADPOOL_ROLES.map((role) => (
-                    <option key={role} value={role}>
+                    <NativeSelectOption key={role} value={role}>
                       {role}
-                    </option>
+                    </NativeSelectOption>
                   ))}
-                </select>
+                </NativeSelect>
               )}
               {conflict && (
                 <span className="conflict-copy">Banned for this team</span>
@@ -446,10 +486,10 @@ export function TeamEditor({
                   })
                 }
               />
-            </div>
+            </Card>
           );
         })}
       </div>
-    </section>
+    </Card>
   );
 }

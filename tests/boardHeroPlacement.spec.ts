@@ -168,7 +168,7 @@ for (const { iconSize, count } of [
     const size = page.getByRole("slider", { name: "Hero icon size" });
     await size.press("End");
     if (iconSize === 140) await size.press("ArrowLeft");
-    await expect(size).toHaveValue(String(iconSize));
+    await expect(size).toHaveAttribute("aria-valuenow", String(iconSize));
     const boundary = Math.ceil((24 * iconSize) / 100);
     const placements: {
       readonly hero: string;

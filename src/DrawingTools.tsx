@@ -1,7 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { AutoGrowTextarea } from "./AutoGrowTextarea";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
+import { Toggle } from "./components/ui/toggle";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "./components/ui/popover";
+import { visibleFocusTarget } from "./overlayFocus";
 import type { BoardDrawing, BoardTool } from "./boardDrawings";
 
 interface DrawingToolsProps {
+  readonly active: boolean;
   readonly tool: BoardTool;
   readonly color: string;
   readonly selected: BoardDrawing | undefined;
@@ -23,24 +35,28 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
     <div className="drawing-tools">
       <div className="drawing-actions" role="group" aria-label="Board mode">
         {TOOLS.map(({ tool, label }) => (
-          <button
+          <Toggle
             key={tool}
-            type="button"
-            aria-pressed={props.tool === tool}
-            onClick={() => props.onTool(tool)}
+            variant="outline"
+            size="sm"
+            pressed={props.tool === tool}
+            onPressedChange={() => props.onTool(tool)}
           >
             {label}
-          </button>
+          </Toggle>
         ))}
         <DrawingColor
-          key={`${selected?.id ?? "new"}:${selected?.color ?? props.color}`}
+          key={selected?.id ?? "new"}
+          active={props.active}
           color={selected?.color ?? props.color}
           onCommit={(color) => {
             if (selected) props.onEdit({ ...selected, color });
             props.onColor(color);
           }}
         />
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           className={
             props.tool === "move" ? "drawing-add-placeholder" : undefined
@@ -49,7 +65,7 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
           onClick={props.onAdd}
         >
           Add at center
-        </button>
+        </Button>
       </div>
       <p className="drawing-help">
         {[
@@ -95,6 +111,7 @@ function NoteEditor({
   readonly onEdit: (drawing: BoardDrawing) => void;
 }): React.JSX.Element {
   const [text, setText] = useState(drawing.text);
+  const textId = useId();
   return (
     <form
       className="note-editor drawing-actions"
@@ -103,20 +120,23 @@ function NoteEditor({
         if (text.trim()) onEdit({ ...drawing, text: text.trim() });
       }}
     >
-      <label>
-        Note text{" "}
-        <textarea
+      <div className="note-text-field">
+        <Label htmlFor={textId}>Note text</Label>
+        <AutoGrowTextarea
+          id={textId}
+          rows={2}
           value={text}
           maxLength={200}
           onChange={(event) => setText(event.currentTarget.value)}
         />
-      </label>
-      <button
+      </div>
+      <Button
+        size="sm"
         type="submit"
         disabled={!text.trim() || text.trim() === drawing.text}
       >
         Save note
-      </button>
+      </Button>
     </form>
   );
 }
@@ -138,79 +158,75 @@ const DRAWING_COLORS: readonly {
 ];
 
 function DrawingColor({
+  active,
   color,
   onCommit,
 }: {
+  readonly active: boolean;
   readonly color: string;
   readonly onCommit: (color: string) => void;
 }): React.JSX.Element {
   const [draft, setDraft] = useState(color);
   const [open, setOpen] = useState(false);
-  const picker = useRef<HTMLDivElement>(null);
+  const [previousActive, setPreviousActive] = useState(active);
   const trigger = useRef<HTMLButtonElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
+  const inputId = useId();
   const valid = /^#[0-9a-f]{6}$/i.test(draft);
 
-  useEffect(() => {
-    if (!open) return;
-    function closeOutside(event: PointerEvent): void {
-      if (
-        event.target instanceof Node &&
-        !picker.current?.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", closeOutside);
-    return () => document.removeEventListener("pointerdown", closeOutside);
-  }, [open]);
-
-  function close(): void {
-    setOpen(false);
-    trigger.current?.focus();
+  if (active !== previousActive) {
+    setPreviousActive(active);
+    if (!active) setOpen(false);
   }
 
   return (
-    <div
-      className="drawing-color"
-      ref={picker}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && open) {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
+    <Popover
+      open={active && open}
+      onOpenChange={(nextOpen, details) => {
+        if (details.reason === "escape-key" && details.event.isComposing) {
+          details.cancel();
+          return;
         }
-      }}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (nextOpen) setDraft(color);
+        setOpen(nextOpen);
       }}
     >
-      <button
+      <PopoverTrigger
+        render={<Button variant="outline" size="sm" />}
         ref={trigger}
-        type="button"
-        className="drawing-color-trigger"
         aria-label="Drawing color"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => {
-          setDraft(color);
-          setOpen(!open);
-        }}
       >
         Drawing color
         <span
           className="drawing-color-preview"
           style={{ backgroundColor: color }}
         />
-      </button>
-      {open ? (
+      </PopoverTrigger>
+      <PopoverContent
+        className="drawing-color-popover"
+        ref={popup}
+        align="start"
+        aria-label="Choose drawing color"
+        initialFocus={input}
+        finalFocus={() => {
+          const focused = document.activeElement;
+          if (
+            focused instanceof HTMLElement &&
+            focused !== document.body &&
+            focused.getClientRects().length > 0 &&
+            !popup.current?.contains(focused)
+          )
+            return false;
+          return visibleFocusTarget(trigger.current);
+        }}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <form
-          className="drawing-color-popover"
-          role="dialog"
-          aria-label="Choose drawing color"
           onSubmit={(event) => {
             event.preventDefault();
             if (!valid) return;
-            close();
+            setOpen(false);
             onCommit(draft.toLowerCase());
           }}
         >
@@ -220,22 +236,24 @@ function DrawingColor({
             aria-label="Preset colors"
           >
             {DRAWING_COLORS.map(({ name, value }) => (
-              <button
+              <Toggle
                 key={value}
-                type="button"
+                variant="outline"
+                size="sm"
                 className="drawing-color-swatch"
                 aria-label={name}
-                aria-pressed={draft.toLowerCase() === value}
-                onClick={() => setDraft(value)}
+                pressed={draft.toLowerCase() === value}
+                onPressedChange={() => setDraft(value)}
               >
                 <span style={{ backgroundColor: value }} />
-              </button>
+              </Toggle>
             ))}
           </div>
-          <label>
-            Hex color
-            <input
-              autoFocus
+          <div className="drawing-color-field">
+            <Label htmlFor={inputId}>Hex color</Label>
+            <Input
+              ref={input}
+              id={inputId}
               type="text"
               value={draft}
               maxLength={7}
@@ -243,21 +261,26 @@ function DrawingColor({
               aria-invalid={!valid}
               onChange={(event) => setDraft(event.currentTarget.value)}
             />
-          </label>
+          </div>
           <div className="drawing-color-footer">
             <span
               className="drawing-color-preview"
               style={{ backgroundColor: valid ? draft : color }}
             />
-            <button type="button" onClick={close}>
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              onClick={() => setOpen(false)}
+            >
               Cancel
-            </button>
-            <button type="submit" disabled={!valid}>
+            </Button>
+            <Button size="sm" type="submit" disabled={!valid}>
               Apply
-            </button>
+            </Button>
           </div>
         </form>
-      ) : null}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
