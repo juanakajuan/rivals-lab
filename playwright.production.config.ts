@@ -6,6 +6,7 @@ export default defineConfig({
     "**/pageRoutes.spec.ts",
     "**/production.spec.ts",
     "**/compConcurrentSaves.spec.ts",
+    "**/builderDialog.spec.ts",
     "**/mapPicker.spec.ts",
     "**/boardCustomMaps.spec.ts",
     "**/compMapPicker.spec.ts",

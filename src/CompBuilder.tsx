@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   ArrowUpRight,
   Download,
@@ -7,12 +7,8 @@ import {
   Search,
   Upload,
 } from "lucide-react";
-import {
-  BuilderDialog,
-  DraftPanel,
-  HeroPicker,
-  TeamEditor,
-} from "./BuilderPanels";
+import { DraftPanel, HeroPicker, TeamEditor } from "./BuilderPanels";
+import { ModalDialog } from "./ModalDialog";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { downloadAndCopyCompImage } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
@@ -69,17 +65,20 @@ function NameDialog({
   pending,
   onClose,
   onSubmit,
+  fallbackFocusRef,
 }: {
   readonly request: NameRequest;
   readonly pending: boolean;
   readonly onClose: () => void;
   readonly onSubmit: (name: string) => void;
+  readonly fallbackFocusRef: RefObject<HTMLElement | null>;
 }): React.JSX.Element {
   const [name, setName] = useState(request.name);
   return (
-    <BuilderDialog
+    <ModalDialog
       title={request.kind === "copy" ? "Save comp as" : "Rename comp"}
       onClose={onClose}
+      fallbackFocusRef={fallbackFocusRef}
     >
       <form
         className="dialog-form"
@@ -112,13 +111,15 @@ function NameDialog({
           </button>
         </div>
       </form>
-    </BuilderDialog>
+    </ModalDialog>
   );
 }
 
 export function CompBuilder({
+  isPageActive,
   onOpenBoard,
 }: {
+  readonly isPageActive: boolean;
   readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
   const [session] = useState(() => new SavedCompSession());
@@ -134,6 +135,7 @@ export function CompBuilder({
   const [writing, setWriting] = useState(false);
   const writingRef = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const builderRef = useRef<HTMLElement>(null);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
   const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
@@ -150,6 +152,12 @@ export function CompBuilder({
   else if (message) saveStatus = message;
   else if (dirty) saveStatus = "Unsaved changes";
   else if (savedId) saveStatus = "All changes saved";
+
+  useEffect(() => {
+    if (isPageActive) return;
+    setPicker(null);
+    setNameRequest(null);
+  }, [isPageActive]);
 
   useEffect(() => {
     function warnBeforeUnload(event: BeforeUnloadEvent): void {
@@ -354,7 +362,7 @@ export function CompBuilder({
     pickerTitle = `${picker.slot.kind === "save" ? "Save" : "Ban"} hero · ${teamLabel(picker.slot.team)} · ${picker.slot.index + 1}`;
 
   return (
-    <main className="builder-layout">
+    <main ref={builderRef} className="builder-layout" tabIndex={-1}>
       <aside className="comp-library" aria-labelledby="library-heading">
         <div className="library-heading">
           <FolderOpen size={18} />
@@ -771,20 +779,22 @@ export function CompBuilder({
           </p>
         </details>
       </div>
-      {picker && (
+      {isPageActive && picker && (
         <HeroPicker
           title={pickerTitle}
           mode={picker.kind === "slot" ? "comp" : "draft"}
           unavailable={choiceError}
           onChoose={chooseHero}
           onClose={() => setPicker(null)}
+          fallbackFocusRef={builderRef}
         />
       )}
-      {nameRequest && (
+      {isPageActive && nameRequest && (
         <NameDialog
           request={nameRequest}
           pending={writing}
           onClose={() => setNameRequest(null)}
+          fallbackFocusRef={builderRef}
           onSubmit={(name) => {
             if (nameRequest.kind === "copy") void save(name, true);
             else void rename(nameRequest.id, name);
