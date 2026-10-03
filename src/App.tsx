@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 
-import { BoardPanel, DrawingMenu, HeroPanel, TokenMenu } from "./AppPanels";
+import {
+  BoardPanel,
+  DrawingMenu,
+  HeroPanel,
+  TokenMenu,
+  type BoardUploadState,
+} from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
 import type { BoardDrawing, BoardTool } from "./boardDrawings";
 import { measureBoardNote } from "./boardNote";
@@ -19,7 +25,15 @@ import {
 } from "./heroes";
 import { BoardSession, type HeroPlacement } from "./boardSession";
 import { clampToBoard, type BoardToken } from "./boardTokens";
-import { getMap, type MapId } from "./maps";
+import { getMap, isMapId, type MapId } from "./maps";
+
+import {
+  resolveBoardMap,
+  uploadBoardMap,
+  type BoardMapId,
+  type CustomBoardMap,
+  type SelectedBoardMap,
+} from "./boardMaps";
 
 type Page = "board" | "builder" | "changelog";
 
@@ -54,18 +68,30 @@ export default function App(): React.JSX.Element {
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
   const [session] = useState(() => new BoardSession(measureBoardNote));
   const [boardState, setBoardState] = useState(session.state);
+  const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>([]);
+  const [uploadState, setUploadState] = useState<BoardUploadState>({
+    kind: "idle",
+  });
+  const uploadGeneration = useRef(0);
+  useEffect(
+    () => () => {
+      uploadGeneration.current += 1;
+    },
+    [],
+  );
   const [tool, setTool] = useState<BoardTool>("move");
   const [drawingColor, setDrawingColor] = useState("#ffd166");
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
   const [iconSize, setIconSize] = useState(100);
-  const { mapId: selectedMapId, tokens: savedTokens } = boardState;
+  const { map: selectedBoardMap, tokens: savedTokens } = boardState;
+  const selectedMapId = selectedBoardMap.id;
   const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
   const selectedDrawing = mapDrawings.find(
     (drawing) => drawing.id === selectedDrawingId,
   );
-  const selectedMap = getMap(selectedMapId);
+  const selectedMap = resolveBoardMap(selectedBoardMap);
   const tokens = useMemo(
     () =>
       savedTokens.map((token) => ({
@@ -467,7 +493,7 @@ export default function App(): React.JSX.Element {
   }
 
   function resetBoard(): void {
-    setBoardState(session.reset());
+    setBoardState(session.reset(iconSize));
     setSelectedTokenId(null);
     setAnnouncement("The example formation is restored.");
   }
@@ -478,15 +504,43 @@ export default function App(): React.JSX.Element {
     setAnnouncement("The board is clear.");
   }
 
-  function changeMap(mapId: MapId): void {
-    const map = getMap(mapId);
-    setBoardState(session.changeMap({ mapId, iconSize }));
+  function cancelUpload(): void {
+    uploadGeneration.current += 1;
+    setUploadState({ kind: "idle" });
+  }
+
+  async function uploadMap(file: File): Promise<void> {
+    const generation = ++uploadGeneration.current;
+    setUploadState({ kind: "loading", filename: file.name });
+    const result = await uploadBoardMap(file, customMaps);
+    if (generation !== uploadGeneration.current) return;
+    if (result.kind === "error") {
+      setUploadState(result);
+      return;
+    }
+    setCustomMaps((maps) => [...maps, result.map]);
+    setUploadState({ kind: "idle" });
+    setBoardState(session.changeMap({ map: result.map, iconSize }));
+    setSelectedDrawingId(null);
+    setContextMenu(null);
+    setAnnouncement(`${result.map.name} selected.`);
+  }
+
+  function changeMap(mapId: BoardMapId): void {
+    cancelUpload();
+    const selected = isMapId(mapId)
+      ? ({ kind: "builtin", id: mapId } satisfies SelectedBoardMap)
+      : customMaps.find((map) => map.id === mapId);
+    if (!selected) return;
+    const map = resolveBoardMap(selected);
+    setBoardState(session.changeMap({ map: selected, iconSize }));
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);
   }
 
   function openCompOnBoard(comp: Comp, mapId: MapId): void {
+    cancelUpload();
     if (
       tokens.length &&
       !window.confirm(
@@ -503,6 +557,7 @@ export default function App(): React.JSX.Element {
   }
 
   function restoreBoard(type: "undo" | "redo"): void {
+    cancelUpload();
     if (type === "undo" ? !boardState.canUndo : !boardState.canRedo) return;
     setBoardState(type === "undo" ? session.undo() : session.redo());
     setContextMenu(null);
@@ -612,6 +667,11 @@ export default function App(): React.JSX.Element {
           }
           selectedMapId={selectedMapId}
           selectedMap={selectedMap}
+          customMaps={customMaps}
+          uploadState={uploadState}
+          onUpload={(file) => {
+            void uploadMap(file);
+          }}
           isHeroDragging={isHeroDragging}
           boardHostRef={boardHostRef}
           selectedToken={selectedToken}

@@ -16,7 +16,7 @@ import {
   type HeroRole,
   type Team,
 } from "./heroes";
-import type { MapDefinition } from "./maps";
+import type { BoardMapDefinition } from "./boardMaps";
 import {
   TOKEN_RADIUS,
   clampToBoard,
@@ -25,7 +25,7 @@ import {
 } from "./boardTokens";
 
 export interface BoardSnapshot {
-  readonly map: MapDefinition;
+  readonly map: BoardMapDefinition;
   readonly tokens: readonly BoardToken[];
   readonly selectedTokenId: string | null;
   readonly iconSize: number;
@@ -86,7 +86,7 @@ const ROLE_COLORS: Readonly<Record<HeroRole, string>> = {
 
 function drawMap(
   layer: Konva.Layer,
-  map: MapDefinition,
+  map: BoardMapDefinition,
   image: HTMLImageElement,
 ): void {
   layer.destroyChildren();
@@ -104,7 +104,7 @@ function drawMap(
 function resizeStage(
   stage: Konva.Stage,
   host: HTMLDivElement,
-  map: MapDefinition,
+  map: BoardMapDefinition,
 ): void {
   const { clientWidth: width, clientHeight: height } = host;
   if (width <= 0 || height <= 0) return;
@@ -123,7 +123,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 function boundTokenPosition(
   position: Konva.Vector2d,
   scale: number,
-  map: MapDefinition,
+  map: BoardMapDefinition,
   iconSize: number,
 ): Konva.Vector2d {
   const boundary = tokenBoundary(iconSize);

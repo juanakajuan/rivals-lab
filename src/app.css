@@ -414,14 +414,26 @@ button:focus-visible,
 .map-title h1 {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .board-heading-actions {
   flex-shrink: 0;
   display: flex;
   align-items: flex-end;
-  gap: 18px;
+  gap: 8px;
+}
+
+.map-upload-message {
+  flex: 0 0 auto;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.map-upload-error {
+  color: #ff9498;
 }
 
 .map-picker-trigger,
@@ -821,6 +833,11 @@ button:focus-visible,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .board-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
   .board-shell {
     display: block;
   }
@@ -854,7 +871,7 @@ button:focus-visible,
   }
 
   .board-heading-actions {
-    gap: 0;
+    gap: 8px;
   }
 
   .hero-list {

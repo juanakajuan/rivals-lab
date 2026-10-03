@@ -7,7 +7,7 @@ import { DEFAULT_MAP_ID } from "../src/maps";
 const measureNote: MeasureBoardNote = () => ({ width: 180, height: 36 });
 
 const initial: BoardState = {
-  mapId: DEFAULT_MAP_ID,
+  map: { kind: "builtin", id: DEFAULT_MAP_ID },
   tokens: [
     { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 435 },
   ],
@@ -23,11 +23,11 @@ test("map changes and position bounds form one reversible edit", () => {
   });
   const original = session.state;
   const changed = session.changeMap({
-    mapId: "museum-of-contemplation-convoy",
+    map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
     iconSize: 150,
   });
   expect(changed).toEqual({
-    mapId: "museum-of-contemplation-convoy",
+    map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 622 },
     ],
@@ -63,9 +63,12 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   expect(
     session.moveDrawing({ id: "missing", delta: { x: 10, y: 0 } }),
   ).toBeNull();
-  expect(session.changeMap({ mapId: DEFAULT_MAP_ID, iconSize: 100 })).toBe(
-    restored,
-  );
+  expect(
+    session.changeMap({
+      map: { kind: "builtin", id: DEFAULT_MAP_ID },
+      iconSize: 100,
+    }),
+  ).toBe(restored);
   expect(
     session.addHero({ heroId: "strange", team: "ally", iconSize: 150 }),
   ).toEqual({ kind: "existing" });
@@ -222,7 +225,10 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     session.moveDrawing({ id: "note", delta: { x: -10, y: 9999 } }),
   ).toEqual({ ...note, x: 20, y: 618 });
   expect(session.undo().drawingsByMap[DEFAULT_MAP_ID]).toEqual([note]);
-  session.changeMap({ mapId: "hells-heaven-domination", iconSize: 100 });
+  session.changeMap({
+    map: { kind: "builtin", id: "hells-heaven-domination" },
+    iconSize: 100,
+  });
   const arrow = session.addDrawing({ kind: "arrow", color: "#ff6268" });
   expect(arrow).toMatchObject({
     kind: "arrow",

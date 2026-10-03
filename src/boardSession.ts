@@ -9,13 +9,19 @@ import {
 import { clampToBoard, tokenBoundary, type BoardToken } from "./boardTokens";
 import type { Comp } from "./comps";
 import type { Team } from "./heroes";
-import { DEFAULT_MAP_ID, MAPS, getMap, type MapId } from "./maps";
+import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
+
+import {
+  resolveBoardMap,
+  type BoardMapId,
+  type SelectedBoardMap,
+} from "./boardMaps";
 
 export interface BoardState {
-  readonly mapId: MapId;
+  readonly map: SelectedBoardMap;
   readonly tokens: readonly BoardToken[];
   readonly drawingsByMap: Readonly<
-    Partial<Record<MapId, readonly BoardDrawing[]>>
+    Partial<Record<BoardMapId, readonly BoardDrawing[]>>
   >;
 }
 
@@ -46,13 +52,12 @@ function initialTokens(): BoardToken[] {
 }
 
 function equalBoards(left: BoardState, right: BoardState): boolean {
+  const leftDrawings = new Map(Object.entries(left.drawingsByMap));
+  const rightDrawings = new Map(Object.entries(right.drawingsByMap));
   return (
-    left.mapId === right.mapId &&
-    MAPS.every((map) =>
-      equalDrawings(
-        left.drawingsByMap[map.id] ?? [],
-        right.drawingsByMap[map.id] ?? [],
-      ),
+    left.map.id === right.map.id &&
+    [...leftDrawings.keys(), ...rightDrawings.keys()].every((id) =>
+      equalDrawings(leftDrawings.get(id) ?? [], rightDrawings.get(id) ?? []),
     ) &&
     left.tokens.length === right.tokens.length &&
     left.tokens.every((token, index) => {
@@ -79,7 +84,7 @@ export class BoardSession {
   constructor(
     private readonly measureNote: MeasureBoardNote,
     board: BoardState = {
-      mapId: DEFAULT_MAP_ID,
+      map: { kind: "builtin", id: DEFAULT_MAP_ID },
       tokens: initialTokens(),
       drawingsByMap: {},
     },
@@ -103,7 +108,7 @@ export class BoardSession {
     readonly point: BoardPoint;
     readonly iconSize: number;
   }): HeroPlacement {
-    const map = getMap(this.board.mapId);
+    const map = resolveBoardMap(this.board.map);
     const id = `${team}-${heroId}`;
     const existing = this.board.tokens.find((token) => token.id === id);
     const token: BoardToken = {
@@ -131,7 +136,7 @@ export class BoardSession {
   }): HeroAddResult {
     if (this.board.tokens.some((token) => token.id === `${team}-${heroId}`))
       return { kind: "existing" };
-    const map = getMap(this.board.mapId);
+    const map = resolveBoardMap(this.board.map);
     const boundary = tokenBoundary(iconSize);
     const spacing = boundary * 2 + 4;
     const halfWidth = Math.floor(map.width / 2);
@@ -186,14 +191,14 @@ export class BoardSession {
   }
 
   editDrawing(drawing: BoardDrawing): BoardSessionState {
-    const drawings = this.board.drawingsByMap[this.board.mapId] ?? [];
+    const drawings = this.board.drawingsByMap[this.board.map.id] ?? [];
     const bounded =
       drawing.kind === "note"
         ? moveDrawing(
             drawing,
             drawing.x,
             drawing.y,
-            getMap(this.board.mapId),
+            resolveBoardMap(this.board.map),
             this.measureNote,
           )
         : drawing;
@@ -211,7 +216,7 @@ export class BoardSession {
     readonly kind: BoardDrawing["kind"];
     readonly color: string;
   }): BoardDrawing {
-    const map = getMap(this.board.mapId);
+    const map = resolveBoardMap(this.board.map);
     const created = createDrawing(
       kind,
       { x: map.width / 2 - 80, y: map.height / 2 - 40 },
@@ -233,7 +238,7 @@ export class BoardSession {
     readonly id: string;
     readonly delta: BoardPoint;
   }): BoardDrawing | null {
-    const drawing = this.board.drawingsByMap[this.board.mapId]?.find(
+    const drawing = this.board.drawingsByMap[this.board.map.id]?.find(
       (item) => item.id === id,
     );
     if (!drawing) return null;
@@ -241,7 +246,7 @@ export class BoardSession {
       drawing,
       drawing.x + delta.x,
       drawing.y + delta.y,
-      getMap(this.board.mapId),
+      resolveBoardMap(this.board.map),
       this.measureNote,
     );
     this.editDrawing(moved);
@@ -250,7 +255,7 @@ export class BoardSession {
 
   removeDrawing(id: string): BoardSessionState {
     return this.commitDrawings(
-      (this.board.drawingsByMap[this.board.mapId] ?? []).filter(
+      (this.board.drawingsByMap[this.board.map.id] ?? []).filter(
         (drawing) => drawing.id !== id,
       ),
     );
@@ -260,33 +265,38 @@ export class BoardSession {
     return this.commit({
       ...this.board,
       tokens: [],
-      drawingsByMap: { ...this.board.drawingsByMap, [this.board.mapId]: [] },
+      drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }
 
-  reset(): BoardSessionState {
+  reset(iconSize = 100): BoardSessionState {
+    const map = resolveBoardMap(this.board.map);
     return this.commit({
       ...this.board,
-      tokens: initialTokens(),
-      drawingsByMap: { ...this.board.drawingsByMap, [this.board.mapId]: [] },
+      tokens: initialTokens().map((token) => ({
+        ...token,
+        x: clampToBoard(token.x, map.width, iconSize),
+        y: clampToBoard(token.y, map.height, iconSize),
+      })),
+      drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }
 
   changeMap({
-    mapId,
+    map,
     iconSize,
   }: {
-    readonly mapId: MapId;
+    readonly map: SelectedBoardMap;
     readonly iconSize: number;
   }): BoardSessionState {
-    const map = getMap(mapId);
+    const dimensions = resolveBoardMap(map);
     return this.commit({
       ...this.board,
-      mapId,
+      map,
       tokens: this.board.tokens.map((token) => ({
         ...token,
-        x: clampToBoard(token.x, map.width, iconSize),
-        y: clampToBoard(token.y, map.height, iconSize),
+        x: clampToBoard(token.x, dimensions.width, iconSize),
+        y: clampToBoard(token.y, dimensions.height, iconSize),
       })),
     });
   }
@@ -316,7 +326,11 @@ export class BoardSession {
         });
       });
     }
-    return this.commit({ ...this.board, mapId, tokens });
+    return this.commit({
+      ...this.board,
+      map: { kind: "builtin", id: mapId },
+      tokens,
+    });
   }
 
   undo(): BoardSessionState {
@@ -340,7 +354,7 @@ export class BoardSession {
       ...this.board,
       drawingsByMap: {
         ...this.board.drawingsByMap,
-        [this.board.mapId]: drawings,
+        [this.board.map.id]: drawings,
       },
     });
   }
