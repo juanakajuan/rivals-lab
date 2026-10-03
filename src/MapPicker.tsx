@@ -20,6 +20,8 @@ interface MapPickerProps<Value extends string | null> {
   readonly title: string;
   readonly description?: string;
   readonly onChoose: (value: NoInfer<Value>) => void;
+  readonly renderActions?: (close: () => void) => ReactNode;
+  readonly onClose?: () => void;
 }
 
 function normalizeSearch(text: string): string {
@@ -36,6 +38,8 @@ export function MapPicker<Value extends string | null>({
   title,
   description,
   onChoose,
+  renderActions,
+  onClose,
 }: MapPickerProps<Value>): React.JSX.Element {
   const headingId = useId();
   const descriptionId = useId();
@@ -57,6 +61,13 @@ export function MapPicker<Value extends string | null>({
     flushSync(() => setQuery(""));
     dialog.showModal();
     selectedCardRef.current?.focus();
+  }
+
+  function closePicker(): void {
+    const dialog = dialogRef.current;
+    if (!dialog?.open) return;
+    onClose?.();
+    dialog.close();
   }
 
   return (
@@ -81,8 +92,12 @@ export function MapPicker<Value extends string | null>({
           event.stopPropagation();
           if (event.key === "Escape" && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            event.currentTarget.close();
+            closePicker();
           }
+        }}
+        onCancel={(event) => {
+          event.preventDefault();
+          closePicker();
         }}
         onClose={() => {
           if (dialogRef.current?.open) return;
@@ -98,7 +113,7 @@ export function MapPicker<Value extends string | null>({
             type="button"
             className="map-picker-close"
             aria-label="Close map picker"
-            onClick={() => dialogRef.current?.close()}
+            onClick={closePicker}
           >
             <X size={18} aria-hidden="true" />
           </button>
@@ -117,6 +132,9 @@ export function MapPicker<Value extends string | null>({
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
         </div>
+        {renderActions ? (
+          <div className="map-picker-actions">{renderActions(closePicker)}</div>
+        ) : null}
         <div className="map-picker-cards">
           {visibleOptions.length === 0 ? (
             <p className="map-picker-empty" role="status">
@@ -132,7 +150,7 @@ export function MapPicker<Value extends string | null>({
               aria-label={option.name}
               aria-pressed={option.value === selectedValue}
               onClick={() => {
-                dialogRef.current?.close();
+                closePicker();
                 onChoose(option.value);
               }}
             >

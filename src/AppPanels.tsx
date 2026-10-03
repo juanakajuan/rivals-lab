@@ -3,6 +3,7 @@ import {
   type DragEvent,
   type ReactNode,
   type RefObject,
+  useRef,
 } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -14,9 +15,18 @@ import {
   type HeroDefinition,
   type Team,
 } from "./heroes";
-import type { MapDefinition, MapId } from "./maps";
+import type {
+  BoardMapDefinition,
+  BoardMapId,
+  CustomBoardMap,
+} from "./boardMaps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
+
+export type BoardUploadState =
+  | { readonly kind: "idle" }
+  | { readonly kind: "loading"; readonly filename: string }
+  | { readonly kind: "error"; readonly message: string };
 
 interface HeroPanelProps {
   readonly selectedTeam: Team;
@@ -193,13 +203,17 @@ interface BoardPanelProps {
   readonly drawingControls: ReactNode;
   readonly iconSize: number;
   readonly onIconSizeChange: (size: number) => void;
-  readonly selectedMapId: MapId;
-  readonly selectedMap: MapDefinition;
+  readonly selectedMapId: BoardMapId;
+  readonly selectedMap: BoardMapDefinition;
+  readonly customMaps: readonly CustomBoardMap[];
+  readonly uploadState: BoardUploadState;
+  readonly onUpload: (file: File) => Promise<boolean>;
+  readonly onMapPickerClose: () => void;
   readonly isHeroDragging: boolean;
   readonly boardHostRef: RefObject<HTMLDivElement | null>;
   readonly selectedToken: BoardToken | undefined;
   readonly selectedHero: HeroDefinition | undefined;
-  readonly onMapChange: (mapId: MapId) => void;
+  readonly onMapChange: (mapId: BoardMapId) => void;
   readonly onDrop: (event: DragEvent<HTMLDivElement>) => void;
   readonly onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
@@ -210,6 +224,10 @@ export function BoardPanel({
   onIconSizeChange,
   selectedMapId,
   selectedMap,
+  customMaps,
+  uploadState,
+  onUpload,
+  onMapPickerClose,
   isHeroDragging,
   boardHostRef,
   selectedToken,
@@ -218,6 +236,18 @@ export function BoardPanel({
   onDrop,
   onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const mapOptions = [
+    ...BOARD_MAP_OPTIONS,
+    ...customMaps.map((map) => ({
+      value: map.id,
+      name: map.name,
+      detail: map.mode,
+      imagePath: map.imagePath,
+      imageSize: [map.width, map.height] satisfies readonly [number, number],
+    })),
+  ];
+
   function allowDrop(event: DragEvent<HTMLDivElement>): void {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -231,12 +261,54 @@ export function BoardPanel({
           <p>{selectedMap.mode}</p>
         </div>
         <div className="board-heading-actions">
-          <MapPicker<MapId>
-            options={BOARD_MAP_OPTIONS}
+          <MapPicker<BoardMapId>
+            options={mapOptions}
             selectedValue={selectedMapId}
             triggerLabel="Choose map"
             title="Choose map"
             onChoose={onMapChange}
+            onClose={onMapPickerClose}
+            renderActions={(close) => (
+              <>
+                <button
+                  type="button"
+                  className="map-picker-trigger"
+                  onClick={() => uploadInput.current?.click()}
+                >
+                  Upload image
+                </button>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  aria-label="Upload map image"
+                  tabIndex={-1}
+                  ref={uploadInput}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) {
+                      void onUpload(file).then((selected) => {
+                        if (selected) close();
+                      });
+                    }
+                  }}
+                />
+                {uploadState.kind === "loading" ? (
+                  <p className="map-upload-message" role="status">
+                    Loading {uploadState.filename}...
+                  </p>
+                ) : null}
+                {uploadState.kind === "error" ? (
+                  <p
+                    className="map-upload-message map-upload-error"
+                    role="alert"
+                  >
+                    {uploadState.message}
+                  </p>
+                ) : null}
+              </>
+            )}
           />
         </div>
       </div>

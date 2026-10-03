@@ -51,7 +51,7 @@ export function moveDrawing(
   drawing: BoardDrawing,
   x: number,
   y: number,
-  map: MapDefinition,
+  map: Pick<MapDefinition, "width" | "height">,
   measureNote: MeasureBoardNote,
 ): BoardDrawing {
   const left = drawing.kind === "arrow" ? Math.min(0, drawing.dx) : 0;
