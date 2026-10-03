@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import type Konva from "konva";
 
 declare global {
@@ -45,10 +45,26 @@ async function imageFile(
   return { name, mimeType, buffer: Buffer.from(encoded, "base64") };
 }
 
+function picker(page: Page): Locator {
+  return page.getByRole("dialog", { name: "Choose map", exact: true });
+}
+
+async function openPicker(page: Page): Promise<void> {
+  if (!(await picker(page).isVisible())) {
+    await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  }
+  await expect(picker(page)).toBeVisible();
+}
+
 async function upload(page: Page, file: ImageFile): Promise<void> {
+  await openPicker(page);
   await page
     .getByLabel("Upload map image", { exact: true })
     .setInputFiles(file);
+  await expect(picker(page)).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Choose map", exact: true }),
+  ).toBeFocused();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(file.name);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect
@@ -107,7 +123,7 @@ async function drag(
 }
 
 async function chooseMap(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await openPicker(page);
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", { name, exact: true })
@@ -419,6 +435,7 @@ test("failed uploads preserve image, drawings, formation, undo, and redo", async
     5000,
     "too-many-pixels.png",
   );
+  await openPicker(page);
   for (const { file, message } of [
     {
       file: {
@@ -463,18 +480,29 @@ test("failed uploads preserve image, drawings, formation, undo, and redo", async
     await page
       .getByLabel("Upload map image", { exact: true })
       .setInputFiles(file);
-    await expect(page.getByRole("alert")).toHaveText(message);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "custom-map.png",
-    );
+    await expect(picker(page)).toBeVisible();
+    await expect(picker(page).getByRole("alert")).toHaveText(message);
+    await expect(page.locator(".map-title h1")).toHaveText("custom-map.png");
     expect(await renderedBoard(page)).toEqual(before);
     await expect(
-      page.getByRole("button", { name: "Undo", exact: true }),
+      page.getByRole("button", {
+        name: "Undo",
+        exact: true,
+        includeHidden: true,
+      }),
     ).toBeEnabled();
     await expect(
-      page.getByRole("button", { name: "Redo", exact: true }),
+      page.getByRole("button", {
+        name: "Redo",
+        exact: true,
+        includeHidden: true,
+      }),
     ).toBeEnabled();
   }
+  await picker(page)
+    .getByRole("button", { name: "Close map picker", exact: true })
+    .click();
+  await expect(picker(page)).toBeHidden();
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await page.locator(".stage-host").focus();
   await page.keyboard.press("Enter");
@@ -483,7 +511,7 @@ test("failed uploads preserve image, drawings, formation, undo, and redo", async
   );
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+  await expect(page.locator(".map-title h1")).toHaveText(
     "Intergalactic Empire of Wakanda: Birnin T'Challa",
   );
   await expect(
@@ -491,7 +519,7 @@ test("failed uploads preserve image, drawings, formation, undo, and redo", async
   ).toBeDisabled();
 });
 
-for (const laterChoice of ["builtin", "upload", "undo"] as const) {
+for (const laterChoice of ["builtin", "upload", "undo", "close"] as const) {
   test(`late upload completion cannot replace a later ${laterChoice} selection`, async ({
     page,
   }) => {
@@ -516,6 +544,7 @@ for (const laterChoice of ["builtin", "upload", "undo"] as const) {
         }
       };
     });
+    await openPicker(page);
     await page
       .getByLabel("Upload map image", { exact: true })
       .setInputFiles(late);
@@ -526,7 +555,16 @@ for (const laterChoice of ["builtin", "upload", "undo"] as const) {
     if (laterChoice === "builtin")
       await chooseMap(page, "Museum of Contemplation");
     else if (laterChoice === "upload") await upload(page, newer);
-    else await page.getByRole("button", { name: "Undo", exact: true }).click();
+    else if (laterChoice === "undo") {
+      await page.keyboard.press("Escape");
+      await expect(picker(page)).toBeHidden();
+      await page.getByRole("button", { name: "Undo", exact: true }).click();
+    } else {
+      await picker(page)
+        .getByRole("button", { name: "Close map picker", exact: true })
+        .click();
+      await expect(picker(page)).toBeHidden();
+    }
     await page.evaluate(async () => {
       window.releaseBoardImageDecode?.();
       await new Promise<void>((resolve) =>
@@ -538,7 +576,9 @@ for (const laterChoice of ["builtin", "upload", "undo"] as const) {
         ? "Museum of Contemplation"
         : laterChoice === "upload"
           ? "newer.png"
-          : "Intergalactic Empire of Wakanda: Birnin T'Challa",
+          : laterChoice === "close"
+            ? "first.png"
+            : "Intergalactic Empire of Wakanda: Birnin T'Challa",
     );
     await page.getByRole("button", { name: "Choose map", exact: true }).click();
     await expect(
@@ -551,7 +591,7 @@ for (const laterChoice of ["builtin", "upload", "undo"] as const) {
 
 for (const viewport of [
   { width: 1280, height: 900 },
-  { width: 360, height: 900 },
+  { width: 320, height: 900 },
 ]) {
   test(`portrait upload controls and image fit at width ${viewport.width}`, async ({
     page,
@@ -561,14 +601,37 @@ for (const viewport of [
     const filename =
       "a-very-long-custom-map-image-filename-for-the-position-board.png";
     const file = await imageFile(page, 400, 800, filename);
-    const button = page.getByRole("button", {
+    await expect(
+      page.getByRole("button", { name: "Upload image", exact: true }),
+    ).toHaveCount(0);
+    await openPicker(page);
+    const search = picker(page).getByRole("searchbox", {
+      name: "Search maps",
+      exact: true,
+    });
+    await search.fill("no maps match this search");
+    await expect(picker(page).getByRole("status")).toHaveText(
+      "No maps match your search.",
+    );
+    const button = picker(page).getByRole("button", {
       name: "Upload image",
       exact: true,
     });
+    await expect(button).toBeVisible();
+    const actionBounds = await button.boundingBox();
+    if (!actionBounds) throw new Error("Missing upload control");
+    expect(actionBounds.x).toBeGreaterThanOrEqual(0);
+    expect(actionBounds.x + actionBounds.width).toBeLessThanOrEqual(
+      viewport.width,
+    );
     await button.focus();
     const chooserPromise = page.waitForEvent("filechooser");
     await page.keyboard.press("Enter");
     await (await chooserPromise).setFiles(file);
+    await expect(picker(page)).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: "Choose map", exact: true }),
+    ).toBeFocused();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(filename);
     const bounds = await page.getByRole("heading", { level: 1 }).boundingBox();
     if (!bounds) throw new Error("Missing board heading");
@@ -614,6 +677,7 @@ for (const budget of ["bytes", "pixels"] as const) {
     for (let index = 1; index <= acceptedCount; index++)
       await upload(page, { ...file, name: `map-${index}.png` });
     const before = await renderedBoard(page);
+    await openPicker(page);
     await page
       .getByLabel("Upload map image", { exact: true })
       .setInputFiles({ ...file, name: "over-total.png" });
@@ -622,17 +686,68 @@ for (const budget of ["bytes", "pixels"] as const) {
         ? "This tab has a 50 MiB total image limit. Reload to start again."
         : "This tab has an 80 million pixel total image limit. Reload to start again.",
     );
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    await expect(page.locator(".map-title h1")).toHaveText(
       `map-${acceptedCount}.png`,
     );
     expect(await renderedBoard(page)).toEqual(before);
+    await picker(page)
+      .getByRole("button", { name: "Close map picker", exact: true })
+      .click();
+    await expect(picker(page)).toBeHidden();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    await expect(page.locator(".map-title h1")).toHaveText(
       `map-${acceptedCount - 1}.png`,
     );
     await page.getByRole("button", { name: "Redo", exact: true }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    await expect(page.locator(".map-title h1")).toHaveText(
       `map-${acceptedCount}.png`,
     );
   });
 }
+
+test("cancelled native file choice keeps the modal and board, then an invalid upload can retry", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Draw zone", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Add at center", exact: true })
+    .click();
+  const before = await renderedBoard(page);
+  await expect(
+    page
+      .locator(".board-heading")
+      .getByRole("button", { name: "Upload image", exact: true }),
+  ).toHaveCount(0);
+  await openPicker(page);
+  const uploadButton = picker(page).getByRole("button", {
+    name: "Upload image",
+    exact: true,
+  });
+  await uploadButton.focus();
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.keyboard.press("Enter");
+  await (await chooserPromise).setFiles([]);
+  await expect(picker(page)).toBeVisible();
+  await expect(picker(page).getByRole("alert")).toHaveCount(0);
+  expect(await renderedBoard(page)).toEqual(before);
+  await picker(page)
+    .getByLabel("Upload map image", { exact: true })
+    .setInputFiles({
+      name: "broken.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("broken image"),
+    });
+  await expect(picker(page).getByRole("alert")).toHaveText(
+    "Cannot read this image. Choose another file.",
+  );
+  await expect(picker(page)).toBeVisible();
+  expect(await renderedBoard(page)).toEqual(before);
+  await upload(page, await imageFile(page, 800, 400, "retry.png"));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("retry.png");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Intergalactic Empire of Wakanda: Birnin T'Challa",
+  );
+  expect(await renderedBoard(page)).toEqual(before);
+});

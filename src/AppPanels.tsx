@@ -207,7 +207,8 @@ interface BoardPanelProps {
   readonly selectedMap: BoardMapDefinition;
   readonly customMaps: readonly CustomBoardMap[];
   readonly uploadState: BoardUploadState;
-  readonly onUpload: (file: File) => void;
+  readonly onUpload: (file: File) => Promise<boolean>;
+  readonly onMapPickerClose: () => void;
   readonly isHeroDragging: boolean;
   readonly boardHostRef: RefObject<HTMLDivElement | null>;
   readonly selectedToken: BoardToken | undefined;
@@ -226,6 +227,7 @@ export function BoardPanel({
   customMaps,
   uploadState,
   onUpload,
+  onMapPickerClose,
   isHeroDragging,
   boardHostRef,
   selectedToken,
@@ -265,39 +267,51 @@ export function BoardPanel({
             triggerLabel="Choose map"
             title="Choose map"
             onChoose={onMapChange}
-          />
-          <button
-            type="button"
-            className="map-picker-trigger"
-            onClick={() => uploadInput.current?.click()}
-          >
-            Upload image
-          </button>
-          <input
-            className="sr-only"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            aria-label="Upload map image"
-            tabIndex={-1}
-            ref={uploadInput}
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (file) onUpload(file);
-            }}
+            onClose={onMapPickerClose}
+            renderActions={(close) => (
+              <>
+                <button
+                  type="button"
+                  className="map-picker-trigger"
+                  onClick={() => uploadInput.current?.click()}
+                >
+                  Upload image
+                </button>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  aria-label="Upload map image"
+                  tabIndex={-1}
+                  ref={uploadInput}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) {
+                      void onUpload(file).then((selected) => {
+                        if (selected) close();
+                      });
+                    }
+                  }}
+                />
+                {uploadState.kind === "loading" ? (
+                  <p className="map-upload-message" role="status">
+                    Loading {uploadState.filename}...
+                  </p>
+                ) : null}
+                {uploadState.kind === "error" ? (
+                  <p
+                    className="map-upload-message map-upload-error"
+                    role="alert"
+                  >
+                    {uploadState.message}
+                  </p>
+                ) : null}
+              </>
+            )}
           />
         </div>
       </div>
-      {uploadState.kind === "loading" ? (
-        <p className="map-upload-message" role="status">
-          Loading {uploadState.filename}...
-        </p>
-      ) : null}
-      {uploadState.kind === "error" ? (
-        <p className="map-upload-message map-upload-error" role="alert">
-          {uploadState.message}
-        </p>
-      ) : null}
 
       {drawingControls}
       <div

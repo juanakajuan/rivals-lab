@@ -509,14 +509,14 @@ export default function App(): React.JSX.Element {
     setUploadState({ kind: "idle" });
   }
 
-  async function uploadMap(file: File): Promise<void> {
+  async function uploadMap(file: File): Promise<boolean> {
     const generation = ++uploadGeneration.current;
     setUploadState({ kind: "loading", filename: file.name });
     const result = await uploadBoardMap(file, customMaps);
-    if (generation !== uploadGeneration.current) return;
+    if (generation !== uploadGeneration.current) return false;
     if (result.kind === "error") {
       setUploadState(result);
-      return;
+      return false;
     }
     setCustomMaps((maps) => [...maps, result.map]);
     setUploadState({ kind: "idle" });
@@ -524,6 +524,7 @@ export default function App(): React.JSX.Element {
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${result.map.name} selected.`);
+    return true;
   }
 
   function changeMap(mapId: BoardMapId): void {
@@ -669,9 +670,8 @@ export default function App(): React.JSX.Element {
           selectedMap={selectedMap}
           customMaps={customMaps}
           uploadState={uploadState}
-          onUpload={(file) => {
-            void uploadMap(file);
-          }}
+          onUpload={uploadMap}
+          onMapPickerClose={cancelUpload}
           isHeroDragging={isHeroDragging}
           boardHostRef={boardHostRef}
           selectedToken={selectedToken}

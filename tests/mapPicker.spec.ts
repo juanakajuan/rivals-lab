@@ -49,7 +49,10 @@ test("map cards show complete names and uncropped images; selection closes and r
   await trigger(page).click();
   const dialog = picker(page);
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button")).toHaveCount(4);
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(3);
+  await expect(
+    dialog.getByRole("button", { name: "Upload image", exact: true }),
+  ).toBeVisible();
   await expect(
     dialog.getByRole("button", { name: wakanda, exact: true }),
   ).toBeFocused();
