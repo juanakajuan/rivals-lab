@@ -1,6 +1,13 @@
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import type Konva from "konva";
 
+test.use({
+  trace: {
+    mode: "retain-on-failure",
+    snapshots: { dom: false, aria: true },
+  },
+});
+
 declare global {
   interface Window {
     readonly Konva?: typeof Konva;
