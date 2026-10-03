@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type RefObject } from "react";
 import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
+import { ModalDialog } from "./ModalDialog";
 import { draftSlots, type DraftState, type DraftSlot } from "./draft";
 import type { CompEdit } from "./compEdits";
 import {
@@ -19,44 +20,6 @@ import {
 } from "./heroes";
 import type { CompSlot } from "./comps";
 
-export function BuilderDialog({
-  title,
-  onClose,
-  children,
-}: {
-  readonly title: string;
-  readonly onClose: () => void;
-  readonly children: ReactNode;
-}): React.JSX.Element {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className="builder-dialog"
-      aria-label={title}
-      onCancel={onClose}
-    >
-      <div className="dialog-heading">
-        <h2>{title}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={onClose}
-        >
-          <X size={18} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
-
 interface HeroOption extends HeroDefinition {
   readonly deadpoolRole?: DeadpoolRole;
 }
@@ -67,12 +30,14 @@ export function HeroPicker({
   unavailable,
   onChoose,
   onClose,
+  fallbackFocusRef,
 }: {
   readonly title: string;
   readonly mode: "comp" | "draft";
   readonly unavailable: (heroId: string) => string | null;
   readonly onChoose: (selection: HeroSelection) => void;
   readonly onClose: () => void;
+  readonly fallbackFocusRef: RefObject<HTMLElement | null>;
 }): React.JSX.Element {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<HeroRole | "All">("All");
@@ -95,7 +60,11 @@ export function HeroPicker({
       (role === "All" || hero.role === role || hero.role === "All Roles"),
   );
   return (
-    <BuilderDialog title={title} onClose={onClose}>
+    <ModalDialog
+      title={title}
+      onClose={onClose}
+      fallbackFocusRef={fallbackFocusRef}
+    >
       <label className="builder-search">
         <Search size={16} />
         <input
@@ -146,7 +115,7 @@ export function HeroPicker({
       {heroes.length === 0 && (
         <p className="empty-copy">No heroes match this search.</p>
       )}
-    </BuilderDialog>
+    </ModalDialog>
   );
 }
 

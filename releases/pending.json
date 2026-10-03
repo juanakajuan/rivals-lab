@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "builder-dialog-focus-navigation",
+    "text": "Bug fix: Builder dialogs focus their inputs, return focus when closed, and close when you leave the builder."
+  }
+]

@@ -685,7 +685,10 @@ export default function App(): React.JSX.Element {
       </main>
 
       <div className="builder-page" hidden={page !== "builder"}>
-        <CompBuilder onOpenBoard={openCompOnBoard} />
+        <CompBuilder
+          isPageActive={page === "builder"}
+          onOpenBoard={openCompOnBoard}
+        />
       </div>
 
       <div className="changelog-container" hidden={page !== "changelog"}>
