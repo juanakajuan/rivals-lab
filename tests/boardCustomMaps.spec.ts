@@ -128,6 +128,7 @@ async function chooseMap(page: Page, name: string): Promise<void> {
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", { name, exact: true })
     .click();
+  await expect(picker(page)).toBeHidden();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
 }
 
