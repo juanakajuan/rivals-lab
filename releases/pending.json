@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "comp-map-image-selector",
+    "text": "Feature: Choose a comp map from its image and see its name once below it."
+  }
+]

@@ -66,7 +66,7 @@ test("saved comp fields survive a production reload", async ({ page }) => {
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Midtown plan",
   );
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Midtown · Convoy",
   );
   await expect(

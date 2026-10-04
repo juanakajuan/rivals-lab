@@ -4,6 +4,7 @@ import { compStatus } from "./compEdits";
 import { COMP_MAPS } from "./compMaps";
 import { COMP_MAP_OPTIONS } from "./mapPickerOptions";
 import { MapPicker } from "./MapPicker";
+import { Map } from "lucide-react";
 
 export interface CompSettingsPanelProps {
   readonly comp: Comp;
@@ -61,21 +62,6 @@ export function CompSettingsPanel({
           </button>
         </div>
         <div className="settings-grid">
-          <div className="comp-map-field">
-            <span>Comp map</span>
-            <MapPicker<string | null>
-              options={COMP_MAP_OPTIONS}
-              selectedValue={comp.mapId}
-              triggerLabel="Comp map"
-              triggerContent={
-                selectedMap
-                  ? `${selectedMap.name} · ${selectedMap.mode}`
-                  : "Any map"
-              }
-              title="Choose comp map"
-              onChoose={onMapChange}
-            />
-          </div>
           <label>
             Draft format
             <select
@@ -95,20 +81,39 @@ export function CompSettingsPanel({
           </label>
         </div>
       </div>
-      {selectedMap ? (
-        <figure className="selected-map-preview">
-          <img
-            src={selectedMap.previewImagePath}
-            alt=""
-            style={{ objectPosition: selectedMap.selectedCardPosition }}
-          />
-          <figcaption>
-            {selectedMap.name} · {selectedMap.mode}
-          </figcaption>
-        </figure>
-      ) : (
-        <p className="selected-map-neutral">Any map</p>
-      )}
+      <figure className="selected-map-preview">
+        <MapPicker<string | null>
+          options={COMP_MAP_OPTIONS}
+          selectedValue={comp.mapId}
+          triggerLabel="Comp map"
+          triggerClassName="selected-map-trigger"
+          triggerContent={
+            <>
+              {selectedMap ? (
+                <img
+                  src={selectedMap.previewImagePath}
+                  alt=""
+                  style={{ objectPosition: selectedMap.selectedCardPosition }}
+                />
+              ) : (
+                <span className="selected-map-neutral" aria-hidden="true">
+                  <Map />
+                </span>
+              )}
+              <span className="selected-map-cue" aria-hidden="true">
+                {selectedMap ? "Change map" : "Choose map"}
+              </span>
+            </>
+          }
+          title="Choose comp map"
+          onChoose={onMapChange}
+        />
+        <figcaption>
+          {selectedMap
+            ? `${selectedMap.name} · ${selectedMap.mode}`
+            : "Any map"}
+        </figcaption>
+      </figure>
     </section>
   );
 }
