@@ -1,5 +1,6 @@
-import { X } from "lucide-react";
-import { useId, useRef, useState, type ReactNode } from "react";
+import { Dialog } from "./ui/Dialog";
+import { SearchField } from "./ui/SearchField";
+import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
 export interface MapPickerOption<Value extends string | null> {
@@ -41,8 +42,6 @@ export function MapPicker<Value extends string | null>({
   renderActions,
   onClose,
 }: MapPickerProps<Value>): React.JSX.Element {
-  const headingId = useId();
-  const descriptionId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
@@ -83,10 +82,11 @@ export function MapPicker<Value extends string | null>({
       >
         {triggerContent ?? triggerLabel}
       </button>
-      <dialog
-        className="map-picker-dialog"
-        aria-labelledby={headingId}
-        aria-describedby={description ? descriptionId : undefined}
+      <Dialog
+        appearance="map"
+        title={title}
+        {...(description === undefined ? {} : { description })}
+        onRequestClose={closePicker}
         ref={dialogRef}
         onKeyDown={(event) => {
           event.stopPropagation();
@@ -107,31 +107,14 @@ export function MapPicker<Value extends string | null>({
             trigger.focus({ preventScroll: true });
         }}
       >
-        <div className="map-picker-header">
-          <h2 id={headingId}>{title}</h2>
-          <button
-            type="button"
-            className="map-picker-close"
-            aria-label="Close map picker"
-            onClick={closePicker}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-        {description ? (
-          <p className="map-picker-description" id={descriptionId}>
-            {description}
-          </p>
-        ) : null}
-        <div className="map-picker-search">
-          <input
-            type="search"
-            aria-label="Search maps"
-            placeholder="Search by map name or mode"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-        </div>
+        <SearchField
+          wrapper="div"
+          className="map-picker-search"
+          label="Search maps"
+          placeholder="Search by map name or mode"
+          value={query}
+          onValueChange={setQuery}
+        />
         {renderActions ? (
           <div className="map-picker-actions">{renderActions(closePicker)}</div>
         ) : null}
@@ -178,7 +161,7 @@ export function MapPicker<Value extends string | null>({
             </button>
           ))}
         </div>
-      </dialog>
+      </Dialog>
     </>
   );
 }

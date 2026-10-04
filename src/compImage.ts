@@ -1,3 +1,4 @@
+import { downloadBlob } from "./downloadBlob";
 import { COMP_MAPS } from "./compMaps";
 import { type Comp } from "./comps";
 import { draftEffects, draftSlots, type DraftActionKind } from "./draft";
@@ -587,15 +588,7 @@ function downloadImage(image: Blob, name: string): void {
     !stem || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)
       ? "rivals-comp"
       : stem;
-  const url = URL.createObjectURL(image);
-  try {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${filename}.png`;
-    link.click();
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  downloadBlob({ blob: image, filename: `${filename}.png` });
 }
 
 /** Start clipboard access during the click; download need not wait for it. */

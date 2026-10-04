@@ -1,18 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowUpRight,
-  Download,
-  FolderOpen,
-  Plus,
-  Search,
-  Upload,
-} from "lucide-react";
-import {
-  BuilderDialog,
-  DraftPanel,
-  HeroPicker,
-  TeamEditor,
-} from "./BuilderPanels";
+import { ArrowUpRight, Download } from "lucide-react";
+import { DraftPanel, HeroPicker, TeamEditor } from "./BuilderPanels";
+import { CompLibraryPanel } from "./CompLibraryPanel";
+import { CompSettingsPanel } from "./CompSettingsPanel";
+import { Dialog } from "./ui/Dialog";
+import { downloadBlob } from "./downloadBlob";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { downloadAndCopyCompImage } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
@@ -27,16 +19,10 @@ import {
 import { SavedCompSession, SavedCompWriteError } from "./savedComps";
 import { browserCompStorage } from "./compStorage";
 import { draftEffects, type DraftFormat } from "./draft";
-import {
-  HERO_BY_ID,
-  heroImagePath,
-  teamLabel,
-  type HeroSelection,
-  type Team,
-} from "./heroes";
+import { teamLabel, type HeroSelection, type Team } from "./heroes";
 import type { MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
-import { BOARD_MAP_OPTIONS, COMP_MAP_OPTIONS } from "./mapPickerOptions";
+import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 import "./builder.css";
 
 type NameRequest =
@@ -53,17 +39,6 @@ function writeErrorMessage(error: unknown): string {
   return `Could not save changes. ${errorMessage(error)} Existing saved data was kept.`;
 }
 
-function downloadJson(source: string, filename: string): void {
-  const url = URL.createObjectURL(
-    new Blob([source], { type: "application/json" }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 function NameDialog({
   request,
   pending,
@@ -77,9 +52,12 @@ function NameDialog({
 }): React.JSX.Element {
   const [name, setName] = useState(request.name);
   return (
-    <BuilderDialog
+    <Dialog
+      appearance="builder"
+      openOnMount
+      onCancel={onClose}
       title={request.kind === "copy" ? "Save comp as" : "Rename comp"}
-      onClose={onClose}
+      onRequestClose={onClose}
     >
       <form
         className="dialog-form"
@@ -112,7 +90,7 @@ function NameDialog({
           </button>
         </div>
       </form>
-    </BuilderDialog>
+    </Dialog>
   );
 }
 
@@ -124,7 +102,6 @@ export function CompBuilder({
   const [session] = useState(() => new SavedCompSession());
   const [savedState, setSavedState] = useState(() => session.state);
   const { comp, savedId, dirty, library } = savedState;
-  const [librarySearch, setLibrarySearch] = useState("");
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [message, setMessage] = useState("");
@@ -133,17 +110,12 @@ export function CompBuilder({
   const exportingImageRef = useRef(false);
   const [writing, setWriting] = useState(false);
   const writingRef = useRef(false);
-  const fileInput = useRef<HTMLInputElement>(null);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
   const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
   const supportedBoardMapId = selectedMap?.boardMapId;
   const boardTransferDisabled = !TEAMS.some((team) =>
     comp.teams[team].some((slot) => slot.heroId),
-  );
-  const search = librarySearch.trim().toLowerCase();
-  const filteredComps = library.entries.filter((entry) =>
-    entry.comp.name.toLowerCase().includes(search),
   );
   let saveStatus = "New comp · not saved";
   if (writing) saveStatus = "Saving changes…";
@@ -200,7 +172,12 @@ export function CompBuilder({
     entry?: SavedComp,
   ): Promise<void> {
     try {
-      downloadJson(await session.exportData(entry), filename);
+      downloadBlob({
+        blob: new Blob([await session.exportData(entry)], {
+          type: "application/json",
+        }),
+        filename,
+      });
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -355,166 +332,23 @@ export function CompBuilder({
 
   return (
     <main className="builder-layout">
-      <aside className="comp-library" aria-labelledby="library-heading">
-        <div className="library-heading">
-          <FolderOpen size={18} />
-          <h2 id="library-heading">Saved comps</h2>
-          <span>{library.entries.length}</span>
-        </div>
-        <button
-          type="button"
-          className="primary-button wide-button"
-          onClick={() => load(null)}
-        >
-          <Plus size={15} />
-          New comp
-        </button>
-        <label className="builder-search">
-          <Search size={15} />
-          <input
-            type="search"
-            placeholder="Search comps…"
-            aria-label="Search saved comps"
-            value={librarySearch}
-            onChange={(event) => setLibrarySearch(event.currentTarget.value)}
-          />
-        </label>
-        <div className="library-list">
-          {filteredComps.map((entry) => {
-            const savedMap = COMP_MAPS.find(
-              (map) => map.id === entry.comp.mapId,
-            );
-            return (
-              <article
-                className={`saved-comp${entry.id === savedId ? " selected" : ""}`}
-                key={entry.id}
-              >
-                <button
-                  type="button"
-                  className="load-comp"
-                  onClick={() => load(entry)}
-                  aria-label={`Load ${entry.comp.name}`}
-                >
-                  {savedMap && (
-                    <img
-                      className="saved-map-preview"
-                      src={savedMap.previewImagePath}
-                      alt=""
-                      loading="lazy"
-                    />
-                  )}
-                  <strong>{entry.comp.name}</strong>
-                  <span className="saved-comp-map">
-                    {savedMap?.name ?? "Any map"}
-                  </span>
-                  <span className="saved-comp-meta">
-                    {entry.comp.draft?.format.toUpperCase() ?? "Free build"} ·{" "}
-                    {compStatus(entry.comp)}
-                  </span>
-                  <span className="saved-portraits">
-                    {entry.comp.teams.ally.map((slot, index) =>
-                      slot.heroId ? (
-                        <img
-                          key={index}
-                          src={heroImagePath(slot.heroId)}
-                          alt={`${HERO_BY_ID.get(slot.heroId)?.name ?? ""}${slot.deadpoolRole ? ` · ${slot.deadpoolRole}` : ""}`}
-                        />
-                      ) : (
-                        <span key={index} />
-                      ),
-                    )}
-                  </span>
-                </button>
-                <div className="saved-comp-actions">
-                  <button
-                    type="button"
-                    aria-label={`Rename ${entry.comp.name}`}
-                    disabled={writing}
-                    onClick={() =>
-                      setNameRequest({
-                        kind: "rename",
-                        id: entry.id,
-                        name: entry.comp.name,
-                      })
-                    }
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Export ${entry.comp.name}`}
-                    onClick={() =>
-                      void exportStoredData("rivals-comp.json", entry)
-                    }
-                  >
-                    Export
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${entry.comp.name}`}
-                    disabled={writing}
-                    onClick={() => void deleteComp(entry)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-          {!filteredComps.length && (
-            <div className="library-empty">
-              <FolderOpen size={28} />
-              <p>
-                {librarySearch
-                  ? "No matching comps."
-                  : "Your playbook starts here."}
-              </p>
-              <small>
-                {librarySearch
-                  ? "Try another name."
-                  : "Build a team, add notes, then save it for your next match."}
-              </small>
-            </div>
-          )}
-        </div>
-        <div className="library-footer">
-          <div className="library-file-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={writing}
-              onClick={() => fileInput.current?.click()}
-            >
-              <Upload size={14} />
-              Import
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={!library.entries.length && !library.error}
-              onClick={() => void exportStoredData("rivals-comps.json")}
-            >
-              <Download size={14} />
-              Export all
-            </button>
-          </div>
-          <input
-            ref={fileInput}
-            type="file"
-            hidden
-            accept=".json,application/json"
-            aria-label="Import comps JSON"
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (file) void importFile(file);
-            }}
-          />
-          <p>
-            Saved in this browser. Export a file to back up or move your comps.
-          </p>
-        </div>
-      </aside>
+      <CompLibraryPanel
+        library={library}
+        savedId={savedId}
+        writing={writing}
+        onLoad={load}
+        onRename={(entry) =>
+          setNameRequest({
+            kind: "rename",
+            id: entry.id,
+            name: entry.comp.name,
+          })
+        }
+        onExport={(entry) => void exportStoredData("rivals-comp.json", entry)}
+        onDelete={(entry) => void deleteComp(entry)}
+        onImport={(file) => void importFile(file)}
+        onExportAll={() => void exportStoredData("rivals-comps.json")}
+      />
 
       <div className="builder-workspace">
         <div className="builder-heading">
@@ -588,99 +422,20 @@ export function CompBuilder({
         <div className="save-status" role="status">
           {saveStatus}
         </div>
-        <section
-          className="builder-card comp-settings"
-          aria-label="Comp settings"
-        >
-          <div className="comp-settings-fields">
-            <div className="comp-name-row">
-              <label>
-                Comp name
-                <input
-                  value={comp.name}
-                  maxLength={100}
-                  placeholder="e.g. Midtown dive"
-                  onChange={(event) =>
-                    edit({ kind: "name", value: event.currentTarget.value })
-                  }
-                />
-              </label>
-              <span className={`status-tag status-${status.toLowerCase()}`}>
-                {status}
-              </span>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={writing}
-                onClick={() =>
-                  setNameRequest({
-                    kind: "copy",
-                    name: comp.name ? `${comp.name.slice(0, 93)} (copy)` : "",
-                  })
-                }
-              >
-                Save As
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                disabled={writing}
-                aria-busy={writing}
-                onClick={() => void save(comp.name)}
-              >
-                Save
-              </button>
-            </div>
-            <div className="settings-grid">
-              <div className="comp-map-field">
-                <span>Comp map</span>
-                <MapPicker<string | null>
-                  options={COMP_MAP_OPTIONS}
-                  selectedValue={comp.mapId}
-                  triggerLabel="Comp map"
-                  triggerContent={
-                    selectedMap
-                      ? `${selectedMap.name} · ${selectedMap.mode}`
-                      : "Any map"
-                  }
-                  title="Choose comp map"
-                  onChoose={changeMap}
-                />
-              </div>
-              <label>
-                Draft format
-                <select
-                  aria-label="Draft format"
-                  value={comp.draft?.format ?? "free"}
-                  onChange={(event) => {
-                    const format = event.currentTarget.value;
-                    if (format === "free") changeDraft(null);
-                    else if (format === "mrc" || format === "ignite")
-                      changeDraft(format);
-                  }}
-                >
-                  <option value="free">Free build</option>
-                  <option value="mrc">MRC · 4 bans / 2 saves</option>
-                  <option value="ignite">Ignite · 5 bans / 2 saves</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          {selectedMap ? (
-            <figure className="selected-map-preview">
-              <img
-                src={selectedMap.previewImagePath}
-                alt=""
-                style={{ objectPosition: selectedMap.selectedCardPosition }}
-              />
-              <figcaption>
-                {selectedMap.name} · {selectedMap.mode}
-              </figcaption>
-            </figure>
-          ) : (
-            <p className="selected-map-neutral">Any map</p>
-          )}
-        </section>
+        <CompSettingsPanel
+          comp={comp}
+          writing={writing}
+          onNameChange={(value) => edit({ kind: "name", value })}
+          onSaveAs={() =>
+            setNameRequest({
+              kind: "copy",
+              name: comp.name ? `${comp.name.slice(0, 93)} (copy)` : "",
+            })
+          }
+          onSave={() => void save(comp.name)}
+          onMapChange={changeMap}
+          onDraftChange={changeDraft}
+        />
         {comp.draft && (
           <DraftPanel
             draft={comp.draft}
