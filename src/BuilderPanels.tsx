@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState } from "react";
+import { Dialog } from "./ui/Dialog";
+import { SearchField } from "./ui/SearchField";
 import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { draftSlots, type DraftState, type DraftSlot } from "./draft";
@@ -18,44 +20,6 @@ import {
   type HeroRole,
 } from "./heroes";
 import type { CompSlot } from "./comps";
-
-export function BuilderDialog({
-  title,
-  onClose,
-  children,
-}: {
-  readonly title: string;
-  readonly onClose: () => void;
-  readonly children: ReactNode;
-}): React.JSX.Element {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className="builder-dialog"
-      aria-label={title}
-      onCancel={onClose}
-    >
-      <div className="dialog-heading">
-        <h2>{title}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={onClose}
-        >
-          <X size={18} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
 
 interface HeroOption extends HeroDefinition {
   readonly deadpoolRole?: DeadpoolRole;
@@ -95,18 +59,23 @@ export function HeroPicker({
       (role === "All" || hero.role === role || hero.role === "All Roles"),
   );
   return (
-    <BuilderDialog title={title} onClose={onClose}>
-      <label className="builder-search">
-        <Search size={16} />
-        <input
-          autoFocus
-          type="search"
-          aria-label="Find a hero"
-          placeholder="Find a hero…"
-          value={search}
-          onChange={(event) => setSearch(event.currentTarget.value)}
-        />
-      </label>
+    <Dialog
+      appearance="builder"
+      title={title}
+      openOnMount
+      onRequestClose={onClose}
+      onCancel={onClose}
+    >
+      <SearchField
+        wrapper="label"
+        className="builder-search"
+        icon={<Search size={16} />}
+        autoFocus
+        label="Find a hero"
+        placeholder="Find a hero…"
+        value={search}
+        onValueChange={setSearch}
+      />
       <div className="role-filters" aria-label="Hero roles">
         {roles.map((item) => (
           <button
@@ -146,7 +115,7 @@ export function HeroPicker({
       {heroes.length === 0 && (
         <p className="empty-copy">No heroes match this search.</p>
       )}
-    </BuilderDialog>
+    </Dialog>
   );
 }
 

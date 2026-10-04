@@ -1,13 +1,13 @@
+import { SearchField } from "./ui/SearchField";
+import { FilePickerButton } from "./ui/FilePickerButton";
 import {
   Fragment,
   type DragEvent,
   type ReactNode,
   type RefObject,
-  useRef,
 } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import type { BoardDrawing } from "./boardDrawings";
 import type { BoardToken } from "./boardTokens";
 import {
   heroImagePath,
@@ -87,28 +87,21 @@ export function HeroPanel({
           </button>
         </div>
 
-        <div className="hero-search">
-          <svg aria-hidden="true" viewBox="0 0 16 16">
-            <circle cx="7" cy="7" r="4.25" />
-            <path d="m10.25 10.25 3.25 3.25" />
-          </svg>
-          <input
-            type="search"
-            value={heroSearch}
-            onChange={(event) => onSearchChange(event.currentTarget.value)}
-            placeholder="Search heroes"
-            aria-label="Search heroes"
-          />
-          {heroSearch.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => onSearchChange("")}
-              aria-label="Clear hero search"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
+        <SearchField
+          wrapper="div"
+          className="hero-search"
+          label="Search heroes"
+          placeholder="Search heroes"
+          value={heroSearch}
+          onValueChange={onSearchChange}
+          clearLabel="Clear hero search"
+          icon={
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <circle cx="7" cy="7" r="4.25" />
+              <path d="m10.25 10.25 3.25 3.25" />
+            </svg>
+          }
+        />
       </div>
 
       <div className="hero-list">
@@ -236,7 +229,6 @@ export function BoardPanel({
   onDrop,
   onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
-  const uploadInput = useRef<HTMLInputElement>(null);
   const mapOptions = [
     ...BOARD_MAP_OPTIONS,
     ...customMaps.map((map) => ({
@@ -270,30 +262,19 @@ export function BoardPanel({
             onClose={onMapPickerClose}
             renderActions={(close) => (
               <>
-                <button
-                  type="button"
-                  className="map-picker-trigger"
-                  onClick={() => uploadInput.current?.click()}
+                <FilePickerButton
+                  buttonClassName="map-picker-trigger"
+                  inputAppearance="sr-only"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  inputLabel="Upload map image"
+                  onFile={(file) => {
+                    void onUpload(file).then((selected) => {
+                      if (selected) close();
+                    });
+                  }}
                 >
                   Upload image
-                </button>
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  aria-label="Upload map image"
-                  tabIndex={-1}
-                  ref={uploadInput}
-                  onChange={(event) => {
-                    const file = event.currentTarget.files?.[0];
-                    event.currentTarget.value = "";
-                    if (file) {
-                      void onUpload(file).then((selected) => {
-                        if (selected) close();
-                      });
-                    }
-                  }}
-                />
+                </FilePickerButton>
                 {uploadState.kind === "loading" ? (
                   <p className="map-upload-message" role="status">
                     Loading {uploadState.filename}...
@@ -387,70 +368,6 @@ function SelectionSummary({
       <span className="coordinates">
         x {token.x}, y {token.y}
       </span>
-    </div>
-  );
-}
-
-interface TokenMenuProps {
-  readonly x: number;
-  readonly y: number;
-  readonly token: BoardToken;
-  readonly hero: HeroDefinition;
-  readonly onRemove: (token: BoardToken) => void;
-}
-
-export function TokenMenu({
-  x,
-  y,
-  token,
-  hero,
-  onRemove,
-}: TokenMenuProps): React.JSX.Element {
-  return (
-    <div
-      className="token-context-menu"
-      style={{ left: x, top: y }}
-      role="menu"
-      aria-label={`${hero.name} actions`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button type="button" role="menuitem" onClick={() => onRemove(token)}>
-        <svg aria-hidden="true" viewBox="0 0 20 20">
-          <path d="M3.5 5.5h13M8 3h4l1 2.5H7L8 3Zm-2.5 2.5.8 11h7.4l.8-11M8.3 8v6M11.7 8v6" />
-        </svg>
-        Remove {hero.name}
-      </button>
-    </div>
-  );
-}
-
-export function DrawingMenu({
-  x,
-  y,
-  drawing,
-  onRemove,
-}: {
-  readonly x: number;
-  readonly y: number;
-  readonly drawing: BoardDrawing;
-  readonly onRemove: (drawing: BoardDrawing) => void;
-}): React.JSX.Element {
-  return (
-    <div
-      className="token-context-menu"
-      style={{ left: x, top: y }}
-      role="menu"
-      aria-label={`${drawing.kind} actions`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        autoFocus
-        onClick={() => onRemove(drawing)}
-      >
-        Remove {drawing.kind}
-      </button>
     </div>
   );
 }
