@@ -124,6 +124,16 @@ export class SavedCompSession {
     return this.current;
   }
 
+  openImported(comp: Comp): SavedCompSessionState {
+    this.load(null);
+    this.current = {
+      ...this.current,
+      comp,
+      dirty: !sameComp(comp, this.baseline),
+    };
+    return this.current;
+  }
+
   async save(name: string, asCopy = false): Promise<SaveResult> {
     const trimmed = name.trim();
     if (!trimmed) throw new Error("Enter a comp name before saving.");

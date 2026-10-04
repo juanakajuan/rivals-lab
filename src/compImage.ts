@@ -1,6 +1,7 @@
 import { downloadBlob } from "./downloadBlob";
 import { COMP_MAPS } from "./compMaps";
-import { type Comp } from "./comps";
+import { parseCompSnapshot, type Comp } from "./comps";
+import { createCompImageFooter } from "./compImagePayload";
 import { draftEffects, draftSlots, type DraftActionKind } from "./draft";
 import {
   HERO_BY_ID,
@@ -76,7 +77,7 @@ function wrapText(
 }
 
 /** Render a read-only snapshot, independent of editor scroll and input sizes. */
-export async function renderCompImage(comp: Comp): Promise<Blob> {
+async function renderCompImagePixels(comp: Comp): Promise<Blob> {
   const teams = TEAMS.filter((team) =>
     comp.teams[team].some((slot) => slot.heroId || slot.notes.trim()),
   );
@@ -490,10 +491,12 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     y += compNotesHeight + GAP;
   }
   const width = compPages * WIDTH;
-  const height = Math.ceil(y + PADDING);
+  const contentHeight = Math.ceil(y + PADDING);
+  const footer = await createCompImageFooter(comp, width);
+  const height = contentHeight + footer.height;
   if (width > 16000 || height > 16000 || width * height > 64_000_000)
     throw new Error(
-      "This build is too large for one image. Shorten the notes and try again.",
+      "This build is too large for one image. Shorten the notes or use JSON export.",
     );
   canvas.width = width;
   canvas.height = height;
@@ -501,6 +504,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   context.fillRect(0, 0, width, height);
   context.textBaseline = "top";
   for (const draw of commands) draw();
+  footer.draw(context, contentHeight);
   // Encoding in a worker avoids the page's idle-task queue for PNG export.
   if ("transferToImageBitmap" in canvas && typeof Worker !== "undefined") {
     let image: ImageBitmap | undefined;
@@ -552,6 +556,15 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       else reject(new Error("This browser could not create the PNG image."));
     }, "image/png");
   });
+}
+
+export async function renderCompImage(comp: Comp): Promise<Blob> {
+  const image = await renderCompImagePixels(comp);
+  if (image.size > 32 * 1024 * 1024)
+    throw new Error(
+      "This build is too large for one image. Shorten the notes or use JSON export.",
+    );
+  return image;
 }
 
 interface ImageShareResult {
@@ -610,4 +623,64 @@ export async function downloadAndCopyCompImage(
     downloadError = imageError(error);
   }
   return { downloadError, copyError: await copyResult };
+}
+
+export async function readCompImage(
+  image: Blob,
+  signal?: AbortSignal,
+): Promise<Comp> {
+  signal?.throwIfAborted();
+  if (image.size === 0 || image.size > 32 * 1024 * 1024)
+    throw new Error("Choose an image file smaller than 32 MB.");
+  const worker = new Worker(
+    new URL("./compImageImport.worker.ts", import.meta.url),
+    { type: "module" },
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort = () => {};
+  try {
+    return await new Promise<Comp>((resolve, reject) => {
+      abort = () =>
+        reject(new DOMException("Image import canceled.", "AbortError"));
+      signal?.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(
+              "This image took too long to read. Use the original export or a clearer screenshot.",
+            ),
+          ),
+        15_000,
+      );
+      worker.onmessage = (event: MessageEvent<unknown>) => {
+        const value = event.data;
+        try {
+          if (typeof value !== "object" || value === null)
+            throw new Error("The image reader returned invalid data.");
+          if ("error" in value && typeof value.error === "string")
+            throw new Error(value.error);
+          if (!("comp" in value))
+            throw new Error("The image reader returned invalid data.");
+          resolve(parseCompSnapshot(value.comp));
+        } catch (error) {
+          reject(
+            error instanceof Error
+              ? error
+              : new Error("The image could not be read."),
+          );
+        }
+      };
+      worker.onerror = () =>
+        reject(
+          new Error("This browser could not read the comp image. Try again."),
+        );
+      worker.onmessageerror = () =>
+        reject(new Error("The image reader returned invalid data."));
+      worker.postMessage(image);
+    });
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+    worker.terminate();
+  }
 }

@@ -9,6 +9,7 @@ export default defineConfig({
     "**/mapPicker.spec.ts",
     "**/boardCustomMaps.spec.ts",
     "**/compMapPicker.spec.ts",
+    "**/compImageImport.spec.ts",
   ],
   forbidOnly: Boolean(process.env["CI"]),
   workers: 2,

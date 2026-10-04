@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Download } from "lucide-react";
+import { ArrowUpRight, Download, Upload } from "lucide-react";
 import { DraftPanel, HeroPicker, TeamEditor } from "./BuilderPanels";
 import { CompLibraryPanel } from "./CompLibraryPanel";
 import { CompSettingsPanel } from "./CompSettingsPanel";
 import { Dialog } from "./ui/Dialog";
+import { FilePickerButton } from "./ui/FilePickerButton";
 import { downloadBlob } from "./downloadBlob";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
-import { downloadAndCopyCompImage } from "./compImage";
+import { downloadAndCopyCompImage, readCompImage } from "./compImage";
+import { CompImageReview } from "./CompImageReview";
 import { COMP_MAPS } from "./compMaps";
 import type { Comp, SavedComp } from "./comps";
 import {
@@ -24,6 +26,11 @@ import type { MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 import "./builder.css";
+
+type ImageImportState =
+  | { readonly kind: "closed" }
+  | { readonly kind: "reading" }
+  | { readonly kind: "review"; readonly comp: Comp };
 
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
@@ -110,6 +117,11 @@ export function CompBuilder({
   const exportingImageRef = useRef(false);
   const [writing, setWriting] = useState(false);
   const writingRef = useRef(false);
+  const imageRequest = useRef<AbortController | null>(null);
+  const [imageImport, setImageImport] = useState<ImageImportState>({
+    kind: "closed",
+  });
+  useEffect(() => () => imageRequest.current?.abort(), []);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
   const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
@@ -184,7 +196,9 @@ export function CompBuilder({
   }
 
   function canDiscard(): boolean {
-    return !dirty || window.confirm("Discard unsaved comp edits?");
+    return (
+      !session.state.dirty || window.confirm("Discard unsaved comp edits?")
+    );
   }
 
   function edit(change: CompEdit): boolean {
@@ -256,6 +270,39 @@ export function CompBuilder({
           : `Import failed. ${errorMessage(cause)}`,
       );
     }
+  }
+
+  function closeImageImport(): void {
+    imageRequest.current?.abort();
+    imageRequest.current = null;
+    setImageImport({ kind: "closed" });
+  }
+
+  async function importImage(file: Blob): Promise<void> {
+    imageRequest.current?.abort();
+    const request = new AbortController();
+    imageRequest.current = request;
+    setImageImport({ kind: "reading" });
+    setError(null);
+    try {
+      const imported = await readCompImage(file, request.signal);
+      if (imageRequest.current === request)
+        setImageImport({ kind: "review", comp: imported });
+    } catch (cause) {
+      if (imageRequest.current !== request) return;
+      closeImageImport();
+      setError(`Image import failed. ${errorMessage(cause)}`);
+    }
+  }
+
+  function openImportedImage(): void {
+    if (imageImport.kind !== "review" || !imageRequest.current || !canDiscard())
+      return;
+    setSavedState(session.openImported(imageImport.comp));
+    closeImageImport();
+    setPicker(null);
+    setMessage("Imported comp opened. Save it to keep a copy.");
+    setError(null);
   }
 
   function resetTeam(team: Team): void {
@@ -357,6 +404,27 @@ export function CompBuilder({
             <h1>Draft / Comp Builder</h1>
           </div>
           <div className="builder-heading-actions">
+            <FilePickerButton
+              accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+              inputLabel="Import comp image"
+              inputAppearance="hidden"
+              buttonClassName="secondary-button"
+              onFile={(file) => void importImage(file)}
+            >
+              <Upload size={16} /> Import image
+            </FilePickerButton>
+            {imageImport.kind === "reading" && (
+              <>
+                <span role="status">Reading comp image…</span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeImageImport}
+                >
+                  Cancel image import
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="secondary-button"
@@ -526,6 +594,13 @@ export function CompBuilder({
           </p>
         </details>
       </div>
+      {imageImport.kind === "review" && (
+        <CompImageReview
+          comp={imageImport.comp}
+          onClose={closeImageImport}
+          onOpen={openImportedImage}
+        />
+      )}
       {picker && (
         <HeroPicker
           title={pickerTitle}

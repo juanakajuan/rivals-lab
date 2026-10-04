@@ -960,3 +960,19 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.image-import-review {
+  max-height: 55vh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding-right: 12px;
+  margin-block: 16px;
+}
+
+.image-import-review p {
+  white-space: pre-wrap;
+}
+
+.image-import-review li {
+  margin-block: 12px;
+}

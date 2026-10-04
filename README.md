@@ -179,3 +179,11 @@ deploy. Discard only removes local evidence. It does not roll back Cloudflare.
 Do not delete a receipt before you check the live deployment.
 
 `npm run test:releases` tests publication and failure without contacting Cloudflare.
+
+## Import a comp image
+
+Use **Import image** in the comp builder to read a PNG, JPEG, or WebP image. Review the comp, then select **Open in editor**. Select **Save** to add it as a new saved comp.
+
+New image exports contain QR codes below the comp. Keep the complete code area, including its white borders, when you copy or capture the image. Screenshots at half the original size or larger can preserve the codes. Cropped codes, blur, smaller screenshots, and older exports without codes cannot restore a comp.
+
+Image files must be at most 32 MB. Imported images must be at most 32,000 pixels per side and 128 million pixels in total. Exported images keep the existing limits of 16,000 pixels per side and 64 million pixels in total, including the codes. Large notes can exceed these limits. Use JSON export for larger comps or library backups. Image import runs in your browser and does not save or upload the image.

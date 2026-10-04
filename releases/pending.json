@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "comp-image-import",
+    "text": "Feature: Import a shared comp image or screenshot, review all its details, and save it as a new comp."
+  }
+]

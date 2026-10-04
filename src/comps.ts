@@ -135,14 +135,13 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
-function decodeComp(value: unknown): Comp {
+export function parseCompSnapshot(value: unknown): Comp {
   const comp = record(value);
   const teams = record(comp.teams);
   const mapId = comp.mapId === null ? null : text(comp.mapId, 100);
   if (mapId !== null && !COMP_MAPS.some((map) => map.id === mapId))
     throw new Error(`Unknown map: ${mapId}.`);
-  const name = text(comp.name, 100).trim();
-  if (!name) throw new Error("Each saved comp needs a name.");
+  const name = text(comp.name, 100);
   return {
     name,
     notes: text(comp.notes, 10_000),
@@ -166,7 +165,10 @@ function decodeSavedComp(value: unknown): SavedComp {
   const updatedAt = text(saved.updatedAt, 40);
   if (!Number.isFinite(Date.parse(updatedAt)))
     throw new Error("Invalid comp date.");
-  return { id, updatedAt, comp: decodeComp(saved.comp) };
+  const comp = parseCompSnapshot(saved.comp);
+  const name = comp.name.trim();
+  if (!name) throw new Error("Each saved comp needs a name.");
+  return { id, updatedAt, comp: { ...comp, name } };
 }
 
 /** Validate the envelope first, then isolate entries that cannot be loaded. */
