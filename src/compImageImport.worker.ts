@@ -1,20 +1,4 @@
-import jsQR from "jsqr";
-import { CompImageChunks } from "./compImagePayload";
-
-interface Square {
-  readonly left: number;
-  readonly top: number;
-  readonly size: number;
-}
-
-function white(data: Uint8ClampedArray, offset: number): boolean {
-  return (
-    (data[offset] ?? 0) > 235 &&
-    (data[offset + 1] ?? 0) > 235 &&
-    (data[offset + 2] ?? 0) > 235 &&
-    (data[offset + 3] ?? 0) > 235
-  );
-}
+import { readCompImageBitmap } from "./compImagePayload";
 
 function checkDimensions(width: number, height: number): void {
   if (
@@ -117,103 +101,7 @@ async function readImage(blob: Blob): Promise<unknown> {
   });
   try {
     checkDimensions(image.width, image.height);
-    const canvas = new OffscreenCanvas(image.width, 128);
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    const crop = new OffscreenCanvas(1, 1);
-    const cropContext = crop.getContext("2d", { willReadFrequently: true });
-    if (!context || !cropContext)
-      throw new Error("This browser cannot read comp images.");
-    const squares: Square[] = [];
-    const chunks = new CompImageChunks();
-    for (let top = 0; top < image.height; top += 128) {
-      const height = Math.min(128, image.height - top);
-      context.clearRect(0, 0, image.width, 128);
-      context.drawImage(
-        image,
-        0,
-        top,
-        image.width,
-        height,
-        0,
-        0,
-        image.width,
-        height,
-      );
-      const strip = context.getImageData(0, 0, image.width, height).data;
-      for (let row = 0; row < height; row += 4) {
-        let start = -1;
-        for (let x = 0; x <= image.width; x++) {
-          if (x < image.width && white(strip, (row * image.width + x) * 4)) {
-            if (start < 0) start = x;
-            continue;
-          }
-          if (start < 0) continue;
-          const left = start;
-          start = -1;
-          const size = x - left;
-          const y = top + row;
-          if (
-            size < 80 ||
-            size > 1600 ||
-            squares.some(
-              (square) =>
-                Math.abs(square.left - left) < 4 &&
-                y >= square.top &&
-                y <= square.top + square.size,
-            )
-          )
-            continue;
-          const columnTop = Math.max(0, y - size);
-          const columnHeight = Math.min(size * 2 + 1, image.height - columnTop);
-          crop.width = 1;
-          crop.height = columnHeight;
-          cropContext.drawImage(
-            image,
-            left + 2,
-            columnTop,
-            1,
-            columnHeight,
-            0,
-            0,
-            1,
-            columnHeight,
-          );
-          const column = cropContext.getImageData(0, 0, 1, columnHeight).data;
-          let first = y - columnTop;
-          let last = first;
-          while (first > 0 && white(column, (first - 1) * 4)) first--;
-          while (last + 1 < columnHeight && white(column, (last + 1) * 4))
-            last++;
-          if (Math.abs(last - first + 1 - size) > 4) continue;
-          const square = { left, top: columnTop + first, size };
-          squares.push(square);
-          if (squares.length > 700)
-            throw new Error(
-              "This image has too many code areas. Import one comp image at a time.",
-            );
-          const target = Math.min(800, size);
-          crop.width = target;
-          crop.height = target;
-          cropContext.drawImage(
-            image,
-            left,
-            square.top,
-            size,
-            size,
-            0,
-            0,
-            target,
-            target,
-          );
-          const pixels = cropContext.getImageData(0, 0, target, target);
-          const code = jsQR(pixels.data, target, target, {
-            inversionAttempts: "dontInvert",
-          });
-          if (code) chunks.add(code.binaryData);
-        }
-      }
-    }
-    return await chunks.read();
+    return await readCompImageBitmap(image);
   } finally {
     image.close();
   }

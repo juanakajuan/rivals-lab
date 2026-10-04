@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
-import { toBuffer } from "qrcode";
 import { emptyComp, type Comp } from "../src/comps";
 import { emptyDraft, setDraftHero } from "../src/draft";
 import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
@@ -37,10 +36,16 @@ async function downloadImage(page: Page): Promise<Buffer> {
   return readFile(path);
 }
 
-async function reviewImage(page: Page, buffer: Buffer): Promise<void> {
+type ImageMimeType = "image/png" | "image/jpeg" | "image/webp";
+
+async function reviewImage(
+  page: Page,
+  buffer: Buffer,
+  mimeType: ImageMimeType = "image/png",
+): Promise<void> {
   await page.getByLabel("Import comp image", { exact: true }).setInputFiles({
-    name: "comp.png",
-    mimeType: "image/png",
+    name: `comp.${mimeType === "image/jpeg" ? "jpg" : mimeType === "image/webp" ? "webp" : "png"}`,
+    mimeType,
     buffer,
   });
   await expect(
@@ -81,9 +86,10 @@ async function reencodePixels(
   page: Page,
   source: Buffer,
   useClipboard: boolean,
+  mimeType: ImageMimeType = "image/png",
 ): Promise<Buffer> {
   const bytes = await page.evaluate(
-    async ({ source, useClipboard }) => {
+    async ({ source, useClipboard, mimeType }) => {
       let blob = new Blob([new Uint8Array(source)], { type: "image/png" });
       if (useClipboard) {
         const items = await navigator.clipboard.read();
@@ -103,17 +109,23 @@ async function reencodePixels(
         if (!context) throw new Error("Cannot re-encode the exported pixels.");
         context.drawImage(image, 0, 0);
         const encoded = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob((result) => {
-            if (result) resolve(result);
-            else reject(new Error("Cannot encode the exported pixels."));
-          }, "image/png");
+          canvas.toBlob(
+            (result) => {
+              if (result) resolve(result);
+              else reject(new Error("Cannot encode the exported pixels."));
+            },
+            mimeType,
+            0.85,
+          );
         });
+        if (encoded.type !== mimeType)
+          throw new Error(`Cannot encode ${mimeType} in this browser.`);
         return [...new Uint8Array(await encoded.arrayBuffer())];
       } finally {
         URL.revokeObjectURL(url);
       }
     },
-    { source: [...source], useClipboard },
+    { source: [...source], useClipboard, mimeType },
   );
   return Buffer.from(bytes);
 }
@@ -122,7 +134,7 @@ test("image review preserves edits and imported Save creates a new exact comp", 
   page,
   context,
   browserName,
-}) => {
+}, testInfo) => {
   if (browserName === "chromium")
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -172,6 +184,10 @@ test("image review preserves edits and imported Save creates a new exact comp", 
   await expect(review).toContainText("Strategist");
   await expect(review).toContainText("Vanguard");
   expect(await readStoredCompLibrary(page)).toBe(storedBaseline);
+  await testInfo.attach("image review", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
   await review.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Current edits",
@@ -281,12 +297,18 @@ test("an unnamed incomplete image preserves sparse Ignite slots and Unicode", as
   await chooseHero(page, "Opponents ban 5: Choose hero", "Hulk");
   await chooseHero(page, "Allies save 2: Choose hero", "Luna Snow");
   const image = await downloadImage(page);
+  const corrected = await mutateStrip(page, image, "correctable");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "New comp", exact: true }).click();
   await reviewImage(page, image);
   await expect(
     page.getByRole("dialog", { name: reviewName, exact: true }),
   ).toContainText("Unnamed comp");
+  await page
+    .getByRole("dialog", { name: reviewName, exact: true })
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await reviewImage(page, corrected);
   await openImage(page);
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue("");
@@ -323,20 +345,57 @@ test("an unnamed incomplete image preserves sparse Ignite slots and Unicode", as
   ]);
 });
 
-test("a multi-code image survives a real half-size screenshot with margins", async ({
+test("a comp survives PNG, JPEG, and WebP copies of a real half-size screenshot", async ({
   page,
   context,
-}) => {
+}, testInfo) => {
   await page.goto("/builder");
   const notes = Array.from({ length: 100 }, (_, index) =>
     createHash("sha256").update(`image screenshot ${index}`).digest("base64"),
   ).join("\n");
   await page.getByLabel("Comp name", { exact: true }).fill("Screenshot plan");
   await page.getByLabel("Comp notes", { exact: true }).fill(notes);
+  await page.getByRole("button", { name: "Comp map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose comp map", exact: true })
+    .getByRole("button", { name: "Midtown", exact: true })
+    .click();
+  await chooseHero(page, "Allies slot 2: Choose hero", "Deadpool · Duelist");
+  await page.getByLabel("Allies slot 5 notes").fill("  東京 🦊 é\t ");
+  await page.getByLabel("Draft format").selectOption("ignite");
+  await chooseHero(page, "Opponents ban 5: Choose hero", "Hulk");
+  await chooseHero(page, "Allies save 2: Choose hero", "Luna Snow");
+  const empty = emptyComp();
+  const snapshot: Comp = {
+    ...empty,
+    name: "Screenshot plan",
+    mapId: "midtown",
+    notes,
+    teams: {
+      ally: [
+        { heroId: null, notes: "" },
+        { heroId: "deadpool", deadpoolRole: "Duelist", notes: "" },
+        { heroId: null, notes: "" },
+        { heroId: null, notes: "" },
+        { heroId: null, notes: "  東京 🦊 é\t " },
+        { heroId: null, notes: "" },
+      ],
+      enemy: empty.teams.enemy,
+    },
+    draft: setDraftHero(
+      setDraftHero(
+        emptyDraft("ignite"),
+        { team: "enemy", kind: "ban", index: 4 },
+        "hulk",
+      ),
+      { team: "ally", kind: "save", index: 1 },
+      "luna",
+    ),
+  };
   const image = await downloadImage(page);
   const display = await context.newPage();
   await display.setContent(
-    `<style>body{margin:48px;background:#c4d6e8}img{display:block}</style><img alt="Exported comp" src="data:image/png;base64,${image.toString("base64")}">`,
+    `<style>body{margin:300px 48px 48px;background:rgb(48,112,144)}img{display:block}</style><img alt="Exported comp" src="data:image/png;base64,${image.toString("base64")}">`,
   );
   const dimensions = await display
     .getByAltText("Exported comp")
@@ -352,54 +411,178 @@ test("a multi-code image survives a real half-size screenshot with margins", asy
     height: 900,
   });
   const screenshot = await display.screenshot({ fullPage: true });
+  await testInfo.attach("half-size screenshot", {
+    body: screenshot,
+    contentType: "image/png",
+  });
   await display.close();
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "New comp", exact: true }).click();
-  await reviewImage(page, screenshot);
-  await openImage(page);
-  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
-    notes,
-  );
-  await saveComp(page, "Screenshot plan");
-  await expectLibraryComps(page, [
-    { ...emptyComp(), name: "Screenshot plan", notes },
-  ]);
+  const formats: readonly ImageMimeType[] = [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+  ];
+  const saved: Comp[] = [];
+  for (const mimeType of formats) {
+    const copy =
+      mimeType === "image/png"
+        ? screenshot
+        : await reencodePixels(page, screenshot, false, mimeType);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "New comp", exact: true }).click();
+    await reviewImage(page, copy, mimeType);
+    await openImage(page);
+    await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
+      "Screenshot plan",
+    );
+    await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+      notes,
+    );
+    const name = `Screenshot ${mimeType}`;
+    await saveComp(page, name);
+    saved.unshift({ ...snapshot, name });
+    await expectLibraryComps(page, saved);
+  }
 });
 
-async function malformedCode(
-  kind: "complete" | "unsupported" | "corrupt" | "missing",
-  comp: Comp = { ...emptyComp(), name: "Rejected plan" },
+async function mutateStrip(
+  page: Page,
+  source: Buffer,
+  kind: "unsupported" | "correctable",
 ): Promise<Buffer> {
-  const source = Buffer.from(
-    JSON.stringify(
-      kind === "missing"
-        ? { ...comp, notes: "Missing chunk notes. ".repeat(100) }
-        : comp,
-    ),
+  const bytes = await page.evaluate(
+    async ({ source, kind }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${source}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Cannot change the exported strip cells.");
+      context.drawImage(image, 0, 0);
+      const railPixels = context.getImageData(
+        Math.floor(canvas.width / 2),
+        0,
+        1,
+        canvas.height,
+      ).data;
+      let railTop = -1;
+      const isRail = (y: number): boolean =>
+        railPixels[y * 4] === 48 &&
+        railPixels[y * 4 + 1] === 112 &&
+        railPixels[y * 4 + 2] === 144;
+      for (let y = canvas.height - 1; y >= 0; y--) {
+        if (!isRail(y)) continue;
+        while (y > 0 && isRail(y - 1)) y--;
+        railTop = y;
+        break;
+      }
+      if (railTop < 0) throw new Error("The export has no locator rail.");
+      const columns = Math.floor((canvas.width - 80) / 24) * 6;
+      const left = Math.floor((canvas.width - columns * 4) / 2);
+      const paint = (index: number, value: number): void => {
+        context.fillStyle = `rgb(${value},${value},${value})`;
+        context.fillRect(
+          left + (index % columns) * 4,
+          railTop + 8 + Math.floor(index / columns) * 4,
+          4,
+          4,
+        );
+      };
+      if (kind === "unsupported") {
+        [104, 200, 104, 56, 56, 56].forEach((value, index) =>
+          paint(24 + index, value),
+        );
+      } else {
+        const index = 48 * 6;
+        const value = context.getImageData(
+          left + (index % columns) * 4 + 2,
+          railTop + 8 + Math.floor(index / columns) * 4 + 2,
+          1,
+          1,
+        ).data[0];
+        const alternate: Readonly<Record<number, number>> = {
+          56: 104,
+          104: 56,
+          152: 200,
+          200: 152,
+        };
+        const changed = value === undefined ? undefined : alternate[value];
+        if (changed === undefined)
+          throw new Error("The export cell has no known gray level.");
+        paint(index, changed);
+      }
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error("Cannot encode the changed strip."));
+        }, "image/png");
+      });
+      return [...new Uint8Array(await blob.arrayBuffer())];
+    },
+    { source: source.toString("base64"), kind },
   );
-  const chunk = source.subarray(0, 1500);
-  const packet = Buffer.alloc(64 + chunk.length);
-  packet.write("RVLC", 0, "ascii");
-  packet.writeUInt8(kind === "unsupported" ? 2 : 1, 4);
-  packet.writeUInt16BE(Math.ceil(source.length / 1500), 8);
-  packet.writeUInt32BE(source.length, 12);
-  packet.writeUInt32BE(source.length, 16);
-  createHash("sha256").update(source).digest().copy(packet, 20);
-  if (kind === "corrupt") packet.writeUInt8(packet.readUInt8(20) ^ 255, 20);
-  chunk.copy(packet, 64);
-  return toBuffer([{ mode: "byte", data: packet }], {
-    type: "png",
-    errorCorrectionLevel: "Q",
-    margin: 4,
-    scale: 4,
-  });
+  return Buffer.from(bytes);
 }
 
-async function mixedCompImage(page: Page): Promise<Buffer> {
-  const codes = await Promise.all([
-    malformedCode("complete", { ...emptyComp(), name: "First comp" }),
-    malformedCode("complete", { ...emptyComp(), name: "Second comp" }),
-  ]);
+async function transformExport(
+  page: Page,
+  source: Buffer,
+): Promise<{
+  readonly old: Buffer;
+  readonly cropped: Buffer;
+  readonly damaged: Buffer;
+}> {
+  const images = await page.evaluate(async (source) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${source}`;
+    await image.decode();
+    const encode = async (
+      kind: "old" | "cropped" | "damaged",
+    ): Promise<number[]> => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height =
+        kind === "old"
+          ? 100
+          : image.naturalHeight - (kind === "cropped" ? 4 : 0);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Cannot transform the exported image.");
+      context.drawImage(image, 0, 0);
+      if (kind === "damaged") {
+        context.fillStyle = "#808080";
+        context.fillRect(
+          canvas.width / 3,
+          canvas.height - 120,
+          canvas.width / 3,
+          120,
+        );
+      }
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error("Cannot encode the transformed image."));
+        }, "image/png");
+      });
+      return [...new Uint8Array(await blob.arrayBuffer())];
+    };
+    return {
+      old: await encode("old"),
+      cropped: await encode("cropped"),
+      damaged: await encode("damaged"),
+    };
+  }, source.toString("base64"));
+  return {
+    old: Buffer.from(images.old),
+    cropped: Buffer.from(images.cropped),
+    damaged: Buffer.from(images.damaged),
+  };
+}
+
+async function mixedCompImage(
+  page: Page,
+  sources: readonly Buffer[],
+): Promise<Buffer> {
   const bytes = await page.evaluate(
     async (sources) => {
       const images = await Promise.all(
@@ -434,7 +617,7 @@ async function mixedCompImage(page: Page): Promise<Buffer> {
       });
       return [...new Uint8Array(await blob.arrayBuffer())];
     },
-    codes.map((code) => code.toString("base64")),
+    sources.map((source) => source.toString("base64")),
   );
   return Buffer.from(bytes);
 }
@@ -463,26 +646,14 @@ test("old, corrupt, and unsupported images preserve the current comp and library
   await saveComp(page, "Keep saved plan");
   const baseline = await exportCompLibrary(page);
   const exported = await downloadImage(page);
-  const oldImage = Buffer.from(
-    await page.evaluate(async (source) => {
-      const image = new Image();
-      image.src = `data:image/png;base64,${source}`;
-      await image.decode();
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = 100;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Cannot crop the image code area.");
-      context.drawImage(image, 0, 0);
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((result) => {
-          if (result) resolve(result);
-          else reject(new Error("Cannot encode the old image."));
-        }, "image/png");
-      });
-      return [...new Uint8Array(await blob.arrayBuffer())];
-    }, exported.toString("base64")),
-  );
+  await page
+    .getByLabel("Comp name", { exact: true })
+    .fill("Second exported plan");
+  await page
+    .getByLabel("Comp notes", { exact: true })
+    .fill("Different exported notes");
+  const secondExport = await downloadImage(page);
+  const transformed = await transformExport(page, exported);
   await page.getByLabel("Comp name", { exact: true }).fill("Keep unsaved name");
   await page
     .getByLabel("Comp notes", { exact: true })
@@ -500,27 +671,27 @@ test("old, corrupt, and unsupported images preserve the current comp and library
     },
     {
       name: "old.png",
-      image: oldImage,
-      message: "No Rivals Lab comp codes were found",
+      image: transformed.old,
+      message: "No Rivals Lab comp data was found",
     },
     {
       name: "corrupt.png",
-      image: await malformedCode("corrupt"),
+      image: transformed.damaged,
+      message: "damaged or incomplete",
+    },
+    {
+      name: "missing.png",
+      image: transformed.cropped,
       message: "damaged or incomplete",
     },
     {
       name: "unsupported.png",
-      image: await malformedCode("unsupported"),
+      image: await mutateStrip(page, exported, "unsupported"),
       message: "version is not supported",
     },
     {
-      name: "missing.png",
-      image: await malformedCode("missing"),
-      message: "damaged or incomplete",
-    },
-    {
       name: "mixed.png",
-      image: await mixedCompImage(page),
+      image: await mixedCompImage(page, [exported, secondExport]),
       message: "This image contains different comps",
     },
   ];
