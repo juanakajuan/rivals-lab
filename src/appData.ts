@@ -1,6 +1,7 @@
 import {
   MAX_DRAWINGS_PER_MAP,
   decodeDrawing,
+  drawingLimitMessage,
   type BoardDrawing,
 } from "./boardDrawings";
 import {
@@ -23,6 +24,7 @@ import {
   COMP_STORAGE_KEY,
   MAX_IMPORT_BYTES,
   decodeCompLibrary,
+  sameComp,
   StoredLibrarySource,
   parseCompLibrary,
   serializeCompLibrary,
@@ -36,7 +38,6 @@ import {
   emptyOpenComp,
   openCompLink,
   prependCompCopies,
-  sameComp,
   type OpenCompLink,
   type OpenCompSnapshot,
   type SavedCompSessionStart,
@@ -63,9 +64,7 @@ export type AutosaveStatus =
   | { readonly kind: "failed"; readonly message: string };
 
 export interface WorkspaceAutosave {
-  board(board: BoardState, iconSize: IconSize): void;
-  openComp(openComp: OpenCompSnapshot): void;
-  customMap(map: CustomBoardMap): void;
+  sync(workspace: Workspace): void;
   flush(): Promise<void>;
   subscribe(listener: (status: AutosaveStatus) => void): () => void;
 }
@@ -306,9 +305,7 @@ function decodeBoardRecord(
     if (!owner) throw new Error("Board drawings belong to a missing map.");
     if (!Array.isArray(list)) throw new Error("Invalid board drawings.");
     if (list.length > MAX_DRAWINGS_PER_MAP)
-      throw new Error(
-        `A map can hold at most ${MAX_DRAWINGS_PER_MAP.toLocaleString("en")} drawings.`,
-      );
+      throw new Error(drawingLimitMessage());
     const decoded = list.map(decodeDrawing);
     if (new Set(decoded.map((drawing) => drawing.id)).size !== decoded.length)
       throw new Error("A drawing ID appears twice on one map.");
@@ -435,6 +432,7 @@ interface PendingPut {
   readonly store: StoreName;
   readonly key: string;
   readonly value: unknown;
+  readonly mark: () => void;
 }
 
 class BrowserAutosave implements WorkspaceAutosave {
@@ -444,23 +442,58 @@ class BrowserAutosave implements WorkspaceAutosave {
   private draining: Promise<void> | null = null;
   private stopped = false;
   private paused = false;
+  private confirmedBoard = "";
+  private confirmedOpenComp = "";
+  private readonly confirmedMaps = new Map<string, string>();
 
   constructor(private readonly connection: Promise<Connection>) {}
 
-  board(board: BoardState, iconSize: IconSize): void {
-    this.schedule({
-      store: WORKSPACE,
-      key: "board",
-      value: encodeBoardRecord(board, iconSize),
-    });
+  /** Remember the booted document so the first sync writes only later edits. */
+  prime(workspace: Workspace): void {
+    this.confirmedBoard = JSON.stringify(
+      encodeBoardRecord(workspace.board, workspace.iconSize),
+    );
+    this.confirmedOpenComp = JSON.stringify(workspace.openComp);
+    this.confirmedMaps.clear();
+    for (const map of workspace.customMaps)
+      this.confirmedMaps.set(map.id, JSON.stringify(map));
   }
 
-  openComp(openComp: OpenCompSnapshot): void {
-    this.schedule({ store: WORKSPACE, key: "openComp", value: openComp });
-  }
-
-  customMap(map: CustomBoardMap): void {
-    this.schedule({ store: CUSTOM_MAPS, key: map.id, value: map });
+  sync(workspace: Workspace): void {
+    if (this.stopped) return;
+    const board = encodeBoardRecord(workspace.board, workspace.iconSize);
+    const boardText = JSON.stringify(board);
+    if (boardText !== this.confirmedBoard)
+      this.schedule({
+        store: WORKSPACE,
+        key: "board",
+        value: board,
+        mark: () => {
+          this.confirmedBoard = boardText;
+        },
+      });
+    const openCompText = JSON.stringify(workspace.openComp);
+    if (openCompText !== this.confirmedOpenComp)
+      this.schedule({
+        store: WORKSPACE,
+        key: "openComp",
+        value: workspace.openComp,
+        mark: () => {
+          this.confirmedOpenComp = openCompText;
+        },
+      });
+    for (const map of workspace.customMaps) {
+      const mapText = JSON.stringify(map);
+      if (this.confirmedMaps.get(map.id) === mapText) continue;
+      this.schedule({
+        store: CUSTOM_MAPS,
+        key: map.id,
+        value: map,
+        mark: () => {
+          this.confirmedMaps.set(map.id, mapText);
+        },
+      });
+    }
   }
 
   flush(): Promise<void> {
@@ -506,6 +539,7 @@ class BrowserAutosave implements WorkspaceAutosave {
             for (const put of batch)
               active.objectStore(put.store).put(put.value, put.key);
           });
+          for (const put of batch) put.mark();
           failure = null;
         } catch (error) {
           if (error instanceof ReplacedElsewhereError) return;
@@ -562,6 +596,7 @@ export async function openAppData(): Promise<AppData> {
     }),
   );
   const { workspace, library } = decodeStoredRecords(records);
+  autosave.prime(workspace);
   const comps = new BrowserCompStorage(connection);
   const channel =
     typeof BroadcastChannel === "undefined"

@@ -26,6 +26,10 @@ export type MeasureBoardNote = (text: string) => BoardSize;
 export const MAX_NOTE_LENGTH = 200;
 export const MAX_DRAWINGS_PER_MAP = 2_000;
 
+export function drawingLimitMessage(): string {
+  return `A map can hold at most ${MAX_DRAWINGS_PER_MAP.toLocaleString("en")} drawings.`;
+}
+
 function finite(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value))
     throw new Error("Invalid drawing position or size.");
