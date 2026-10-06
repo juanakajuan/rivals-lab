@@ -11,8 +11,30 @@ export interface MapPickerOption<Value extends string | null> {
   readonly imageSize?: readonly [width: number, height: number];
 }
 
+export interface MapPickerPlaceholder {
+  readonly placeholder: true;
+  readonly id: string;
+  readonly name: string;
+  readonly detail: string;
+}
+
+export type MapPickerEntry<Value extends string | null> =
+  MapPickerOption<Value> | MapPickerPlaceholder;
+
+export function isMapPlaceholder<Value extends string | null>(
+  option: MapPickerEntry<Value>,
+): option is MapPickerPlaceholder {
+  return "placeholder" in option;
+}
+
+export function isMapChoice<Value extends string | null>(
+  option: MapPickerEntry<Value>,
+): option is MapPickerOption<Value> {
+  return !isMapPlaceholder(option);
+}
+
 interface MapPickerProps<Value extends string | null> {
-  readonly options: readonly MapPickerOption<Value>[];
+  readonly options: readonly MapPickerEntry<Value>[];
   readonly selectedValue: NoInfer<Value> | undefined;
   readonly triggerLabel: string;
   readonly triggerContent?: ReactNode;
@@ -48,11 +70,16 @@ export function MapPicker<Value extends string | null>({
   const [query, setQuery] = useState("");
   const searchTerm = normalizeSearch(query);
   const visibleOptions = options.filter((option) =>
-    normalizeSearch(`${option.name} ${option.detail}`).includes(searchTerm),
+    normalizeSearch(
+      isMapPlaceholder(option)
+        ? `${option.name} ${option.detail} placeholder`
+        : `${option.name} ${option.detail}`,
+    ).includes(searchTerm),
   );
-  const initialValue = options.some((option) => option.value === selectedValue)
+  const choices = options.filter(isMapChoice);
+  const initialValue = choices.some((option) => option.value === selectedValue)
     ? selectedValue
-    : options[0]?.value;
+    : choices[0]?.value;
 
   function openPicker(): void {
     const dialog = dialogRef.current;
@@ -124,42 +151,68 @@ export function MapPicker<Value extends string | null>({
               No maps match your search.
             </p>
           ) : null}
-          {visibleOptions.map((option) => (
-            <button
-              type="button"
-              className="map-picker-card"
-              key={option.value === null ? "any-map" : `map:${option.value}`}
-              ref={option.value === initialValue ? selectedCardRef : null}
-              aria-label={option.name}
-              aria-pressed={option.value === selectedValue}
-              onClick={() => {
-                closePicker();
-                onChoose(option.value);
-              }}
-            >
-              {option.imagePath ? (
-                <img
-                  src={option.imagePath}
-                  alt=""
-                  width={option.imageSize?.[0]}
-                  height={option.imageSize?.[1]}
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
+          {visibleOptions.map((option) =>
+            isMapPlaceholder(option) ? (
+              <button
+                type="button"
+                className="map-picker-card map-picker-placeholder"
+                key={`placeholder:${option.id}`}
+                aria-labelledby={`map-placeholder-${option.id}`}
+                disabled
+              >
                 <span className="map-picker-neutral" aria-hidden="true">
-                  {option.name}
+                  Map image needed
                 </span>
-              )}
-              <span className="map-picker-card-details">
-                <span className="map-picker-card-name">{option.name}</span>
-                <span className="map-picker-card-mode">{option.detail}</span>
-                {option.value === selectedValue ? (
-                  <span className="map-picker-selected">Selected</span>
-                ) : null}
-              </span>
-            </button>
-          ))}
+                <span className="map-picker-card-details">
+                  <span
+                    className="map-picker-card-name"
+                    id={`map-placeholder-${option.id}`}
+                  >
+                    {option.name}
+                  </span>
+                  <span className="map-picker-card-mode">{option.detail}</span>
+                  <span className="map-picker-placeholder-label">
+                    Placeholder
+                  </span>
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="map-picker-card"
+                key={option.value === null ? "any-map" : `map:${option.value}`}
+                ref={option.value === initialValue ? selectedCardRef : null}
+                aria-label={option.name}
+                aria-pressed={option.value === selectedValue}
+                onClick={() => {
+                  closePicker();
+                  onChoose(option.value);
+                }}
+              >
+                {option.imagePath ? (
+                  <img
+                    src={option.imagePath}
+                    alt=""
+                    width={option.imageSize?.[0]}
+                    height={option.imageSize?.[1]}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span className="map-picker-neutral" aria-hidden="true">
+                    {option.name}
+                  </span>
+                )}
+                <span className="map-picker-card-details">
+                  <span className="map-picker-card-name">{option.name}</span>
+                  <span className="map-picker-card-mode">{option.detail}</span>
+                  {option.value === selectedValue ? (
+                    <span className="map-picker-selected">Selected</span>
+                  ) : null}
+                </span>
+              </button>
+            ),
+          )}
         </div>
       </Dialog>
     </>

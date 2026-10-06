@@ -563,6 +563,25 @@ button:focus-visible,
   border-color: var(--muted);
 }
 
+.map-picker-placeholder {
+  cursor: default;
+  border-style: dashed;
+  opacity: 1;
+}
+
+.map-picker-placeholder:hover {
+  border-color: var(--border);
+}
+
+.map-picker-placeholder-label {
+  justify-self: start;
+  padding: 4px 8px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 .map-picker-trigger:focus-visible,
 .map-picker-close:focus-visible,
 .map-picker-search input:focus-visible,

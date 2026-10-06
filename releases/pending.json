@@ -6,5 +6,9 @@
   {
     "id": "position-board-row-actions-smaller",
     "text": "Bug fix: Add and remove buttons beside hero portraits on the Position Board are smaller."
+  },
+  {
+    "id": "position-board-map-placeholders",
+    "text": "Feature: The Position Board map picker lists every available map and marks maps that still need an image as placeholders."
   }
 ]
