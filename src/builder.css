@@ -991,3 +991,45 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.image-export-control {
+  position: relative;
+}
+
+.image-export-trigger[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.image-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 200px;
+  max-width: calc(100vw - 32px);
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px #0006;
+}
+
+.image-export-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.image-export-menu button:hover,
+.image-export-menu button:focus-visible {
+  background: var(--panel);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}

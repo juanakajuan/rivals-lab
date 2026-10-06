@@ -554,9 +554,16 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   });
 }
 
-interface ImageShareResult {
-  readonly downloadError: string | null;
-  readonly copyError: string | null;
+export type CompImageExportMode = "download-and-copy" | "download" | "copy";
+
+type ImageOutputResult =
+  | { readonly status: "skipped" }
+  | { readonly status: "succeeded" }
+  | { readonly status: "failed"; readonly error: string };
+
+export interface CompImageExportResult {
+  readonly download: ImageOutputResult;
+  readonly copy: ImageOutputResult;
 }
 
 function imageError(error: unknown): string {
@@ -592,22 +599,32 @@ function downloadImage(image: Blob, name: string): void {
 }
 
 /** Start clipboard access during the click; download need not wait for it. */
-export async function downloadAndCopyCompImage(
+export async function exportCompImage(
   comp: Comp,
+  mode: CompImageExportMode,
   onDownloadStarted: () => void,
-): Promise<ImageShareResult> {
+): Promise<CompImageExportResult> {
   const image = renderCompImage(comp);
-  const copyResult = copyImageToClipboard(image).then(
-    () => null,
-    (error: unknown) => imageError(error),
-  );
+  const copyResult: Promise<ImageOutputResult> =
+    mode === "download"
+      ? Promise.resolve({ status: "skipped" })
+      : copyImageToClipboard(image).then(
+          (): ImageOutputResult => ({ status: "succeeded" }),
+          (error: unknown): ImageOutputResult => ({
+            status: "failed",
+            error: imageError(error),
+          }),
+        );
   const blob = await image;
-  let downloadError: string | null = null;
-  try {
-    downloadImage(blob, comp.name);
-    onDownloadStarted();
-  } catch (error) {
-    downloadError = imageError(error);
+  let download: ImageOutputResult = { status: "skipped" };
+  if (mode !== "copy") {
+    try {
+      downloadImage(blob, comp.name);
+      download = { status: "succeeded" };
+      onDownloadStarted();
+    } catch (error) {
+      download = { status: "failed", error: imageError(error) };
+    }
   }
-  return { downloadError, copyError: await copyResult };
+  return { download, copy: await copyResult };
 }

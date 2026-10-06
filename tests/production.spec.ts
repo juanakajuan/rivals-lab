@@ -133,11 +133,14 @@ test("downloads a PNG independently of browser clipboard support", async ({
     .getByLabel("Comp notes", { exact: true })
     .fill("Hold high ground.");
   const exportButton = page.getByRole("button", {
-    name: "Download & Copy",
+    name: "Download and Copy",
     exact: true,
   });
   const ready = page.waitForEvent("download");
   await exportButton.click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
+    .click();
   const download = await ready;
   expect(await download.failure()).toBeNull();
   expect(download.suggestedFilename()).toBe("Production-plan.png");

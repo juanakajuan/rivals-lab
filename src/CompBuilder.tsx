@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Download } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ArrowUpRight, ChevronDown, Download } from "lucide-react";
 import { DraftPanel, HeroPicker, TeamEditor } from "./BuilderPanels";
 import { CompLibraryPanel } from "./CompLibraryPanel";
 import { CompSettingsPanel } from "./CompSettingsPanel";
 import { Dialog } from "./ui/Dialog";
 import { downloadBlob } from "./downloadBlob";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
-import { downloadAndCopyCompImage } from "./compImage";
+import { exportCompImage, type CompImageExportMode } from "./compImage";
 import { COMP_MAPS } from "./compMaps";
 import type { Comp, SavedComp } from "./comps";
 import {
@@ -32,6 +32,15 @@ import "./builder.css";
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
   | { readonly kind: "rename"; readonly id: string; readonly name: string };
+
+const IMAGE_EXPORT_ACTIONS: readonly {
+  readonly mode: CompImageExportMode;
+  readonly label: string;
+}[] = [
+  { mode: "download-and-copy", label: "Download and Copy" },
+  { mode: "download", label: "Download" },
+  { mode: "copy", label: "Copy" },
+];
 
 const TEAMS: readonly Team[] = ["ally", "enemy"];
 
@@ -120,6 +129,12 @@ export function CompBuilder({
   const [error, setError] = useState<string | null>(null);
   const [exportingImage, setExportingImage] = useState(false);
   const exportingImageRef = useRef(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportMenuIndex, setExportMenuIndex] = useState(0);
+  const exportMenuId = useId();
+  const exportControlRef = useRef<HTMLDivElement>(null);
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const exportItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [writing, setWriting] = useState(false);
   const writingRef = useRef(false);
   const effects = draftEffects(comp.draft);
@@ -281,29 +296,71 @@ export function CompBuilder({
     edit({ kind: "map", mapId });
   }
 
-  async function shareImage(): Promise<void> {
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    exportItemRefs.current[exportMenuIndex]?.focus();
+  }, [exportMenuOpen, exportMenuIndex]);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    function dismiss(event: PointerEvent): void {
+      if (
+        event.target instanceof Node &&
+        !exportControlRef.current?.contains(event.target)
+      )
+        setExportMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [exportMenuOpen]);
+
+  function openExportMenu(index = 0): void {
+    if (exportingImageRef.current) return;
+    setExportMenuIndex(index);
+    setExportMenuOpen(true);
+  }
+
+  function closeExportMenu(restoreFocus: boolean): void {
+    setExportMenuOpen(false);
+    if (restoreFocus) exportButtonRef.current?.focus();
+  }
+
+  function selectExport(mode: CompImageExportMode): void {
+    closeExportMenu(true);
+    void shareImage(mode);
+  }
+
+  async function shareImage(mode: CompImageExportMode): Promise<void> {
     if (exportingImageRef.current) return;
     exportingImageRef.current = true;
     setExportingImage(true);
     setMessage("");
     setError(null);
     try {
-      const result = await downloadAndCopyCompImage(comp, () => {
-        setMessage("Download started. Copying image…");
+      const result = await exportCompImage(comp, mode, () => {
+        setMessage(
+          mode === "download"
+            ? "Download started."
+            : "Download started. Copying image…",
+        );
       });
       setMessage(
         [
-          result.downloadError === null ? "Download started." : "",
-          result.copyError === null ? "Image copied to clipboard." : "",
+          result.download.status === "succeeded" ? "Download started." : "",
+          result.copy.status === "succeeded"
+            ? "Image copied to clipboard."
+            : "",
         ]
           .filter(Boolean)
           .join(" "),
       );
       const errors = [
-        result.downloadError
-          ? `Download could not start. ${result.downloadError}`
+        result.download.status === "failed"
+          ? `Download could not start. ${result.download.error}`
           : "",
-        result.copyError ? `Image was not copied. ${result.copyError}` : "",
+        result.copy.status === "failed"
+          ? `Image was not copied. ${result.copy.error}`
+          : "",
       ].filter(Boolean);
       setError(errors.length ? errors.join(" ") : null);
     } catch (cause) {
@@ -347,16 +404,100 @@ export function CompBuilder({
             <h1>Draft / Comp Builder</h1>
           </div>
           <div className="builder-heading-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={exportingImage}
-              aria-busy={exportingImage}
-              onClick={() => void shareImage()}
+            <div
+              className="image-export-control"
+              ref={exportControlRef}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  closeExportMenu(false);
+              }}
             >
-              <Download size={15} />
-              {exportingImage ? "Preparing image…" : "Download & Copy"}
-            </button>
+              <button
+                ref={exportButtonRef}
+                type="button"
+                className="secondary-button image-export-trigger"
+                aria-disabled={exportingImage}
+                aria-busy={exportingImage}
+                aria-haspopup="menu"
+                aria-expanded={exportMenuOpen}
+                aria-controls={exportMenuOpen ? exportMenuId : undefined}
+                onClick={() => {
+                  if (exportMenuOpen) closeExportMenu(false);
+                  else openExportMenu();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    openExportMenu(
+                      event.key === "ArrowUp"
+                        ? IMAGE_EXPORT_ACTIONS.length - 1
+                        : 0,
+                    );
+                  }
+                }}
+              >
+                <Download size={15} />
+                {exportingImage ? "Preparing image…" : "Download and Copy"}
+                <ChevronDown size={14} />
+              </button>
+              {exportMenuOpen ? (
+                <div
+                  id={exportMenuId}
+                  role="menu"
+                  aria-label="Export draft image"
+                  className="image-export-menu"
+                  onKeyDown={(event) => {
+                    let nextIndex: number;
+                    switch (event.key) {
+                      case "ArrowDown":
+                        nextIndex =
+                          (exportMenuIndex + 1) % IMAGE_EXPORT_ACTIONS.length;
+                        break;
+                      case "ArrowUp":
+                        nextIndex =
+                          (exportMenuIndex + IMAGE_EXPORT_ACTIONS.length - 1) %
+                          IMAGE_EXPORT_ACTIONS.length;
+                        break;
+                      case "Home":
+                        nextIndex = 0;
+                        break;
+                      case "End":
+                        nextIndex = IMAGE_EXPORT_ACTIONS.length - 1;
+                        break;
+                      case "Escape":
+                        event.preventDefault();
+                        event.stopPropagation();
+                        closeExportMenu(true);
+                        return;
+                      case "Tab":
+                        // Hide after native focus movement so both Tab directions keep their destination.
+                        requestAnimationFrame(() => closeExportMenu(false));
+                        return;
+                      default:
+                        return;
+                    }
+                    event.preventDefault();
+                    setExportMenuIndex(nextIndex);
+                  }}
+                >
+                  {IMAGE_EXPORT_ACTIONS.map((action, index) => (
+                    <button
+                      key={action.mode}
+                      type="button"
+                      role="menuitem"
+                      ref={(element) => {
+                        exportItemRefs.current[index] = element;
+                      }}
+                      tabIndex={index === exportMenuIndex ? 0 : -1}
+                      onFocus={() => setExportMenuIndex(index)}
+                      onClick={() => selectExport(action.mode)}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             {supportedBoardMapId !== undefined ? (
               <button
                 type="button"

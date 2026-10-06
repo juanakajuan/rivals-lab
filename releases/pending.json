@@ -6,5 +6,9 @@
   {
     "id": "drawing-limit-keeps-board",
     "text": "Bug fix: A map stops at 2,000 drawings, so a later reload keeps the board."
+  },
+  {
+    "id": "draft-image-export-actions",
+    "text": "Feature: You can choose to download a draft image, copy it, or do both."
   }
 ]

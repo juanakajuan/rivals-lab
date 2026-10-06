@@ -167,9 +167,12 @@ test("downloads and copies the same full PNG without changing saved data", async
   await page.getByLabel("Comp notes", { exact: true }).fill(notes);
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
     .focus();
   await page.keyboard.press("Enter");
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
+    .press("Enter");
   await expect(page.getByRole("status")).toHaveText(
     "Download started. Image copied to clipboard.",
   );
@@ -326,7 +329,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Saved comps",
     "Save As",
     "Choose hero",
-    "Download & Copy",
+    "Download and Copy",
     "Reset draft",
     "Pending joint ban",
     "Step 11",
@@ -371,14 +374,19 @@ test("prevents repeat writes and only reports success after the write", async ({
   page.on("download", () => downloads++);
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   const busy = page.getByRole("button", {
     name: "Preparing image…",
     exact: true,
   });
-  await expect(busy).toBeDisabled();
+  await expect(busy).toHaveAttribute("aria-disabled", "true");
+  await expect(busy).toBeFocused();
   await busy.dispatchEvent("click");
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.getByRole("status")).not.toHaveText(
     "Image copied to clipboard.",
   );
@@ -394,7 +402,7 @@ test("prevents repeat writes and only reports success after the write", async ({
     "Clipboard access was denied",
   );
   await expect(
-    page.getByRole("button", { name: "Download & Copy", exact: true }),
+    page.getByRole("button", { name: "Download and Copy", exact: true }),
   ).toBeEnabled();
   await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
     "Keep this build",
@@ -418,7 +426,10 @@ test("downloads when image clipboard access is unsupported", async ({
   await page.getByLabel("Comp notes", { exact: true }).fill("Notes only.");
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   expect((await downloadReady).suggestedFilename()).toBe("rivals-comp.png");
   await expect(page.getByRole("status")).toHaveText("Download started.");
@@ -479,7 +490,10 @@ test("uses the intact local image when the encoder worker cannot load", async ({
     .fill("Keep these notes.");
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   await expect(page.getByRole("status")).toHaveText(
     "Download started. Image copied to clipboard.",
@@ -541,12 +555,15 @@ for (const failure of workerFailures) {
       .fill("The full plan must remain in the PNG.");
     const referenceReady = page.waitForEvent("download");
     await page
-      .getByRole("button", { name: "Download & Copy", exact: true })
+      .getByRole("button", { name: "Download and Copy", exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Download and Copy", exact: true })
       .click();
     const referencePath = testInfo.outputPath("reference.png");
     await (await referenceReady).saveAs(referencePath);
     await expect(
-      page.getByRole("button", { name: "Download & Copy", exact: true }),
+      page.getByRole("button", { name: "Download and Copy", exact: true }),
     ).toBeEnabled();
 
     await page.evaluate((failure) => {
@@ -635,7 +652,10 @@ for (const failure of workerFailures) {
     }
     const fallbackReady = page.waitForEvent("download");
     await page
-      .getByRole("button", { name: "Download & Copy", exact: true })
+      .getByRole("button", { name: "Download and Copy", exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: "Download and Copy", exact: true })
       .click();
     const fallbackPath = testInfo.outputPath("fallback.png");
     await (await fallbackReady).saveAs(fallbackPath);
@@ -698,10 +718,13 @@ test("map image failure reports the map and permits retry without changing saved
   let downloads = 0;
   page.on("download", () => downloads++);
   const exportButton = page.getByRole("button", {
-    name: "Download & Copy",
+    name: "Download and Copy",
     exact: true,
   });
   await exportButton.click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
+    .click();
   await expect(page.getByRole("alert")).toHaveText(
     "Could not create image. Midtown preview could not load. Try again.",
   );
@@ -718,6 +741,9 @@ test("map image failure reports the map and permits retry without changing saved
   await page.unroute("**/map-previews/midtown.webp");
   const downloadReady = page.waitForEvent("download");
   await exportButton.click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
+    .click();
   expect((await downloadReady).suggestedFilename()).toBe("Map-plan.png");
   await expect(page.getByRole("status")).toHaveText(
     "Download started. Image copied to clipboard.",
@@ -756,13 +782,16 @@ test("image generation failure produces no download or clipboard image", async (
     .getByLabel("Comp name", { exact: true })
     .fill("Keep failed export");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Could not create image.",
   );
   await expect(
-    page.getByRole("button", { name: "Download & Copy", exact: true }),
+    page.getByRole("button", { name: "Download and Copy", exact: true }),
   ).toBeEnabled();
   expect(downloads).toBe(0);
   expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(0);
@@ -798,7 +827,10 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   page.on("download", () => downloads++);
   await page.getByLabel("Comp notes", { exact: true }).fill("   ");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Add a title, map, hero, draft choice, or note before exporting.",
@@ -807,7 +839,10 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   await page.getByLabel("Comp notes", { exact: true }).fill("Only the plan.");
   const downloadReady = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   await downloadReady;
   await expect(page.getByRole("status")).toHaveText("Download started.");
@@ -863,7 +898,10 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   await page.getByRole("button", { name: "Load Sparse", exact: true }).click();
   const sparseDownload = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "Download & Copy", exact: true })
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Download and Copy", exact: true })
     .click();
   await sparseDownload;
   const sparseText = await page.evaluate(() =>
@@ -879,4 +917,114 @@ test("sparse export omits empty sections and rejects an empty build", async ({
     "DRAFT ·",
   ])
     expect(sparseText).not.toContain(excluded);
+});
+
+test("download alone does not access the clipboard", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      get: () => {
+        throw new Error("Download must not access clipboard");
+      },
+    });
+  });
+  await page.goto("/builder");
+  await page.getByLabel("Comp name", { exact: true }).fill("Download only");
+  const downloadReady = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "Download", exact: true }).click();
+  expect((await downloadReady).suggestedFilename()).toBe("Download-only.png");
+  await expect(page.getByRole("status")).toHaveText("Download started.");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("copy alone starts clipboard access in the click and does not download", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => {
+    window.imageCopyTest = { text: [], writes: 0 };
+    const write = navigator.clipboard.write.bind(navigator.clipboard);
+    Object.defineProperty(navigator.clipboard, "write", {
+      value: (items: ClipboardItem[]) => {
+        if (!navigator.userActivation.isActive)
+          throw new Error("Missing click activation");
+        window.imageCopyTest.writes++;
+        return write(items);
+      },
+    });
+  });
+  let downloads = 0;
+  page.on("download", () => downloads++);
+  await page.goto("/builder");
+  await page.getByLabel("Comp name", { exact: true }).fill("Copy only");
+  await page
+    .getByRole("button", { name: "Download and Copy", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "Copy", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Image copied to clipboard.",
+  );
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  expect(downloads).toBe(0);
+  const result = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    const item = items.find((entry) => entry.types.includes("image/png"));
+    if (!item) throw new Error("Missing clipboard PNG");
+    const blob = await item.getType("image/png");
+    return {
+      writes: window.imageCopyTest.writes,
+      bytes: [...new Uint8Array(await blob.arrayBuffer())],
+    };
+  });
+  expect(result.writes).toBe(1);
+  expect(result.bytes.slice(0, 8)).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  const [png] = await page.evaluate(inspectPngs, [result.bytes]);
+  if (!png) throw new Error("Missing PNG inspection");
+  expect(png.hasContent).toBe(true);
+});
+
+test("export menu supports keyboard navigation and dismissal", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  const trigger = page.getByRole("button", {
+    name: "Download and Copy",
+    exact: true,
+  });
+  const combined = page.getByRole("menuitem", {
+    name: "Download and Copy",
+    exact: true,
+  });
+  const copy = page.getByRole("menuitem", { name: "Copy", exact: true });
+  await trigger.focus();
+  await trigger.press("ArrowUp");
+  await expect(copy).toBeFocused();
+  await copy.press("ArrowDown");
+  await expect(combined).toBeFocused();
+  await combined.press("End");
+  await expect(copy).toBeFocused();
+  await copy.press("Home");
+  await expect(combined).toBeFocused();
+  await combined.press("ArrowUp");
+  await expect(copy).toBeFocused();
+  await copy.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.press("Enter");
+  await expect(combined).toBeFocused();
+  await combined.press("Shift+Tab");
+  await expect(trigger).toBeFocused();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await trigger.press("Space");
+  await expect(combined).toBeFocused();
+  await combined.press("Tab");
+  await expect(page.getByLabel("Comp name", { exact: true })).toBeFocused();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await trigger.click();
+  await page.getByLabel("Comp name", { exact: true }).click();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.getByLabel("Comp name", { exact: true })).toBeFocused();
 });
