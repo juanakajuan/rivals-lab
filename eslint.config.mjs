@@ -60,4 +60,14 @@ export default defineConfig(
       "react-hooks/exhaustive-deps": "error",
     },
   },
+  {
+    files: [".cursor/skills/verify-rivals-lab/scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+      },
+    },
+  },
 );

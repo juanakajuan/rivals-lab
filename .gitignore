@@ -20,4 +20,7 @@ pnpm-debug.log*
 
 /.release
 
+/.cursor/skills/verify-rivals-lab/.run/
+/artifacts/verify/
+
 /docs/screenshots/
