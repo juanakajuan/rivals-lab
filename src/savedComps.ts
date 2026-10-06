@@ -124,7 +124,7 @@ function savedCompRevision(entry: SavedComp): string {
   return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
 }
 
-function sameComp(left: Comp, right: Comp): boolean {
+export function sameComp(left: Comp, right: Comp): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
