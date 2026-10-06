@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { BoardDrawing, BoardTool } from "./boardDrawings";
+import {
+  MAX_NOTE_LENGTH,
+  type BoardDrawing,
+  type BoardTool,
+} from "./boardDrawings";
 
 interface DrawingToolsProps {
   readonly tool: BoardTool;
@@ -107,7 +111,7 @@ function NoteEditor({
         Note text{" "}
         <textarea
           value={text}
-          maxLength={200}
+          maxLength={MAX_NOTE_LENGTH}
           onChange={(event) => setText(event.currentTarget.value)}
         />
       </label>

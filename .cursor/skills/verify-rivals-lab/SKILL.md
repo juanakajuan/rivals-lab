@@ -5,7 +5,7 @@ description: Drive the Rivals Lab web app in a disposable browser and capture pr
 
 # Verify Rivals Lab
 
-Rivals Lab is a local web app. A user opens Position Board, Draft / Comp Builder, or Changelog. Saved comps stay in that browser's IndexedDB. Board placements and drawings stay in the page session and reset on reload.
+Rivals Lab is a local web app. A user opens Position Board, Draft / Comp Builder, or Changelog. Saved comps, the open comp, board placements and drawings, custom maps, and icon size stay in that browser's IndexedDB. Board undo history resets on reload.
 
 This skill launches a private Vite dev server and a private Chromium profile, drives them with Playwright, and writes proof under `artifacts/verify/`. It does not replace `npm test` or `npm run test:production`. Those suites cover regressions. This skill is how an agent exercises the running app and keeps evidence.
 
@@ -60,7 +60,7 @@ Doctor does not attach to a server it did not launch. If it fails, run `cleanup`
 
 ## Drive
 
-Every drive command talks to the browser `launch` already opened. Run them from the checkout root. A new command does not reload the page. Board edits, open dialogs, and unsaved comp fields survive from one command to the next. `reload` and `goto` do load the page again: board history is discarded; saved comps in this profile's IndexedDB remain.
+Every drive command talks to the browser `launch` already opened. Run them from the checkout root. A new command does not reload the page. Board edits, open dialogs, and unsaved comp fields survive from one command to the next. `reload` and `goto` do load the page again: board undo history is discarded; stored data in this profile's IndexedDB remains.
 
 `assert-visible` waits up to 10 seconds and requires exactly one match. Use `assert-count` when the expected count is zero or more than one.
 
@@ -103,7 +103,7 @@ For each proof, capture the user action and the state it produced:
 
 - An ARIA snapshot and a full-page screenshot of the resulting screen. The header `Rivals Lab` must be visible in the screenshot.
 - The command that performed the action, copied into the notes you report with the artifact paths.
-- A second user-facing check of anything that is stored. Saved comps must be loaded again after `reload`. Board edits must be visible on the board after the click, and undo must be able to reverse them, because reload discards the board.
+- A second user-facing check of anything that is stored. Saved comps must be loaded again after `reload`. Board edits must be visible on the board after the click and again after `reload`.
 - Side effects you can observe without a test-only hook. A downloaded comp file or PNG is a download, not a status string. An IndexedDB save is proven by loading the comp after reload in this same profile.
 
 Do not call session methods, storage adapters, or Playwright fixtures under `tests/`. Do not treat `npm test` output as this skill's proof.

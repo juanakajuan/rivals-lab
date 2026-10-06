@@ -51,6 +51,14 @@ function initialTokens(): BoardToken[] {
   ];
 }
 
+export function initialBoard(): BoardState {
+  return {
+    map: { kind: "builtin", id: DEFAULT_MAP_ID },
+    tokens: initialTokens(),
+    drawingsByMap: {},
+  };
+}
+
 function equalBoards(left: BoardState, right: BoardState): boolean {
   const leftDrawings = new Map(Object.entries(left.drawingsByMap));
   const rightDrawings = new Map(Object.entries(right.drawingsByMap));
@@ -83,11 +91,7 @@ export class BoardSession {
 
   constructor(
     private readonly measureNote: MeasureBoardNote,
-    board: BoardState = {
-      map: { kind: "builtin", id: DEFAULT_MAP_ID },
-      tokens: initialTokens(),
-      drawingsByMap: {},
-    },
+    board: BoardState = initialBoard(),
   ) {
     this.board = board;
     this.current = { ...board, canUndo: false, canRedo: false };

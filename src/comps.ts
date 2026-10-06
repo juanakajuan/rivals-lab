@@ -135,21 +135,34 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
-function decodeComp(value: unknown): Comp {
+function decodeCompWithName(
+  value: unknown,
+  decodeName: (name: unknown) => string,
+): Comp {
   const comp = record(value);
   const teams = record(comp.teams);
   const mapId = comp.mapId === null ? null : text(comp.mapId, 100);
   if (mapId !== null && !COMP_MAPS.some((map) => map.id === mapId))
     throw new Error(`Unknown map: ${mapId}.`);
-  const name = text(comp.name, 100).trim();
-  if (!name) throw new Error("Each saved comp needs a name.");
   return {
-    name,
+    name: decodeName(comp.name),
     notes: text(comp.notes, 10_000),
     mapId,
     teams: { ally: decodeSlots(teams.ally), enemy: decodeSlots(teams.enemy) },
     draft: decodeDraft(comp.draft),
   };
+}
+
+function decodeComp(value: unknown): Comp {
+  return decodeCompWithName(value, (value) => {
+    const name = text(value, 100).trim();
+    if (!name) throw new Error("Each saved comp needs a name.");
+    return name;
+  });
+}
+
+export function decodeOpenComp(value: unknown): Comp {
+  return decodeCompWithName(value, (name) => text(name, 100));
 }
 
 export interface CompLibrary {
@@ -206,6 +219,27 @@ export function parseCompLibrary(source: string): readonly SavedComp[] {
   const library = decodeCompLibrary(source);
   if (library.errors.length) throw new Error(library.errors.join(" "));
   return library.entries;
+}
+
+export class StoredLibrarySource {
+  private constructor(readonly text: string) {}
+
+  static encode(library: CompLibrary): StoredLibrarySource {
+    const ids = new Set(library.entries.map((entry) => entry.id));
+    for (const item of library.unavailable)
+      if (isRecord(item) && typeof item.id === "string" && ids.has(item.id))
+        throw new Error("A comp ID belongs to an unavailable entry.");
+    const comps = [...library.entries, ...library.unavailable];
+    if (comps.length > MAX_SAVED_COMPS)
+      throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
+    parseCompLibrary(serializeCompLibrary(library.entries));
+    const source = JSON.stringify({ ...library.envelope, comps }, null, 2);
+    if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
+      throw new Error(
+        "The library limit is 2 MB. Export and remove older comps to make space.",
+      );
+    return new StoredLibrarySource(source);
+  }
 }
 
 export function serializeCompLibrary(comps: readonly SavedComp[]): string {

@@ -24,7 +24,7 @@ for (const path of ["/", "/board", "/unknown-page"]) {
   });
 }
 
-test("builder direct loads and refresh keep the page without saving unsaved edits", async ({
+test("builder direct loads and refresh keep the page and the unsaved comp", async ({
   page,
 }) => {
   await page.goto("/builder");
@@ -38,7 +38,10 @@ test("builder direct loads and refresh keep the page without saving unsaved edit
   await page.reload();
   await expect(page).toHaveURL(/\/builder$/);
   await expect(builderLink).toHaveAttribute("aria-current", "page");
-  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Unsaved note",
+  );
+  await expect(page.getByRole("status")).toHaveText("Unsaved changes");
 });
 
 test("links and Back/Forward keep both pages' in-session edits", async ({

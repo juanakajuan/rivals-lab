@@ -23,6 +23,74 @@ export interface BoardSize {
 }
 export type MeasureBoardNote = (text: string) => BoardSize;
 
+export const MAX_NOTE_LENGTH = 200;
+export const MAX_DRAWINGS_PER_MAP = 2_000;
+
+function finite(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value))
+    throw new Error("Invalid drawing position or size.");
+  return value;
+}
+
+function extent(value: unknown): number {
+  const size = finite(value);
+  if (size < 0) throw new Error("Invalid drawing position or size.");
+  return size;
+}
+
+type DrawingFields = Partial<Record<string, unknown>>;
+
+const DRAWING_DECODERS: {
+  readonly [Kind in BoardDrawing["kind"]]: (
+    base: DrawingBase,
+    fields: DrawingFields,
+  ) => Extract<BoardDrawing, { readonly kind: Kind }>;
+} = {
+  arrow: (base, { dx, dy }) => ({
+    ...base,
+    kind: "arrow",
+    dx: finite(dx),
+    dy: finite(dy),
+  }),
+  zone: (base, { width, height }) => ({
+    ...base,
+    kind: "zone",
+    width: extent(width),
+    height: extent(height),
+  }),
+  note: (base, { text }) => {
+    if (
+      typeof text !== "string" ||
+      !text.trim() ||
+      text.length > MAX_NOTE_LENGTH
+    )
+      throw new Error(
+        `Each note needs text of at most ${MAX_NOTE_LENGTH} characters.`,
+      );
+    return { ...base, kind: "note", text };
+  },
+};
+
+function isDrawingKind(value: unknown): value is BoardDrawing["kind"] {
+  return typeof value === "string" && Object.hasOwn(DRAWING_DECODERS, value);
+}
+
+export function decodeDrawing(value: unknown): BoardDrawing {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Invalid drawing.");
+  const fields: DrawingFields = value;
+  const { id, kind, color } = fields;
+  if (!isDrawingKind(kind)) throw new Error("Unknown drawing kind.");
+  if (typeof id !== "string" || !id || id.length > 100)
+    throw new Error("Invalid drawing ID.");
+  if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color))
+    throw new Error("Invalid drawing color.");
+  return DRAWING_DECODERS[kind](
+    { id, color, x: finite(fields.x), y: finite(fields.y) },
+    fields,
+  );
+}
+
 export function createDrawing(
   kind: BoardDrawing["kind"],
   start: BoardPoint,

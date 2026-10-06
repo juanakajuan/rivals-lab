@@ -84,6 +84,20 @@ oldest saved entries when needed and clear redo. Unchanged actions preserve hist
 Use Ctrl/Cmd+Z to undo and Ctrl/Cmd+Shift+Z to redo. Ctrl+Y also redoes on
 Windows/Linux. These shortcuts leave editable fields to native text editing.
 
+## Browser data and backups
+
+`src/appData.ts` owns the `rivals-lab` IndexedDB database. Version 2 keeps the
+comp library record and adds the Position Board, the open comp, and custom map
+images. The board, hero icon size, open comp, and custom maps save as they
+change, so a reload keeps them. Undo history still resets on reload. Every write
+checks the stored data generation. A tab whose data was replaced in another tab
+stops writing and asks for a reload.
+
+Backup in the top bar downloads one JSON file with all of it. Import in the same
+dialog previews a file before anything changes. A full backup replaces this
+browser's data and reloads the page. A version 1 comps file adds copies, as
+before. Backups are capped at 80 MiB.
+
 ## Saved comp compatibility
 
 `SavedCompSession` in `src/savedComps.ts` owns library operations, saved revisions,

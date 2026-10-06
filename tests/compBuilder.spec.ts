@@ -1,7 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { emptyComp } from "../src/comps";
 import { emptyDraft } from "../src/draft";
-import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
+import {
+  addCompCopies,
+  exportCompLibrary,
+  openImportDialog,
+  readStoredCompLibrary,
+} from "./compLibrary";
 
 async function openBuilder(page: Page): Promise<void> {
   await page
@@ -133,23 +138,28 @@ test("named comps, notes, copies and JSON imports survive reload without data lo
   await expect(copy.locator(".saved-comp-map")).toHaveText("Any map");
   await expect(original.locator(".saved-comp-map")).toHaveText("Midtown");
   const exported = await exportCompLibrary(page);
-  await page.getByLabel("Import comps JSON").setInputFiles({
-    name: "comps.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(exported),
-  });
-  await expect(page.getByRole("status")).toHaveText(
-    "Imported 2 comps as copies.",
+  await addCompCopies(
+    page,
+    {
+      name: "comps.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(exported),
+    },
+    2,
   );
   await expect(page.locator(".saved-comp")).toHaveCount(4);
-  await page.getByLabel("Import comps JSON").setInputFiles({
+  const dialog = await openImportDialog(page);
+  await dialog.getByLabel("Import backup or comps file").setInputFiles({
     name: "bad.json",
     mimeType: "application/json",
     buffer: Buffer.from('{"version": 99}'),
   });
-  await expect(page.getByRole("alert")).toContainText(
-    "Unsupported comp file version",
+  await expect(dialog.getByRole("alert")).toHaveText(
+    "Import failed. This file is not a Rivals Lab backup or comps file.",
   );
+  await dialog
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await expect(page.locator(".saved-comp")).toHaveCount(4);
 });
 
@@ -403,13 +413,14 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
     "Stay near the back line.",
   );
   const exported = await exportCompLibrary(page);
-  await page.getByLabel("Import comps JSON").setInputFiles({
-    name: "deadpool.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(exported),
-  });
-  await expect(page.getByRole("status")).toHaveText(
-    "Imported 1 comp as copies.",
+  await addCompCopies(
+    page,
+    {
+      name: "deadpool.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(exported),
+    },
+    1,
   );
   await page
     .getByRole("button", { name: "Load Deadpool support", exact: true })
@@ -528,13 +539,14 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await page.getByLabel("Comp name", { exact: true }).fill("New valid");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved New valid.");
-  await page.getByLabel("Import comps JSON").setInputFiles({
-    name: "valid.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify({ version: 1, comps: [saved] })),
-  });
-  await expect(page.getByRole("status")).toHaveText(
-    "Imported 1 comp as copies.",
+  await addCompCopies(
+    page,
+    {
+      name: "valid.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify({ version: 1, comps: [saved] })),
+    },
+    1,
   );
   page.once("dialog", (dialog) => dialog.accept());
   await page
@@ -543,6 +555,11 @@ test("mixed saved data stays recoverable through valid library changes", async (
   await expect(page.getByRole("status")).toHaveText("Deleted New valid.");
   await page.reload();
   await openBuilder(page);
+  await expect(page.getByLabel("Comp name", { exact: true })).toHaveValue(
+    "New valid",
+  );
+  await expect(page.getByRole("status")).toHaveText("Unsaved changes");
+  page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("button", { name: "Load Renamed valid", exact: true })
     .click();
