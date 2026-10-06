@@ -1,5 +1,23 @@
 [
   {
+    "id": "eb87cd3b-59ce-4b37-a131-cae74e292357",
+    "date": "2026-10-06",
+    "notes": [
+      {
+        "id": "comp-map-image-selector",
+        "text": "Feature: Choose a comp map from its image and see its name once below it."
+      },
+      {
+        "id": "full-backup-import-export",
+        "text": "Feature: Back up your comps, board, and custom maps to one file with Backup, and restore them in another browser."
+      },
+      {
+        "id": "position-board-row-actions-smaller",
+        "text": "Bug fix: Add and remove buttons beside hero portraits on the Position Board are smaller."
+      }
+    ]
+  },
+  {
     "id": "6fd38881-7700-4d1b-9e76-10b7cb093d08",
     "date": "2026-10-03",
     "notes": [
