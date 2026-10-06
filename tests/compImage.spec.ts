@@ -705,7 +705,7 @@ test("map image failure reports the map and permits retry without changing saved
   expect(downloads).toBe(0);
   expect(await page.evaluate(() => window.imageCopyTest.writes)).toBe(0);
   expect(await readStoredCompLibrary(page)).toBe(saved);
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Midtown · Convoy",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
