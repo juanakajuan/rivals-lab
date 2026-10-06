@@ -12,7 +12,7 @@ import {
   type SavedComp,
   type StoredLibrarySource,
 } from "../src/comps";
-import type { CompStorage } from "../src/compStorage";
+import type { CompStorage } from "../src/appData";
 import { prependCompCopies } from "../src/savedComps";
 
 const MAP_ID = "custom:0b4c5f7e-8c1d-4f2a-9e3b-6a7d8c9e0f12";

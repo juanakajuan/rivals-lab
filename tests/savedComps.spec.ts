@@ -13,7 +13,7 @@ import {
   type CompImportFile,
 } from "../src/savedComps";
 
-import type { CompStorage } from "../src/compStorage";
+import type { CompStorage } from "../src/appData";
 
 class MemoryStorage implements CompStorage {
   private source: string | null;

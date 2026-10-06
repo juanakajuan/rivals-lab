@@ -17,7 +17,7 @@ import {
   type CompHeroTarget,
 } from "./compEdits";
 import { SavedCompSession, SavedCompWriteError } from "./savedComps";
-import { browserCompStorage } from "./compStorage";
+import type { CompStorage } from "./appData";
 import { draftEffects, type DraftFormat } from "./draft";
 import { teamLabel, type HeroSelection, type Team } from "./heroes";
 import type { MapId } from "./maps";
@@ -95,11 +95,13 @@ function NameDialog({
 }
 
 export function CompBuilder({
+  storage,
   onOpenBoard,
 }: {
+  readonly storage: CompStorage;
   readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
-  const [session] = useState(() => new SavedCompSession());
+  const [session] = useState(() => new SavedCompSession(storage));
   const [savedState, setSavedState] = useState(() => session.state);
   const { comp, savedId, dirty, library } = savedState;
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
@@ -139,13 +141,13 @@ export function CompBuilder({
       await session.refresh();
       if (active) setSavedState(session.state);
     }
-    const unsubscribe = browserCompStorage.subscribe(() => void refresh());
+    const unsubscribe = storage.subscribe(() => void refresh());
     void refresh();
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [session]);
+  }, [session, storage]);
 
   async function commit<T>(
     operation: () => Promise<T>,

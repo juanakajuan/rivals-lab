@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { AppData } from "./appData";
 import { Changelog } from "./Changelog";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
@@ -17,7 +18,11 @@ function pageFromPath(): Page {
   }
 }
 
-export default function App(): React.JSX.Element {
+export default function App({
+  data,
+}: {
+  readonly data: AppData;
+}): React.JSX.Element {
   const [page, setPage] = useState<Page>(pageFromPath);
   const board = useBoardController({ active: page === "board" });
   const { dismissMenu } = board;
@@ -57,7 +62,7 @@ export default function App(): React.JSX.Element {
       </header>
       {board.content}
       <div className="builder-page" hidden={page !== "builder"}>
-        <CompBuilder onOpenBoard={openCompOnBoard} />
+        <CompBuilder storage={data.comps} onOpenBoard={openCompOnBoard} />
       </div>
       <div className="changelog-container" hidden={page !== "changelog"}>
         <Changelog />

@@ -39,7 +39,7 @@ async function holdLibraryTransaction(page: Page): Promise<void> {
   await page.evaluate(
     (key) =>
       new Promise<void>((resolve, reject) => {
-        const opening = indexedDB.open("rivals-lab", 1);
+        const opening = indexedDB.open("rivals-lab");
         opening.onerror = () =>
           reject(
             opening.error ?? new Error("The comp database could not open."),

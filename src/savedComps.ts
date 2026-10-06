@@ -1,6 +1,7 @@
 import {
   MAX_IMPORT_BYTES,
   decodeCompLibrary,
+  decodeOpenComp,
   emptyComp,
   encodeLibraryRecord,
   parseCompLibrary,
@@ -10,7 +11,7 @@ import {
   type SavedComp,
 } from "./comps";
 import { applyCompEdit, type CompEdit } from "./compEdits";
-import { browserCompStorage, type CompStorage } from "./compStorage";
+import type { CompStorage } from "./appData";
 
 export interface SavedCompLibraryView {
   readonly entries: readonly SavedComp[];
@@ -32,6 +33,60 @@ export interface CompImportFile {
 
 export interface CompImportResult {
   readonly count: number;
+}
+
+export interface OpenCompSnapshot {
+  readonly comp: Comp;
+  readonly baseline: Comp;
+  readonly saved: { readonly id: string; readonly baseline: Comp } | null;
+}
+
+export type OpenCompLink = "empty" | "unsaved" | "saved" | "detached";
+
+export interface SavedCompSessionStart {
+  readonly openComp: OpenCompSnapshot;
+  readonly library: CompLibrary;
+}
+
+export function emptyOpenComp(): OpenCompSnapshot {
+  return { comp: emptyComp(), baseline: emptyComp(), saved: null };
+}
+
+export function decodeOpenCompSnapshot(value: unknown): OpenCompSnapshot {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Invalid open comp.");
+  const snapshot: Partial<Record<string, unknown>> = value;
+  return {
+    comp: decodeOpenComp(snapshot.comp),
+    baseline: decodeOpenComp(snapshot.baseline),
+    saved: decodeSavedLink(snapshot.saved),
+  };
+}
+
+function decodeSavedLink(value: unknown): OpenCompSnapshot["saved"] {
+  if (value === null) return null;
+  if (typeof value !== "object" || value === undefined || Array.isArray(value))
+    throw new Error("Invalid open comp link.");
+  const link: Partial<Record<string, unknown>> = value;
+  if (typeof link.id !== "string" || !link.id || link.id.length > 100)
+    throw new Error("Invalid open comp link.");
+  return { id: link.id, baseline: decodeOpenComp(link.baseline) };
+}
+
+/** A saved link holds only while its entry still has the comp it was linked to. */
+export function openCompLink(
+  openComp: OpenCompSnapshot,
+  entries: readonly SavedComp[],
+): OpenCompLink {
+  const { saved } = openComp;
+  if (saved) {
+    const entry = entries.find((item) => item.id === saved.id);
+    return entry && sameComp(entry.comp, saved.baseline) ? "saved" : "detached";
+  }
+  const empty = emptyComp();
+  return sameComp(openComp.comp, empty) && sameComp(openComp.baseline, empty)
+    ? "empty"
+    : "unsaved";
 }
 
 export type SaveResult =
@@ -83,7 +138,7 @@ export class SavedCompSession {
   private refreshGeneration = 0;
   private writeTail: Promise<void> = Promise.resolve();
 
-  constructor(private readonly storage: CompStorage = browserCompStorage) {
+  constructor(private readonly storage: CompStorage) {
     this.current = {
       comp: this.baseline,
       savedId: null,

@@ -7,7 +7,7 @@ export async function readStoredCompLibrary(
   return page.evaluate(
     () =>
       new Promise<string | null>((resolve, reject) => {
-        const opening = indexedDB.open("rivals-lab", 1);
+        const opening = indexedDB.open("rivals-lab");
         opening.onupgradeneeded = () => {
           opening.transaction?.abort();
           reject(new Error("The comp database does not exist."));
