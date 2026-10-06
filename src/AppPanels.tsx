@@ -8,7 +8,12 @@ import {
 } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { ICON_SIZES, type BoardToken, type IconSize } from "./boardTokens";
+import {
+  boardTokenId,
+  ICON_SIZES,
+  type BoardToken,
+  type IconSize,
+} from "./boardTokens";
 import {
   heroImagePath,
   teamLabel,
@@ -106,7 +111,7 @@ export function HeroPanel({
 
       <div className="hero-list">
         {visibleHeroes.map((hero, index) => {
-          const tokenId = `${selectedTeam}-${hero.id}`;
+          const tokenId = boardTokenId(selectedTeam, hero.id);
           const token = tokens.find((token) => token.id === tokenId);
 
           return (

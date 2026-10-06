@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "deadpool-repick-stays-saved",
+    "text": "Bug fix: Choosing the same Deadpool again no longer marks a saved comp as unsaved."
+  }
+]

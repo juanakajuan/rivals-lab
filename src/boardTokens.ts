@@ -32,6 +32,10 @@ function coordinate(value: unknown): number {
   return value;
 }
 
+export function boardTokenId(team: Team, heroId: string): string {
+  return `${team}-${heroId}`;
+}
+
 export function decodeToken(value: unknown): BoardToken {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Invalid hero token.");
@@ -41,7 +45,8 @@ export function decodeToken(value: unknown): BoardToken {
     throw new Error(`Unknown hero: ${String(heroId)}.`);
   if (team !== "ally" && team !== "enemy")
     throw new Error("Invalid hero team.");
-  if (id !== `${team}-${heroId}`) throw new Error("Invalid hero token ID.");
+  if (id !== boardTokenId(team, heroId))
+    throw new Error("Invalid hero token ID.");
   if (
     deadpoolRole !== undefined &&
     (heroId !== "deadpool" || !isDeadpoolRole(deadpoolRole))

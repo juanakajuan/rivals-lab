@@ -6,7 +6,12 @@ import {
   type BoardPoint,
   type MeasureBoardNote,
 } from "./boardDrawings";
-import { clampToBoard, tokenBoundary, type BoardToken } from "./boardTokens";
+import {
+  boardTokenId,
+  clampToBoard,
+  tokenBoundary,
+  type BoardToken,
+} from "./boardTokens";
 import type { Comp } from "./comps";
 import type { Team } from "./heroes";
 import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
@@ -42,12 +47,48 @@ const HISTORY_LIMIT = 100;
 
 function initialTokens(): BoardToken[] {
   return [
-    { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 435 },
-    { id: "ally-psylocke", heroId: "psylocke", team: "ally", x: 380, y: 350 },
-    { id: "ally-luna", heroId: "luna", team: "ally", x: 230, y: 520 },
-    { id: "enemy-magneto", heroId: "magneto", team: "enemy", x: 865, y: 310 },
-    { id: "enemy-magik", heroId: "magik", team: "enemy", x: 960, y: 410 },
-    { id: "enemy-rocket", heroId: "rocket", team: "enemy", x: 910, y: 515 },
+    {
+      id: boardTokenId("ally", "strange"),
+      heroId: "strange",
+      team: "ally",
+      x: 270,
+      y: 435,
+    },
+    {
+      id: boardTokenId("ally", "psylocke"),
+      heroId: "psylocke",
+      team: "ally",
+      x: 380,
+      y: 350,
+    },
+    {
+      id: boardTokenId("ally", "luna"),
+      heroId: "luna",
+      team: "ally",
+      x: 230,
+      y: 520,
+    },
+    {
+      id: boardTokenId("enemy", "magneto"),
+      heroId: "magneto",
+      team: "enemy",
+      x: 865,
+      y: 310,
+    },
+    {
+      id: boardTokenId("enemy", "magik"),
+      heroId: "magik",
+      team: "enemy",
+      x: 960,
+      y: 410,
+    },
+    {
+      id: boardTokenId("enemy", "rocket"),
+      heroId: "rocket",
+      team: "enemy",
+      x: 910,
+      y: 515,
+    },
   ];
 }
 
@@ -113,7 +154,7 @@ export class BoardSession {
     readonly iconSize: number;
   }): HeroPlacement {
     const map = resolveBoardMap(this.board.map);
-    const id = `${team}-${heroId}`;
+    const id = boardTokenId(team, heroId);
     const existing = this.board.tokens.find((token) => token.id === id);
     const token: BoardToken = {
       ...(existing ?? { id, heroId, team }),
@@ -138,7 +179,9 @@ export class BoardSession {
     readonly team: Team;
     readonly iconSize: number;
   }): HeroAddResult {
-    if (this.board.tokens.some((token) => token.id === `${team}-${heroId}`))
+    if (
+      this.board.tokens.some((token) => token.id === boardTokenId(team, heroId))
+    )
       return { kind: "existing" };
     const map = resolveBoardMap(this.board.map);
     const boundary = tokenBoundary(iconSize);
@@ -319,7 +362,7 @@ export class BoardSession {
       comp.teams[team].forEach((slot, index) => {
         if (!slot.heroId) return;
         tokens.push({
-          id: `${team}-${slot.heroId}`,
+          id: boardTokenId(team, slot.heroId),
           heroId: slot.heroId,
           team,
           ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),

@@ -39,9 +39,18 @@ export const COMP_STORAGE_KEY = "rivals-lab.comps.v1";
 export const MAX_IMPORT_BYTES = 2_000_000;
 export const MAX_SAVED_COMPS = 500;
 
+export function compSlot(
+  heroId: string | null,
+  notes: string,
+  deadpoolRole?: DeadpoolRole,
+): CompSlot {
+  if (deadpoolRole === undefined) return { heroId, notes };
+  return { heroId, notes, deadpoolRole };
+}
+
 export function emptyComp(): Comp {
   const slots = (): CompSlot[] =>
-    Array.from({ length: 6 }, () => ({ heroId: null, notes: "" }));
+    Array.from({ length: 6 }, () => compSlot(null, ""));
   return {
     name: "",
     notes: "",
@@ -90,10 +99,9 @@ function decodeSlots(value: unknown): readonly CompSlot[] {
     if (slot.deadpoolRole !== undefined) {
       if (heroId !== "deadpool" || !isDeadpoolRole(slot.deadpoolRole))
         throw new Error("Invalid Deadpool role.");
-      return { heroId, notes, deadpoolRole: slot.deadpoolRole };
+      return compSlot(heroId, notes, slot.deadpoolRole);
     }
-    // Older files did not record a Deadpool role. Keep those slots editable.
-    return { heroId, notes };
+    return compSlot(heroId, notes);
   });
 }
 

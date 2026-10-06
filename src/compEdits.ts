@@ -1,5 +1,5 @@
 import { COMP_MAPS } from "./compMaps";
-import { emptyComp, type Comp, type CompSlot } from "./comps";
+import { compSlot, emptyComp, type Comp, type CompSlot } from "./comps";
 import {
   draftChoiceError,
   draftEffects,
@@ -126,11 +126,9 @@ function changeHero(
       draft: setDraftHero(comp.draft, target.slot, selection?.heroId ?? null),
     };
   }
-  return changeSlot(comp, target.team, target.index, (slot) => ({
-    ...selection,
-    heroId: selection?.heroId ?? null,
-    notes: slot.notes,
-  }));
+  return changeSlot(comp, target.team, target.index, (slot) =>
+    compSlot(selection?.heroId ?? null, slot.notes, selection?.deadpoolRole),
+  );
 }
 
 export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
@@ -152,15 +150,14 @@ export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
     case "clearHero":
       return changeHero(comp, edit.target, null);
     case "slotNotes":
-      return changeSlot(comp, edit.team, edit.index, (slot) => ({
-        ...slot,
-        notes: edit.notes,
-      }));
+      return changeSlot(comp, edit.team, edit.index, (slot) =>
+        compSlot(slot.heroId, edit.notes, slot.deadpoolRole),
+      );
     case "deadpoolRole":
       return changeSlot(comp, edit.team, edit.index, (slot) => {
         if (slot.heroId !== "deadpool")
           throw new Error("Invalid Deadpool role.");
-        return { ...slot, deadpoolRole: edit.role };
+        return compSlot(slot.heroId, slot.notes, edit.role);
       });
     case "resetTeam":
       return {
