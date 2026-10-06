@@ -161,7 +161,6 @@ function decodeComp(value: unknown): Comp {
   });
 }
 
-/** The comp open in the builder may be unnamed and mid-edit. */
 export function decodeOpenComp(value: unknown): Comp {
   return decodeCompWithName(value, (name) => text(name, 100));
 }
@@ -222,26 +221,25 @@ export function parseCompLibrary(source: string): readonly SavedComp[] {
   return library.entries;
 }
 
-declare const storedLibrary: unique symbol;
-export type StoredLibrarySource = string & { readonly [storedLibrary]: true };
+export class StoredLibrarySource {
+  private constructor(readonly text: string) {}
 
-/** The one rulebook for every library write: ordinary saves, copies, and restore. */
-export function encodeLibraryRecord(library: CompLibrary): StoredLibrarySource {
-  const ids = new Set(library.entries.map((entry) => entry.id));
-  for (const item of library.unavailable)
-    if (isRecord(item) && typeof item.id === "string" && ids.has(item.id))
-      throw new Error("A comp ID belongs to an unavailable entry.");
-  const comps = [...library.entries, ...library.unavailable];
-  if (comps.length > MAX_SAVED_COMPS)
-    throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
-  parseCompLibrary(serializeCompLibrary(library.entries));
-  const source = JSON.stringify({ ...library.envelope, comps }, null, 2);
-  if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
-    throw new Error(
-      "The library limit is 2 MB. Export and remove older comps to make space.",
-    );
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- The brand is minted only here, after every library rule passed.
-  return source as StoredLibrarySource;
+  static encode(library: CompLibrary): StoredLibrarySource {
+    const ids = new Set(library.entries.map((entry) => entry.id));
+    for (const item of library.unavailable)
+      if (isRecord(item) && typeof item.id === "string" && ids.has(item.id))
+        throw new Error("A comp ID belongs to an unavailable entry.");
+    const comps = [...library.entries, ...library.unavailable];
+    if (comps.length > MAX_SAVED_COMPS)
+      throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
+    parseCompLibrary(serializeCompLibrary(library.entries));
+    const source = JSON.stringify({ ...library.envelope, comps }, null, 2);
+    if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
+      throw new Error(
+        "The library limit is 2 MB. Export and remove older comps to make space.",
+      );
+    return new StoredLibrarySource(source);
+  }
 }
 
 export function serializeCompLibrary(comps: readonly SavedComp[]): string {

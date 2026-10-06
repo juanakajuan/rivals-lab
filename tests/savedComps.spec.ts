@@ -7,6 +7,7 @@ import {
   parseCompLibrary,
   serializeCompLibrary,
   type SavedComp,
+  type StoredLibrarySource,
 } from "../src/comps";
 import { SavedCompSession, SavedCompWriteError } from "../src/savedComps";
 
@@ -26,8 +27,10 @@ class MemoryStorage implements CompStorage {
     return Promise.resolve(this.source);
   }
 
-  async update(transform: (source: string | null) => string): Promise<void> {
-    const next = transform(this.source);
+  async update(
+    transform: (source: string | null) => StoredLibrarySource,
+  ): Promise<void> {
+    const next = transform(this.source).text;
     await this.beforeCommit?.();
     if (this.failWrites) throw new Error("Storage is full.");
     this.source = next;

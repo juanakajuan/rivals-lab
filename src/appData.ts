@@ -23,12 +23,11 @@ import {
   COMP_STORAGE_KEY,
   MAX_IMPORT_BYTES,
   decodeCompLibrary,
-  encodeLibraryRecord,
+  StoredLibrarySource,
   parseCompLibrary,
   serializeCompLibrary,
   type CompLibrary,
   type SavedComp,
-  type StoredLibrarySource,
 } from "./comps";
 import { downloadBlob } from "./downloadBlob";
 import { MAPS } from "./maps";
@@ -118,7 +117,6 @@ function asError(cause: unknown, message: string): Error {
   return cause instanceof Error ? cause : new Error(message, { cause });
 }
 
-/** Reads run first; the operation then writes synchronously inside the same transaction. */
 function transaction<T>(
   database: IDBDatabase,
   stores: readonly StoreName[],
@@ -173,7 +171,6 @@ class Connection {
     private readonly onReplaced: () => void,
   ) {}
 
-  /** Every write checks that this tab still owns the stored data generation. */
   async write<T>(
     stores: readonly StoreName[],
     reads: readonly Read[],
@@ -340,7 +337,6 @@ function lenient<T>(decode: () => T, fallback: () => T): T {
   }
 }
 
-/** Boot keeps every part that still decodes and starts fresh for the rest. */
 function decodeStoredRecords(records: StoredRecords): {
   readonly workspace: Workspace;
   readonly library: CompLibrary;
@@ -407,7 +403,7 @@ class BrowserCompStorage implements CompStorage {
       ([value], active) => {
         active
           .objectStore(LIBRARY)
-          .put(transform(storedSource(value)), COMP_STORAGE_KEY);
+          .put(transform(storedSource(value)).text, COMP_STORAGE_KEY);
       },
     );
     this.channel?.postMessage("libraryChanged");
@@ -477,7 +473,6 @@ class BrowserAutosave implements WorkspaceAutosave {
     return () => this.listeners.delete(listener);
   }
 
-  /** Holds new writes in the queue until the returned resume runs. */
   pause(): () => void {
     this.paused = true;
     return () => {
@@ -710,7 +705,6 @@ type ImportPayload =
 
 const PLAN = Symbol("ImportPlan");
 
-/** Only readImportFile makes a plan, and applyImport consumes it. */
 export interface ImportPlan {
   readonly preview: ImportPreview;
   readonly [PLAN]: true;
@@ -776,7 +770,7 @@ async function restorePlan(
   if (typeof file.library !== "object" || file.library === null)
     throw new Error("The backup has no saved comp library.");
   const library = decodeCompLibrary(JSON.stringify(file.library));
-  const source = encodeLibraryRecord(library);
+  const source = StoredLibrarySource.encode(library);
   await verifyCustomMapImages(customMaps);
   const current = await storedState();
   return importPlan(
@@ -811,7 +805,6 @@ function compsPlan(source: string): ImportPlan {
   );
 }
 
-/** Validates the whole file and writes nothing. */
 export async function readImportFile(file: ImportSource): Promise<ImportPlan> {
   if (file.size > MAX_BACKUP_BYTES) throw new Error(BACKUP_TOO_LARGE);
   const text = await file.text();
@@ -861,7 +854,7 @@ export async function applyImport(plan: ImportPlan): Promise<ImportOutcome> {
     await (
       await connection
     ).write([LIBRARY, CUSTOM_MAPS], [], (_, active) => {
-      active.objectStore(LIBRARY).put(payload.library, COMP_STORAGE_KEY);
+      active.objectStore(LIBRARY).put(payload.library.text, COMP_STORAGE_KEY);
       const workspace = active.objectStore(WORKSPACE);
       workspace.put(crypto.randomUUID(), "epoch");
       workspace.put(payload.board, "board");

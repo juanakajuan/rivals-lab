@@ -14,7 +14,6 @@ export function backupDialog(page: Page): Locator {
   });
 }
 
-/** Opens the backup dialog through the library footer's Import button. */
 export async function openImportDialog(page: Page): Promise<Locator> {
   await page.getByRole("button", { name: "Import", exact: true }).click();
   const dialog = backupDialog(page);

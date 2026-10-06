@@ -2,7 +2,7 @@ import {
   decodeCompLibrary,
   decodeOpenComp,
   emptyComp,
-  encodeLibraryRecord,
+  StoredLibrarySource,
   parseCompLibrary,
   serializeCompLibrary,
   type Comp,
@@ -63,7 +63,6 @@ function decodeSavedLink(value: unknown): OpenCompSnapshot["saved"] {
   return { id: link.id, baseline: decodeOpenComp(link.baseline) };
 }
 
-/** A saved link holds only while its entry still has the comp it was linked to. */
 export function openCompLink(
   openComp: OpenCompSnapshot,
   entries: readonly SavedComp[],
@@ -373,14 +372,13 @@ function updateLibrary(
 ): Promise<void> {
   return storage.update((stored) => {
     const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
-    return encodeLibraryRecord({
+    return StoredLibrarySource.encode({
       ...current,
       entries: update(current.entries),
     });
   });
 }
 
-/** The one add-copies rule: fresh IDs and dates, prepended, open comp untouched. */
 export async function prependCompCopies(
   storage: CompStorage,
   comps: readonly SavedComp[],

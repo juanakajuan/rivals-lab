@@ -214,7 +214,6 @@ const openComp = {
   saved: { id: "dive", baseline: dive.comp },
 };
 
-/** Two custom maps, drawings on two maps, a Deadpool role, and icon size 130. */
 async function seedWorkspace(page: Page): Promise<number> {
   return page.evaluate(
     async ({ storedLibrary, openComp }) => {

@@ -147,7 +147,6 @@ async function freshPage(browser: Browser): Promise<Page> {
   return page;
 }
 
-/** Builds a workspace through the UI and leaves the open comp unsaved. */
 async function buildWorkspace(page: Page): Promise<void> {
   await page.goto("/");
   await uploadMap(page);

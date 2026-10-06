@@ -6,11 +6,10 @@ import {
   decodeCompLibrary,
   decodeOpenComp,
   emptyComp,
-  encodeLibraryRecord,
   parseCompLibrary,
   serializeCompLibrary,
+  StoredLibrarySource,
   type SavedComp,
-  type StoredLibrarySource,
 } from "../src/comps";
 import type { CompStorage } from "../src/appData";
 import { prependCompCopies } from "../src/savedComps";
@@ -23,7 +22,7 @@ class MemoryStorage implements CompStorage {
     return Promise.resolve(this.source);
   }
   update(transform: (source: string | null) => StoredLibrarySource) {
-    this.source = transform(this.source);
+    this.source = transform(this.source).text;
     return Promise.resolve();
   }
   subscribe(): () => void {
@@ -221,19 +220,19 @@ test("library records keep extra keys and unavailable entries", () => {
       comps: [saved("dive", "Dive"), { id: "broken" }],
     }),
   );
-  expect(JSON.parse(encodeLibraryRecord(library))).toEqual({
+  expect(JSON.parse(StoredLibrarySource.encode(library).text)).toEqual({
     version: 1,
     owner: "scrims",
     comps: [saved("dive", "Dive"), { id: "broken" }],
   });
   expect(() =>
-    encodeLibraryRecord({
+    StoredLibrarySource.encode({
       ...library,
       entries: [saved("broken", "Collides")],
     }),
   ).toThrow("A comp ID belongs to an unavailable entry.");
   expect(() =>
-    encodeLibraryRecord({
+    StoredLibrarySource.encode({
       ...library,
       entries: Array.from({ length: 500 }, (_, index) =>
         saved(`comp-${index}`, `Comp ${index}`),
