@@ -54,10 +54,21 @@ async function pickHero(page: Page, slot: string, hero: string): Promise<void> {
     .click();
 }
 
-test("comp picker shows every scenic map and a selectable Any map", async ({
+test("comp image opens the scenic picker and updates one map caption", async ({
   page,
 }) => {
   await page.goto("/builder");
+  const settings = page.getByRole("region", {
+    name: "Comp settings",
+    exact: true,
+  });
+  const caption = settings.locator("figcaption");
+  const image = trigger(page).locator("img");
+  await expect(caption).toHaveCount(1);
+  await expect(caption).toHaveText("Any map");
+  await expect(
+    trigger(page).getByText("Choose map", { exact: true }),
+  ).toBeVisible();
   await trigger(page).click();
   const dialog = picker(page);
   await expect(dialog.getByRole("button")).toHaveCount(19);
@@ -124,12 +135,35 @@ test("comp picker shows every scenic map and a selectable Any map", async ({
   }
   await dialog.getByRole("button", { name: "Midtown", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.locator(".selected-map-preview")).toHaveText(
-    "Midtown · Convoy",
-  );
+  await expect(caption).toHaveText("Midtown · Convoy");
+  await expect(
+    settings.getByText("Midtown · Convoy", { exact: true }),
+  ).toHaveCount(1);
+  await expect(image).toHaveAttribute("src", "/map-previews/midtown.webp");
+  await expect(
+    trigger(page).getByText("Change map", { exact: true }),
+  ).toBeVisible();
+  await image.click();
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Midtown", exact: true }),
+  ).toBeFocused();
+  await dialog.getByRole("button", { name: "Thebes", exact: true }).click();
+  await expect(caption).toHaveText("Thebes · Convoy");
+  await expect(image).toHaveAttribute("src", "/map-previews/thebes.jpg");
+  await image.click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(caption).toHaveText("Thebes · Convoy");
+  await expect(image).toHaveAttribute("src", "/map-previews/thebes.jpg");
   await expect(trigger(page)).toBeFocused();
   await chooseMap(page, "Any map");
-  await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
+  await expect(caption).toHaveCount(1);
+  await expect(caption).toHaveText("Any map");
+  await expect(image).toHaveCount(0);
+  await expect(
+    trigger(page).getByText("Choose map", { exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Comp name", { exact: true }).fill("Any map plan");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const exported = await exportCompLibrary(page);
@@ -175,7 +209,9 @@ test("map changes preserve the complete draft without confirmation through save 
     await expect(picker(page)).toBeHidden();
     await expect(trigger(page)).toBeFocused();
     expect(confirmations).toBe(0);
-    await expect(trigger(page)).toHaveText(text);
+    await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+      text,
+    );
     await expect(
       page.getByText("Unsaved changes", { exact: true }),
     ).toBeVisible();
@@ -198,7 +234,9 @@ test("map changes preserve the complete draft without confirmation through save 
     await page
       .getByRole("button", { name: "Load Keep draft", exact: true })
       .click();
-    await expect(trigger(page)).toHaveText(text);
+    await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+      text,
+    );
     await expect(
       page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
     ).toBeVisible();
@@ -239,9 +277,9 @@ test("map changes preserve the complete draft without confirmation through save 
     await importedPage
       .getByRole("button", { name: "Load Keep draft", exact: true })
       .click();
-    await expect(trigger(importedPage)).toHaveText(
-      "The God Quarry · Domination",
-    );
+    await expect(
+      importedPage.locator(".selected-map-preview figcaption"),
+    ).toHaveText("The God Quarry · Domination");
     expect(
       parseCompLibrary(await exportCompLibrary(importedPage)).map(
         (entry) => entry.comp,
@@ -284,7 +322,9 @@ test("comp search matches apostrophes and modes, keeps the current map while typ
     "No maps match your search.",
   );
   await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
-  await expect(trigger(page)).toHaveText("Any map");
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+    "Any map",
+  );
   await search.fill("");
   await expect(dialog.locator(".map-picker-card")).toHaveCount(18);
   await expect(dialog.getByRole("status")).toHaveCount(0);
@@ -296,7 +336,9 @@ test("comp search matches apostrophes and modes, keeps the current map while typ
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect(trigger(page)).toBeFocused();
-  await expect(trigger(page)).toHaveText("Hell’s Heaven · Domination");
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+    "Hell’s Heaven · Domination",
+  );
   await trigger(page).click();
   await expect(search).toHaveValue("");
   await expect(hellsHeaven).toBeFocused();
@@ -318,7 +360,9 @@ test("comp search matches apostrophes and modes, keeps the current map while typ
   await page.keyboard.press("Space");
   await expect(dialog).toBeHidden();
   await expect(trigger(page)).toBeFocused();
-  await expect(page.locator(".selected-map-neutral")).toHaveText("Any map");
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+    "Any map",
+  );
 });
 
 test("keyboard selects maps, focuses the current card, and closes without edits", async ({
@@ -348,8 +392,12 @@ test("keyboard selects maps, focuses the current card, and closes without edits"
   await expect(last).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Lower Manhattan · Convergence",
+  );
+  await expect(trigger(page).locator("img")).toHaveAttribute(
+    "src",
+    "/map-previews/lower-manhattan.jpg",
   );
   await expect(trigger(page)).toBeFocused();
   await page.keyboard.press("Space");
@@ -363,8 +411,12 @@ test("keyboard selects maps, focuses the current card, and closes without edits"
   await close.click();
   await expect(dialog).toBeHidden();
   await expect(trigger(page)).toBeFocused();
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Lower Manhattan · Convergence",
+  );
+  await expect(trigger(page).locator("img")).toHaveAttribute(
+    "src",
+    "/map-previews/lower-manhattan.jpg",
   );
 });
 
@@ -399,8 +451,10 @@ for (const width of [320, 390]) {
       await page
         .getByRole("button", { name: "Load Cold map", exact: true })
         .click();
-      await expect(trigger(page)).toHaveText("Lower Manhattan · Convergence");
-      await trigger(page).tap();
+      await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+        "Lower Manhattan · Convergence",
+      );
+      await trigger(page).locator("img").tap();
       const dialog = picker(page);
       const last = dialog.getByRole("button", {
         name: "Lower Manhattan",
@@ -451,7 +505,15 @@ for (const width of [320, 390]) {
         "Lower Manhattan",
       );
       await last.tap();
-      await trigger(page).tap();
+      await expect(page.locator(".comp-settings figcaption")).toHaveCount(1);
+      await expect(page.locator(".comp-settings figcaption")).toHaveText(
+        "Lower Manhattan · Convergence",
+      );
+      await expect(trigger(page).locator("img")).toHaveAttribute(
+        "src",
+        "/map-previews/lower-manhattan.jpg",
+      );
+      await trigger(page).locator("img").tap();
       await expect(last).toBeFocused();
       await expect(last).toBeInViewport({ ratio: 1 });
       await expect(last.getByText("Selected", { exact: true })).toBeInViewport({
@@ -480,7 +542,13 @@ for (const width of [320, 390]) {
       ).toBe(true);
       await close.tap();
       await expect(trigger(page)).toBeFocused();
-      await expect(trigger(page)).toHaveText("Lower Manhattan · Convergence");
+      await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
+        "Lower Manhattan · Convergence",
+      );
+      await expect(trigger(page).locator("img")).toHaveAttribute(
+        "src",
+        "/map-previews/lower-manhattan.jpg",
+      );
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -544,7 +612,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Midtown · Convoy",
   );
   await page.keyboard.press("Escape");
@@ -566,7 +634,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
   await expect(fallback).toBeHidden();
   await expect(page).toHaveURL(/\/builder$/);
   await expect(transfer).toBeFocused();
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Midtown · Convoy",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
@@ -608,7 +676,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
   await page
     .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
-  await expect(page.locator(".selected-map-preview")).toHaveText(
+  await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Midtown · Convoy",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(

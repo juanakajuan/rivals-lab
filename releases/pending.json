@@ -1,5 +1,9 @@
 [
   {
+    "id": "comp-map-image-selector",
+    "text": "Feature: Choose a comp map from its image and see its name once below it."
+  },
+  {
     "id": "full-backup-import-export",
     "text": "Feature: Back up your comps, board, and custom maps to one file with Backup, and restore them in another browser."
   }
