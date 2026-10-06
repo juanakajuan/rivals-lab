@@ -6,8 +6,9 @@ import {
   hasDraftChoices,
   type CompHeroTarget,
 } from "../src/compEdits";
-import { emptyComp } from "../src/comps";
+import { decodeOpenComp, emptyComp } from "../src/comps";
 import type { DraftFormat } from "../src/draft";
+import { sameComp } from "../src/savedComps";
 
 const allySlot: CompHeroTarget = { kind: "slot", team: "ally", index: 0 };
 const enemySlot: CompHeroTarget = { kind: "slot", team: "enemy", index: 0 };
@@ -201,4 +202,47 @@ test("map changes preserve the draft; explicit resets preserve heroes and notes"
   comp = applyCompEdit(comp, { kind: "draftFormat", format: null });
   expect(comp.draft).toBeNull();
   expect(comp.notes).toBe("Take high ground.");
+});
+
+test("choosing the saved Deadpool again stays the same comp", () => {
+  const decoded = decodeOpenComp({
+    ...emptyComp(),
+    teams: {
+      ally: [
+        {
+          heroId: "deadpool",
+          notes: "Hold the corner.",
+          deadpoolRole: "Duelist",
+        },
+        ...emptyComp().teams.ally.slice(1),
+      ],
+      enemy: emptyComp().teams.enemy,
+    },
+  });
+  const edited = applyCompEdit(decoded, {
+    kind: "chooseHero",
+    target: allySlot,
+    selection: { heroId: "deadpool", deadpoolRole: "Duelist" },
+  });
+  expect(sameComp(decoded, edited)).toBe(true);
+  const reordered = {
+    ...decoded,
+    teams: {
+      ...decoded.teams,
+      ally: [
+        {
+          heroId: "deadpool",
+          deadpoolRole: "Duelist" as const,
+          notes: "Hold the corner.",
+        },
+        ...decoded.teams.ally.slice(1),
+      ],
+    },
+  };
+  expect(sameComp(decoded, reordered)).toBe(true);
+  expect(edited.teams.ally[0]).toEqual({
+    heroId: "deadpool",
+    notes: "Hold the corner.",
+    deadpoolRole: "Duelist",
+  });
 });

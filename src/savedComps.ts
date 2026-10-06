@@ -1,4 +1,5 @@
 import {
+  compSlot,
   decodeCompLibrary,
   decodeOpenComp,
   emptyComp,
@@ -118,8 +119,23 @@ function savedCompRevision(entry: SavedComp): string {
   return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
 }
 
+function comparableComp(comp: Comp): Comp {
+  const slots = (list: Comp["teams"]["ally"]) =>
+    list.map((slot) => compSlot(slot.heroId, slot.notes, slot.deadpoolRole));
+  return {
+    name: comp.name,
+    notes: comp.notes,
+    mapId: comp.mapId,
+    teams: { ally: slots(comp.teams.ally), enemy: slots(comp.teams.enemy) },
+    draft: comp.draft,
+  };
+}
+
 export function sameComp(left: Comp, right: Comp): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return (
+    JSON.stringify(comparableComp(left)) ===
+    JSON.stringify(comparableComp(right))
+  );
 }
 
 function savedLink(entry: SavedComp): EditorLink {
