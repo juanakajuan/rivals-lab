@@ -48,6 +48,25 @@ export function compSlot(
   return { heroId, notes, deadpoolRole };
 }
 
+/** Slot shape, including omitted Deadpool role, is the equality form. */
+export function sameComp(left: Comp, right: Comp): boolean {
+  return (
+    JSON.stringify(canonicalComp(left)) === JSON.stringify(canonicalComp(right))
+  );
+}
+
+function canonicalComp(comp: Comp): Comp {
+  const slots = (list: readonly CompSlot[]) =>
+    list.map((slot) => compSlot(slot.heroId, slot.notes, slot.deadpoolRole));
+  return {
+    name: comp.name,
+    notes: comp.notes,
+    mapId: comp.mapId,
+    teams: { ally: slots(comp.teams.ally), enemy: slots(comp.teams.enemy) },
+    draft: comp.draft,
+  };
+}
+
 export function emptyComp(): Comp {
   const slots = (): CompSlot[] =>
     Array.from({ length: 6 }, () => compSlot(null, ""));

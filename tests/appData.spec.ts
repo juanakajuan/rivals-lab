@@ -20,9 +20,11 @@ test("a board token and a custom map drawing survive a reload", async ({
     const harness = window.appDataHarness;
     const data = await harness.openAppData();
     const map = await harness.createMap("scrim-map.png", 800, 400);
-    data.autosave.customMap(map);
-    data.autosave.board(
-      {
+    data.autosave.sync({
+      ...data.workspace,
+      iconSize: 120,
+      customMaps: [map],
+      board: {
         map,
         tokens: [
           { id: "ally-thor", heroId: "thor", team: "ally", x: 300, y: 250 },
@@ -40,8 +42,7 @@ test("a board token and a custom map drawing survive a reload", async ({
           ],
         },
       },
-      120,
-    );
+    });
     await data.autosave.flush();
     return map.id;
   });
@@ -166,14 +167,15 @@ test("writes from a replaced data generation change nothing", async ({
       (error: unknown) =>
         error instanceof Error ? error.message : String(error),
     );
-    data.autosave.board(
-      {
+    data.autosave.sync({
+      ...data.workspace,
+      board: {
         map: { kind: "builtin", id: "hells-heaven-domination" },
         tokens: [],
         drawingsByMap: {},
       },
-      100,
-    );
+      iconSize: 100,
+    });
     await data.autosave.flush();
     return {
       copy,
@@ -226,11 +228,11 @@ async function seedWorkspace(page: Page): Promise<number> {
       );
       const first = await harness.createMap("scrim-map.png", 800, 400);
       const second = await harness.createMap("tower.png", 300, 600);
-      data.autosave.customMap(first);
-      data.autosave.customMap(second);
-      data.autosave.openComp(openComp);
-      data.autosave.board(
-        {
+      data.autosave.sync({
+        openComp,
+        iconSize: 130,
+        customMaps: [first, second],
+        board: {
           map: second,
           tokens: [
             { id: "ally-thor", heroId: "thor", team: "ally", x: 120, y: 80 },
@@ -277,8 +279,7 @@ async function seedWorkspace(page: Page): Promise<number> {
             [second.id]: [],
           },
         },
-        130,
-      );
+      });
       await data.autosave.flush();
       return first.sourceBytes + second.sourceBytes;
     },

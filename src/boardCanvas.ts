@@ -17,12 +17,7 @@ import {
   type Team,
 } from "./heroes";
 import type { BoardMapDefinition } from "./boardMaps";
-import {
-  TOKEN_RADIUS,
-  clampToBoard,
-  tokenBoundary,
-  type BoardToken,
-} from "./boardTokens";
+import { TOKEN_RADIUS, tokenBoundary, type BoardToken } from "./boardTokens";
 
 export interface BoardSnapshot {
   readonly map: BoardMapDefinition;
@@ -294,11 +289,7 @@ export function createBoardCanvas(
         y: current.iconSize / 100,
       });
       drawing.token = token;
-      if (!drawing.dragging)
-        drawing.group.position({
-          x: clampToBoard(token.x, current.map.width, current.iconSize),
-          y: clampToBoard(token.y, current.map.height, current.iconSize),
-        });
+      if (!drawing.dragging) drawing.group.position({ x: token.x, y: token.y });
       const image = heroImages.get(hero.id);
       if (image !== drawing.image) {
         drawing.portrait.destroy();

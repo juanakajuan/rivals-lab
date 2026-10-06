@@ -2,5 +2,9 @@
   {
     "id": "deadpool-repick-stays-saved",
     "text": "Bug fix: Choosing the same Deadpool again no longer marks a saved comp as unsaved."
+  },
+  {
+    "id": "drawing-limit-keeps-board",
+    "text": "Bug fix: A map stops at 2,000 drawings, so a later reload keeps the board."
   }
 ]

@@ -6,9 +6,8 @@ import {
   hasDraftChoices,
   type CompHeroTarget,
 } from "../src/compEdits";
-import { decodeOpenComp, emptyComp } from "../src/comps";
+import { decodeOpenComp, emptyComp, sameComp } from "../src/comps";
 import type { DraftFormat } from "../src/draft";
-import { sameComp } from "../src/savedComps";
 
 const allySlot: CompHeroTarget = { kind: "slot", team: "ally", index: 0 };
 const enemySlot: CompHeroTarget = { kind: "slot", team: "enemy", index: 0 };

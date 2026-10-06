@@ -16,8 +16,12 @@ import {
   type CompEdit,
   type CompHeroTarget,
 } from "./compEdits";
-import { SavedCompSession, type SavedCompSessionStart } from "./savedComps";
-import type { CompStorage, WorkspaceAutosave } from "./appData";
+import {
+  SavedCompSession,
+  type OpenCompSnapshot,
+  type SavedCompSessionStart,
+} from "./savedComps";
+import type { CompStorage } from "./appData";
 import { draftEffects, type DraftFormat } from "./draft";
 import { teamLabel, type HeroSelection, type Team } from "./heroes";
 import type { MapId } from "./maps";
@@ -97,13 +101,13 @@ function NameDialog({
 export function CompBuilder({
   storage,
   start,
-  autosave,
+  onOpenComp,
   onImport,
   onOpenBoard,
 }: {
   readonly storage: CompStorage;
   readonly start: SavedCompSessionStart;
-  readonly autosave: WorkspaceAutosave;
+  readonly onOpenComp: (openComp: OpenCompSnapshot) => void;
   readonly onImport: () => void;
   readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
@@ -132,8 +136,8 @@ export function CompBuilder({
   else if (savedId) saveStatus = "All changes saved";
 
   useEffect(
-    () => autosave.openComp(session.openComp),
-    [autosave, session, savedState],
+    () => onOpenComp(session.openComp),
+    [onOpenComp, session, savedState],
   );
 
   useEffect(() => {

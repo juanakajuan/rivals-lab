@@ -1,8 +1,8 @@
 import {
-  compSlot,
   decodeCompLibrary,
   decodeOpenComp,
   emptyComp,
+  sameComp,
   StoredLibrarySource,
   parseCompLibrary,
   serializeCompLibrary,
@@ -114,28 +114,9 @@ function libraryView(library: CompLibrary): SavedCompLibraryView {
   };
 }
 
-// Normalize optional fields and key order, including legacy saved data.
+// Stored bytes, not comp equality. A newer library write changes this text.
 function savedCompRevision(entry: SavedComp): string {
   return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
-}
-
-function comparableComp(comp: Comp): Comp {
-  const slots = (list: Comp["teams"]["ally"]) =>
-    list.map((slot) => compSlot(slot.heroId, slot.notes, slot.deadpoolRole));
-  return {
-    name: comp.name,
-    notes: comp.notes,
-    mapId: comp.mapId,
-    teams: { ally: slots(comp.teams.ally), enemy: slots(comp.teams.enemy) },
-    draft: comp.draft,
-  };
-}
-
-export function sameComp(left: Comp, right: Comp): boolean {
-  return (
-    JSON.stringify(comparableComp(left)) ===
-    JSON.stringify(comparableComp(right))
-  );
 }
 
 function savedLink(entry: SavedComp): EditorLink {

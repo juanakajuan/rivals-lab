@@ -27,11 +27,19 @@ export default function App({
   const { workspace, autosave, comps, compStart } = data;
   const [page, setPage] = useState<Page>(pageFromPath);
   const [backupOpen, setBackupOpen] = useState(false);
+  const [openComp, setOpenComp] = useState(workspace.openComp);
   const board = useBoardController({
     active: page === "board",
     workspace,
-    autosave,
   });
+  useEffect(() => {
+    autosave.sync({
+      board: board.document.board,
+      iconSize: board.document.iconSize,
+      customMaps: board.document.customMaps,
+      openComp,
+    });
+  }, [autosave, board.document, openComp]);
   const { dismissMenu } = board;
 
   useEffect(() => {
@@ -97,7 +105,7 @@ export default function App({
         <CompBuilder
           storage={comps}
           start={compStart}
-          autosave={autosave}
+          onOpenComp={setOpenComp}
           onImport={() => setBackupOpen(true)}
           onOpenBoard={openCompOnBoard}
         />
