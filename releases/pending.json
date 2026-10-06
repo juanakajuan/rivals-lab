@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "full-backup-import-export",
+    "text": "Feature: Back up your comps, board, and custom maps to one file with Backup, and restore them in another browser."
+  }
+]

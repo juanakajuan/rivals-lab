@@ -28,12 +28,13 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
 }
 
-function count(value: number, noun: string): string {
-  return `${value} ${noun}${value === 1 ? "" : "s"}`;
+function count(value: number, noun: string, plural = `${noun}s`): string {
+  return `${value} ${value === 1 ? noun : plural}`;
 }
 
 function megabytes(bytes: number): string {
-  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  const rounded = (bytes / 1_000_000).toFixed(1);
+  return rounded === "0.0" ? "less than 0.1 MB" : `${rounded} MB`;
 }
 
 const EXPORTED_AT = new Intl.DateTimeFormat("en-GB", {
@@ -57,7 +58,7 @@ function fileContents(file: DataSummary): string {
   const maps = file.customMaps
     ? `${count(file.customMaps, "custom map image")} (${megabytes(file.customMapBytes)})`
     : "no custom map images";
-  return `${comps}, ${openComp}, a board on “${file.boardMapName}” with ${count(file.heroes, "hero")} and ${drawings}, ${maps}, and icon size ${file.iconSize}%`;
+  return `${comps}, ${openComp}, a board on “${file.boardMapName}” with ${count(file.heroes, "hero", "heroes")} and ${drawings}, ${maps}, and icon size ${file.iconSize}%`;
 }
 
 function RestorePreview({
