@@ -1,11 +1,5 @@
 # Agent instructions
 
-## GitHub issues and pull requests
-
-- For GitHub issues and pull requests that affect what users see or interact with, include high-quality screenshots or a screen recording when needed to explain the problem or change.
-- Upload issue and PR captures directly as GitHub attachments. Keep captures outside the repository. Do not commit them or use `docs/screenshots`.
-- Track images only when documentation or test fixtures need them.
-
 ## Release notes
 
 - For each user-visible change, add a short note to `releases/pending.json` before opening the PR.

@@ -183,9 +183,9 @@ function HeroRow({
         onClick={() => (token ? onRemove(token) : onAdd(hero))}
       >
         {token ? (
-          <Trash2 size={18} aria-hidden="true" />
+          <Trash2 size={14} aria-hidden="true" />
         ) : (
-          <Plus size={18} aria-hidden="true" />
+          <Plus size={14} aria-hidden="true" />
         )}
       </button>
     </div>
