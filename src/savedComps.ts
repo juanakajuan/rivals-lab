@@ -1,8 +1,8 @@
 import {
   MAX_IMPORT_BYTES,
-  MAX_SAVED_COMPS,
   decodeCompLibrary,
   emptyComp,
+  encodeLibraryRecord,
   parseCompLibrary,
   serializeCompLibrary,
   type Comp,
@@ -242,17 +242,16 @@ export class SavedCompSession {
       throw new Error("The file must be smaller than 2 MB.");
     const imported = parseCompLibrary(source);
     if (!imported.length) throw new Error("This file has no saved comps.");
+    return this.addCopies(imported);
+  }
+
+  async addCopies(
+    comps: readonly SavedComp[],
+  ): Promise<{ readonly count: number }> {
     return this.runWrite(async () => {
-      await this.write((current) => {
-        const copies = imported.map((entry): SavedComp => ({
-          ...entry,
-          id: crypto.randomUUID(),
-          updatedAt: new Date().toISOString(),
-        }));
-        return [...copies, ...current];
-      });
+      const count = await prependCompCopies(this.storage, comps);
       await this.refresh();
-      return { count: imported.length };
+      return { count };
     });
   }
 
@@ -295,27 +294,35 @@ export class SavedCompSession {
   private write(
     update: (current: readonly SavedComp[]) => readonly SavedComp[],
   ): Promise<void> {
-    return this.storage.update((stored) => {
-      const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
-      const next = update(current.entries);
-      for (const item of current.unavailable)
-        if (
-          typeof item === "object" &&
-          item !== null &&
-          "id" in item &&
-          next.some((entry) => entry.id === item.id)
-        )
-          throw new Error("A comp ID belongs to an unavailable entry.");
-      const comps = [...next, ...current.unavailable];
-      if (comps.length > MAX_SAVED_COMPS)
-        throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
-      parseCompLibrary(serializeCompLibrary(next));
-      const source = JSON.stringify({ ...current.envelope, comps }, null, 2);
-      if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
-        throw new Error(
-          "The library limit is 2 MB. Export and remove older comps to make space.",
-        );
-      return source;
-    });
+    return updateLibrary(this.storage, update);
   }
+}
+
+function updateLibrary(
+  storage: CompStorage,
+  update: (current: readonly SavedComp[]) => readonly SavedComp[],
+): Promise<void> {
+  return storage.update((stored) => {
+    const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
+    return encodeLibraryRecord({
+      ...current,
+      entries: update(current.entries),
+    });
+  });
+}
+
+/** The one add-copies rule: fresh IDs and dates, prepended, open comp untouched. */
+export async function prependCompCopies(
+  storage: CompStorage,
+  comps: readonly SavedComp[],
+): Promise<number> {
+  await updateLibrary(storage, (current) => [
+    ...comps.map((entry): SavedComp => ({
+      ...entry,
+      id: crypto.randomUUID(),
+      updatedAt: new Date().toISOString(),
+    })),
+    ...current,
+  ]);
+  return comps.length;
 }

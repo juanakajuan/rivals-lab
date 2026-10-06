@@ -683,8 +683,8 @@ for (const budget of ["bytes", "pixels"] as const) {
       .setInputFiles({ ...file, name: "over-total.png" });
     await expect(page.getByRole("alert")).toHaveText(
       budget === "bytes"
-        ? "This tab has a 50 MiB total image limit. Reload to start again."
-        : "This tab has an 80 million pixel total image limit. Reload to start again.",
+        ? "Custom maps have a 50 MiB total image limit. This browser has reached its custom map limit."
+        : "Custom maps have an 80 million pixel total image limit. This browser has reached its custom map limit.",
     );
     await expect(page.locator(".map-title h1")).toHaveText(
       `map-${acceptedCount}.png`,

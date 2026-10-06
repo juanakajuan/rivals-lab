@@ -1,8 +1,10 @@
-import { COMP_STORAGE_KEY } from "./comps";
+import { COMP_STORAGE_KEY, type StoredLibrarySource } from "./comps";
 
 export interface CompStorage {
   read(): Promise<string | null>;
-  update(transform: (source: string | null) => string): Promise<void>;
+  update(
+    transform: (source: string | null) => StoredLibrarySource,
+  ): Promise<void>;
   subscribe(onChange: () => void): () => void;
 }
 
@@ -68,7 +70,9 @@ class BrowserCompStorage implements CompStorage {
     );
   }
 
-  async update(transform: (source: string | null) => string): Promise<void> {
+  async update(
+    transform: (source: string | null) => StoredLibrarySource,
+  ): Promise<void> {
     await transaction(await this.database(), "readwrite", (store, value) => {
       const next = transform(storedSource(value));
       store.put(next, COMP_STORAGE_KEY);
