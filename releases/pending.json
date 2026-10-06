@@ -2,5 +2,9 @@
   {
     "id": "comp-map-image-selector",
     "text": "Feature: Choose a comp map from its image and see its name once below it."
+  },
+  {
+    "id": "position-board-row-actions-smaller",
+    "text": "Bug fix: Add and remove buttons beside hero portraits on the Position Board are smaller."
   }
 ]
