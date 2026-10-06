@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { exportCompLibrary } from "./compLibrary";
+import { addCompCopies, exportCompLibrary } from "./compLibrary";
 import {
   emptyComp,
   parseCompLibrary,
@@ -227,13 +227,14 @@ test("map changes preserve the complete draft without confirmation through save 
   try {
     const importedPage = await importedContext.newPage();
     await importedPage.goto(page.url());
-    await importedPage.getByLabel("Import comps JSON").setInputFiles({
-      name: "god-quarry.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(exported),
-    });
-    await expect(importedPage.getByRole("status")).toHaveText(
-      "Imported 1 comp as copies.",
+    await addCompCopies(
+      importedPage,
+      {
+        name: "god-quarry.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(exported),
+      },
+      1,
     );
     await importedPage
       .getByRole("button", { name: "Load Keep draft", exact: true })
@@ -374,23 +375,27 @@ for (const width of [320, 390]) {
       page,
     }) => {
       await page.goto("/builder");
-      await page.getByLabel("Import comps JSON").setInputFiles({
-        name: "cold-map.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(
-          serializeCompLibrary([
-            {
-              id: "cold-map",
-              updatedAt: "2026-10-02T05:00:00.000Z",
-              comp: {
-                ...emptyComp(),
-                name: "Cold map",
-                mapId: "lower-manhattan",
+      await addCompCopies(
+        page,
+        {
+          name: "cold-map.json",
+          mimeType: "application/json",
+          buffer: Buffer.from(
+            serializeCompLibrary([
+              {
+                id: "cold-map",
+                updatedAt: "2026-10-02T05:00:00.000Z",
+                comp: {
+                  ...emptyComp(),
+                  name: "Cold map",
+                  mapId: "lower-manhattan",
+                },
               },
-            },
-          ]),
-        ),
-      });
+            ]),
+          ),
+        },
+        1,
+      );
       await page
         .getByRole("button", { name: "Load Cold map", exact: true })
         .click();

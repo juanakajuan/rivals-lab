@@ -1,5 +1,48 @@
 import { readFile } from "node:fs/promises";
-import type { Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+interface JsonFile {
+  readonly name: string;
+  readonly mimeType: string;
+  readonly buffer: Buffer;
+}
+
+export function backupDialog(page: Page): Locator {
+  return page.getByRole("dialog", {
+    name: "Back up everything in this browser",
+    exact: true,
+  });
+}
+
+/** Opens the backup dialog through the library footer's Import button. */
+export async function openImportDialog(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  const dialog = backupDialog(page);
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+export async function addCompCopies(
+  page: Page,
+  file: JsonFile,
+  count: number,
+): Promise<void> {
+  const dialog = await openImportDialog(page);
+  await dialog.getByLabel("Import backup or comps file").setInputFiles(file);
+  await expect(
+    dialog.getByRole("heading", {
+      name: `Add ${count} comp${count === 1 ? "" : "s"} as copies?`,
+    }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Add comps", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText(
+    `Imported ${count} comp${count === 1 ? "" : "s"} as copies.`,
+  );
+  await dialog
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
+  await expect(dialog).toBeHidden();
+}
 
 export async function readStoredCompLibrary(
   page: Page,

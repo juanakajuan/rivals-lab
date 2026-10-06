@@ -23,7 +23,8 @@ import {
   type Team,
 } from "./heroes";
 import { BoardSession, type HeroPlacement } from "./boardSession";
-import { clampToBoard, type BoardToken } from "./boardTokens";
+import { clampToBoard, type BoardToken, type IconSize } from "./boardTokens";
+import type { Workspace, WorkspaceAutosave } from "./appData";
 import { getMap, isMapId, type MapId } from "./maps";
 
 import {
@@ -59,15 +60,23 @@ export interface BoardController {
 
 export function useBoardController({
   active,
+  workspace,
+  autosave,
 }: {
   readonly active: boolean;
+  readonly workspace: Workspace;
+  readonly autosave: WorkspaceAutosave;
 }): BoardController {
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
-  const [session] = useState(() => new BoardSession(measureBoardNote));
+  const [session] = useState(
+    () => new BoardSession(measureBoardNote, workspace.board),
+  );
   const [boardState, setBoardState] = useState(session.state);
-  const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>([]);
+  const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>(
+    workspace.customMaps,
+  );
   const [uploadState, setUploadState] = useState<BoardUploadState>({
     kind: "idle",
   });
@@ -83,7 +92,11 @@ export function useBoardController({
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
-  const [iconSize, setIconSize] = useState(100);
+  const [iconSize, setIconSize] = useState<IconSize>(workspace.iconSize);
+  useEffect(
+    () => autosave.board(boardState, iconSize),
+    [autosave, boardState, iconSize],
+  );
   const { map: selectedBoardMap, tokens: savedTokens } = boardState;
   const selectedMapId = selectedBoardMap.id;
   const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
@@ -480,6 +493,7 @@ export function useBoardController({
       return false;
     }
     setCustomMaps((maps) => [...maps, result.map]);
+    autosave.customMap(result.map);
     setUploadState({ kind: "idle" });
     setBoardState(session.changeMap({ map: result.map, iconSize }));
     setSelectedDrawingId(null);

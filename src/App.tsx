@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AppData } from "./appData";
+import { BackupButton, BackupDialog, StorageNotice } from "./BackupDialog";
 import { Changelog } from "./Changelog";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
@@ -23,9 +24,37 @@ export default function App({
 }: {
   readonly data: AppData;
 }): React.JSX.Element {
+  const { workspace, autosave, comps, compStart } = data;
   const [page, setPage] = useState<Page>(pageFromPath);
-  const board = useBoardController({ active: page === "board" });
+  const [backupOpen, setBackupOpen] = useState(false);
+  const board = useBoardController({
+    active: page === "board",
+    workspace,
+    autosave,
+  });
   const { dismissMenu } = board;
+
+  useEffect(() => {
+    let saving = false;
+    const unsubscribe = autosave.subscribe((status) => {
+      saving = status.kind === "saving";
+    });
+    function flush(): void {
+      void autosave.flush();
+    }
+    function warnWhileSaving(event: BeforeUnloadEvent): void {
+      if (!saving) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", warnWhileSaving);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", warnWhileSaving);
+    };
+  }, [autosave]);
 
   useEffect(() => {
     function handlePopState(): void {
@@ -58,16 +87,29 @@ export default function App({
           <strong>Rivals Lab</strong>
         </div>
         <PageNavigation page={page} onNavigate={navigate} />
-        {board.headerActions}
+        <div className="topbar-actions">
+          {board.headerActions}
+          <BackupButton onClick={() => setBackupOpen(true)} />
+        </div>
       </header>
       {board.content}
       <div className="builder-page" hidden={page !== "builder"}>
-        <CompBuilder storage={data.comps} onOpenBoard={openCompOnBoard} />
+        <CompBuilder
+          storage={comps}
+          start={compStart}
+          autosave={autosave}
+          onImport={() => setBackupOpen(true)}
+          onOpenBoard={openCompOnBoard}
+        />
       </div>
       <div className="changelog-container" hidden={page !== "changelog"}>
         <Changelog />
       </div>
       {board.overlays}
+      {backupOpen ? (
+        <BackupDialog onClose={() => setBackupOpen(false)} />
+      ) : null}
+      <StorageNotice autosave={autosave} />
     </div>
   );
 }

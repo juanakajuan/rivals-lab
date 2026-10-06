@@ -1,5 +1,4 @@
 import {
-  MAX_IMPORT_BYTES,
   decodeCompLibrary,
   decodeOpenComp,
   emptyComp,
@@ -24,15 +23,6 @@ export interface SavedCompSessionState {
   readonly savedId: string | null;
   readonly dirty: boolean;
   readonly library: SavedCompLibraryView;
-}
-
-export interface CompImportFile {
-  readonly size: number;
-  text(): Promise<string>;
-}
-
-export interface CompImportResult {
-  readonly count: number;
 }
 
 export interface OpenCompSnapshot {
@@ -96,7 +86,12 @@ export type SaveResult =
 
 type EditorLink =
   | { readonly kind: "new" }
-  | { readonly kind: "saved"; readonly id: string; readonly revision: string };
+  | {
+      readonly kind: "saved";
+      readonly id: string;
+      readonly revision: string;
+      readonly baseline: Comp;
+    };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
@@ -128,27 +123,60 @@ export function sameComp(left: Comp, right: Comp): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function savedLink(entry: SavedComp): EditorLink {
+  return {
+    kind: "saved",
+    id: entry.id,
+    revision: savedCompRevision(entry),
+    baseline: entry.comp,
+  };
+}
+
 /** Owns the library and editor save state; display code owns confirmations. */
 export class SavedCompSession {
-  private baseline = emptyComp();
-  private link: EditorLink = { kind: "new" };
+  private baseline: Comp;
+  private link: EditorLink;
   private current: SavedCompSessionState;
   private editorIdentity = Symbol();
   private editorGeneration = Symbol();
   private refreshGeneration = 0;
   private writeTail: Promise<void> = Promise.resolve();
 
-  constructor(private readonly storage: CompStorage) {
+  constructor(
+    private readonly storage: CompStorage,
+    start: SavedCompSessionStart = {
+      openComp: emptyOpenComp(),
+      library: { entries: [], unavailable: [], errors: [], envelope: {} },
+    },
+  ) {
+    const { openComp, library } = start;
+    const entry =
+      openCompLink(openComp, library.entries) === "saved"
+        ? library.entries.find((item) => item.id === openComp.saved?.id)
+        : undefined;
+    this.baseline = openComp.baseline;
+    this.link = entry ? savedLink(entry) : { kind: "new" };
     this.current = {
-      comp: this.baseline,
-      savedId: null,
-      dirty: false,
-      library: { entries: [], unavailableCount: 0, error: null },
+      comp: openComp.comp,
+      savedId: entry?.id ?? null,
+      dirty: !sameComp(openComp.comp, openComp.baseline),
+      library: libraryView(library),
     };
   }
 
   get state(): SavedCompSessionState {
     return this.current;
+  }
+
+  get openComp(): OpenCompSnapshot {
+    return {
+      comp: this.current.comp,
+      baseline: this.baseline,
+      saved:
+        this.link.kind === "saved"
+          ? { id: this.link.id, baseline: this.link.baseline }
+          : null,
+    };
   }
 
   edit(edit: CompEdit): SavedCompSessionState {
@@ -165,9 +193,7 @@ export class SavedCompSession {
   load(entry: SavedComp | null): SavedCompSessionState {
     const comp = entry?.comp ?? emptyComp();
     this.baseline = comp;
-    this.link = entry
-      ? { kind: "saved", id: entry.id, revision: savedCompRevision(entry) }
-      : { kind: "new" };
+    this.link = entry ? savedLink(entry) : { kind: "new" };
     this.current = {
       ...this.current,
       comp,
@@ -212,7 +238,7 @@ export class SavedCompSession {
       });
       if (identity === this.editorIdentity) {
         this.baseline = comp;
-        this.link = { kind: "saved", id, revision: savedCompRevision(entry) };
+        this.link = savedLink(entry);
         const live = this.current.comp;
         const nextComp =
           live.name === originalName ? { ...live, name: trimmed } : live;
@@ -235,7 +261,7 @@ export class SavedCompSession {
     const link = this.link;
     const originalName = this.current.comp.name;
     return this.runWrite(async () => {
-      let renamedRevision: string | null = null;
+      let renamedLink: EditorLink | null = null;
       await this.write((current) =>
         current.map((entry) => {
           if (entry.id !== id) return entry;
@@ -250,7 +276,7 @@ export class SavedCompSession {
             link.id === id &&
             savedCompRevision(entry) === link.revision
           )
-            renamedRevision = savedCompRevision(nextEntry);
+            renamedLink = savedLink(nextEntry);
           return nextEntry;
         }),
       );
@@ -258,8 +284,7 @@ export class SavedCompSession {
         const live = this.current.comp;
         const comp = live.name === originalName ? { ...live, name } : live;
         this.baseline = { ...this.baseline, name };
-        if (renamedRevision !== null)
-          this.link = { kind: "saved", id, revision: renamedRevision };
+        if (renamedLink) this.link = renamedLink;
         this.current = {
           ...this.current,
           comp,
@@ -287,17 +312,6 @@ export class SavedCompSession {
       }
       await this.refresh();
     });
-  }
-
-  async importFile(file: CompImportFile): Promise<CompImportResult> {
-    if (file.size > MAX_IMPORT_BYTES)
-      throw new Error("The file must be smaller than 2 MB.");
-    const source = await file.text();
-    if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
-      throw new Error("The file must be smaller than 2 MB.");
-    const imported = parseCompLibrary(source);
-    if (!imported.length) throw new Error("This file has no saved comps.");
-    return this.addCopies(imported);
   }
 
   async addCopies(

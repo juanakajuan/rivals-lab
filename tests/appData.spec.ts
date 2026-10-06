@@ -471,6 +471,16 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
       ]).padEnd(2_000_001, " "),
       "The file must be smaller than 2 MB.",
     ],
+    [
+      JSON.stringify({
+        version: 1,
+        comps: [
+          dive,
+          { ...poke, comp: { ...poke.comp, mapId: "retired-map" } },
+        ],
+      }),
+      "Unknown map: retired-map.",
+    ],
     [crowded, "A map can hold at most 2,000 drawings."],
     [resized, "cannot be read."],
   ];

@@ -2,16 +2,13 @@ import { expect, test } from "@playwright/test";
 import {
   MAX_IMPORT_BYTES,
   MAX_SAVED_COMPS,
+  decodeCompLibrary,
   emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
   type SavedComp,
 } from "../src/comps";
-import {
-  SavedCompSession,
-  SavedCompWriteError,
-  type CompImportFile,
-} from "../src/savedComps";
+import { SavedCompSession, SavedCompWriteError } from "../src/savedComps";
 
 import type { CompStorage } from "../src/appData";
 
@@ -64,13 +61,6 @@ function entry(session: SavedCompSession, id = saved.id): SavedComp {
   return result;
 }
 
-function importFile(source: string): CompImportFile {
-  return {
-    size: new TextEncoder().encode(source).byteLength,
-    text: () => Promise.resolve(source),
-  };
-}
-
 function deferred(): {
   readonly promise: Promise<void>;
   readonly resolve: () => void;
@@ -119,7 +109,7 @@ for (const operation of delayedWrites) {
         expectedNames = ["Remote plan"];
         break;
       case "import":
-        writing = session.importFile(importFile(serializeCompLibrary([saved])));
+        writing = session.addCopies([saved]);
         expectedNames = ["Remote plan", "Plan", "Plan"];
         break;
     }
@@ -237,9 +227,7 @@ test("failed writes preserve local edits, saved state, and stored data", async (
     expect(session.state).toBe(before);
     expect(await session.exportData()).toBe(source);
   }
-  await expect(
-    session.importFile(importFile(serializeCompLibrary([saved]))),
-  ).rejects.toThrow(SavedCompWriteError);
+  await expect(session.addCopies([saved])).rejects.toThrow(SavedCompWriteError);
   expect(session.state).toBe(before);
   expect(await session.exportData()).toBe(source);
 
@@ -350,8 +338,8 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
   session.edit({ kind: "notes", value: "Updated notes" });
   await session.save("Plan");
   await session.rename(saved.id, "Renamed");
-  const imported = await session.importFile(
-    importFile(await session.exportData(entry(session))),
+  const imported = await session.addCopies(
+    parseCompLibrary(await session.exportData(entry(session))),
   );
   expect(imported.count).toBe(1);
   const copy = session.state.library.entries.find(
@@ -414,56 +402,68 @@ test("unavailable entries count toward storage limits and failed imports are ato
     session.edit({ kind: "name", value: "New comp" });
     const before = session.state;
     await expect(session.save("New comp")).rejects.toThrow("library limit");
-    await expect(
-      session.importFile(importFile(serializeCompLibrary([saved]))),
-    ).rejects.toThrow("library limit");
+    await expect(session.addCopies([saved])).rejects.toThrow("library limit");
     expect(session.state).toBe(before);
     expect(await session.exportData()).toBe(source);
   }
+});
 
+test("copies keep the open comp, its edits, and its saved link", async () => {
   const session = await sessionFor(
     new MemoryStorage(serializeCompLibrary([saved])),
   );
-  const before = session.state;
-  const source = await session.exportData();
-  await expect(
-    session.importFile(
-      importFile(JSON.stringify({ version: 1, comps: [saved, unavailable] })),
-    ),
-  ).rejects.toThrow("Unknown map");
-  await expect(
-    session.importFile(importFile("x".repeat(MAX_IMPORT_BYTES + 1))),
-  ).rejects.toThrow("2 MB");
-  expect(session.state).toBe(before);
-  expect(await session.exportData()).toBe(source);
-});
-
-test("an import keeps edits and library writes made while the file is read", async () => {
-  const session = await sessionFor(new MemoryStorage());
-  let finishRead: (source: string) => void = () => {
-    throw new Error("The read has not started.");
-  };
-  const source = serializeCompLibrary([saved]);
-  const importing = session.importFile({
-    size: new TextEncoder().encode(source).byteLength,
-    text: () =>
-      new Promise<string>((resolve) => {
-        finishRead = resolve;
-      }),
-  });
-  session.edit({ kind: "notes", value: "Edits during import" });
-  await session.save("New comp");
-  const savedId = session.state.savedId;
+  session.load(entry(session));
   session.edit({ kind: "notes", value: "Still unsaved" });
-  finishRead(source);
-  await importing;
+  expect(await session.addCopies([saved])).toEqual({ count: 1 });
   expect(session.state.comp.notes).toBe("Still unsaved");
   expect(session.state.dirty).toBe(true);
-  expect(session.state.savedId).toBe(savedId);
-  expect(session.state.library.entries).toHaveLength(2);
-  expect(session.state.library.entries.map((item) => item.id)).not.toContain(
-    saved.id,
-  );
+  expect(session.state.savedId).toBe(saved.id);
+  expect(session.state.library.entries.map((item) => item.comp.name)).toEqual([
+    "Plan",
+    "Plan",
+  ]);
+  expect(session.openComp.saved?.id).toBe(saved.id);
+});
+
+test("a session resumes a stored open comp and drops a stale link", async () => {
+  const storage = new MemoryStorage(serializeCompLibrary([saved]));
+  const library = decodeCompLibrary(serializeCompLibrary([saved]));
+  const edited = { ...saved.comp, notes: "Resumed edits" };
+  const linked = new SavedCompSession(storage, {
+    library,
+    openComp: {
+      comp: edited,
+      baseline: saved.comp,
+      saved: { id: saved.id, baseline: saved.comp },
+    },
+  });
+  expect(linked.state).toMatchObject({
+    comp: edited,
+    savedId: saved.id,
+    dirty: true,
+  });
+  await linked.save("Plan");
+  expect(entry(linked).comp.notes).toBe("Resumed edits");
+
+  const stale = { ...saved.comp, notes: "Older version" };
+  const detached = new SavedCompSession(storage, {
+    library,
+    openComp: {
+      comp: edited,
+      baseline: stale,
+      saved: { id: saved.id, baseline: stale },
+    },
+  });
+  expect(detached.state).toMatchObject({
+    comp: edited,
+    savedId: null,
+    dirty: true,
+  });
+  expect(detached.openComp).toEqual({
+    comp: edited,
+    baseline: stale,
+    saved: null,
+  });
 });
 
 test("rejected edits preserve session state and conflict plans remain savable", async () => {

@@ -16,8 +16,8 @@ import {
   type CompEdit,
   type CompHeroTarget,
 } from "./compEdits";
-import { SavedCompSession, SavedCompWriteError } from "./savedComps";
-import type { CompStorage } from "./appData";
+import { SavedCompSession, type SavedCompSessionStart } from "./savedComps";
+import type { CompStorage, WorkspaceAutosave } from "./appData";
 import { draftEffects, type DraftFormat } from "./draft";
 import { teamLabel, type HeroSelection, type Team } from "./heroes";
 import type { MapId } from "./maps";
@@ -96,12 +96,18 @@ function NameDialog({
 
 export function CompBuilder({
   storage,
+  start,
+  autosave,
+  onImport,
   onOpenBoard,
 }: {
   readonly storage: CompStorage;
+  readonly start: SavedCompSessionStart;
+  readonly autosave: WorkspaceAutosave;
+  readonly onImport: () => void;
   readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
-  const [session] = useState(() => new SavedCompSession(storage));
+  const [session] = useState(() => new SavedCompSession(storage, start));
   const [savedState, setSavedState] = useState(() => session.state);
   const { comp, savedId, dirty, library } = savedState;
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
@@ -125,15 +131,10 @@ export function CompBuilder({
   else if (dirty) saveStatus = "Unsaved changes";
   else if (savedId) saveStatus = "All changes saved";
 
-  useEffect(() => {
-    function warnBeforeUnload(event: BeforeUnloadEvent): void {
-      if (!dirty) return;
-      event.preventDefault();
-      event.returnValue = "";
-    }
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [dirty]);
+  useEffect(
+    () => autosave.openComp(session.openComp),
+    [autosave, session, savedState],
+  );
 
   useEffect(() => {
     let active = true;
@@ -243,23 +244,6 @@ export function CompBuilder({
     setMessage(`Deleted ${entry.comp.name}.`);
   }
 
-  async function importFile(file: File): Promise<void> {
-    try {
-      const result = await session.importFile(file);
-      setSavedState(session.state);
-      setError(null);
-      setMessage(
-        `Imported ${result.count} comp${result.count === 1 ? "" : "s"} as copies.`,
-      );
-    } catch (cause) {
-      setError(
-        cause instanceof SavedCompWriteError
-          ? writeErrorMessage(cause)
-          : `Import failed. ${errorMessage(cause)}`,
-      );
-    }
-  }
-
   function resetTeam(team: Team): void {
     if (
       !window.confirm(`Clear all heroes and slot notes for ${teamLabel(team)}?`)
@@ -348,7 +332,7 @@ export function CompBuilder({
         }
         onExport={(entry) => void exportStoredData("rivals-comp.json", entry)}
         onDelete={(entry) => void deleteComp(entry)}
-        onImport={(file) => void importFile(file)}
+        onImport={onImport}
         onExportAll={() => void exportStoredData("rivals-comps.json")}
       />
 
