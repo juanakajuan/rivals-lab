@@ -332,7 +332,7 @@ export function createBoardCanvas(
           dash: selected ? [10, 5] : [],
         });
       case "note": {
-        const note = createBoardNote(drawing.text);
+        const note = createBoardNote(drawing.text, drawing.width);
         note.setAttrs({
           fill: drawing.color,
           shadowColor: "#000000",

@@ -38,6 +38,7 @@ test("a board token and a custom map drawing survive a reload", async ({
               x: 40,
               y: 50,
               text: "Hold high ground",
+              width: 180,
             },
           ],
         },
@@ -78,6 +79,7 @@ test("a board token and a custom map drawing survive a reload", async ({
           x: 40,
           y: 50,
           text: "Hold high ground",
+          width: 180,
         },
       ],
     },
@@ -254,6 +256,7 @@ async function seedWorkspace(page: Page): Promise<number> {
                 x: 40,
                 y: 50,
                 text: "Hold high ground",
+                width: 180,
               },
               {
                 id: "arrow-1",

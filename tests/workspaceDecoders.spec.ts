@@ -126,7 +126,15 @@ test("drawings decode each kind and cap note text at the editor limit", () => {
       y: 0,
       text: "x".repeat(200),
     }),
-  ).toMatchObject({ kind: "note", text: "x".repeat(200) });
+  ).toEqual({
+    id: "n1",
+    kind: "note",
+    color: "#ffffff",
+    x: 0,
+    y: 0,
+    text: "x".repeat(200),
+    width: 180,
+  });
   expect(() =>
     decodeDrawing({
       id: "n2",
