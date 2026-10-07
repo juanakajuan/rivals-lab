@@ -554,6 +554,26 @@ for (const { name, text } of [
   });
 }
 
+test("drawing help tells you to drag a white handle", async ({ page }) => {
+  await page.goto("/");
+  const help = page.locator(".drawing-help span:visible");
+  await expect(help).toHaveText(
+    "Click any hero or drawing to select it. Drag to move it. Right-click to remove a drawing. Drag a white handle to resize the selection.",
+  );
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
+  await expect(help).toHaveText(
+    "Click empty map space to add a note. Drag existing elements to move them. Drag a white handle to resize the selection.",
+  );
+  await page.getByRole("button", { name: "Draw arrow", exact: true }).click();
+  await expect(help).toHaveText(
+    "Drag on empty map space to draw. Drag existing elements to move them. Drag a white handle to resize the selection.",
+  );
+  await page.getByRole("button", { name: "Draw zone", exact: true }).click();
+  await expect(help).toHaveText(
+    "Drag on empty map space to draw. Drag existing elements to move them. Drag a white handle to resize the selection.",
+  );
+});
+
 test("dragging a zone corner changes its size and one undo restores it", async ({
   page,
 }) => {
