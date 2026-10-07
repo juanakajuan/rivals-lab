@@ -713,6 +713,7 @@ test("cancelled native file choice keeps the modal and board, then an invalid up
   await page
     .getByRole("button", { name: "Add at center", exact: true })
     .click();
+  await page.getByRole("button", { name: "Move", exact: true }).click();
   const before = await renderedBoard(page);
   await expect(
     page
