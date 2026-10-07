@@ -5,7 +5,7 @@ import { Changelog } from "./Changelog";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
 import type { MapId } from "./maps";
-import { PageNavigation, type Page } from "./PageNavigation";
+import { PAGE_LABELS, PageNavigation, type Page } from "./PageNavigation";
 import { useBoardController } from "./useBoardController";
 
 function pageFromPath(): Page {
@@ -41,6 +41,10 @@ export default function App({
     });
   }, [autosave, board.document, openComp]);
   const { dismissMenu } = board;
+
+  useEffect(() => {
+    document.title = `${PAGE_LABELS[page]} | Rivals Lab`;
+  }, [page]);
 
   useEffect(() => {
     let saving = false;
