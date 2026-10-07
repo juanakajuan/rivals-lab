@@ -4,9 +4,9 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 ## Baseline preconditions
 
-- Launch with `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs launch`.
+- Launch with `node .claude/skills/verify/scripts/verify.mjs launch`.
 - The default instance is `http://127.0.0.1:4183` with a new Chromium profile. A second instance needs its own `RIVALS_VERIFY_PORT` and `RIVALS_VERIFY_RUN`.
-- Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs doctor` and require the recorded URL, this checkout, and the private profile.
+- Run `node .claude/skills/verify/scripts/verify.mjs doctor` and require the recorded URL, this checkout, and the private profile.
 - The profile starts with no saved comps. The Position Board starts with the example formation, not an empty map.
 - Never drive an instance that was not started by this verification run.
 
@@ -15,7 +15,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Start every recipe from the baseline state unless its preconditions say otherwise.
 - Prefer ARIA roles and accessible names over CSS selectors or screen coordinates.
 - Treat every command as literal. Keep quoted names and flags unchanged.
-- Run every browser action through `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs`.
+- Run every browser action through `node .claude/skills/verify/scripts/verify.mjs`.
 - `assert-visible` requires exactly one match. Use `assert-count` for zero or for repeated text.
 - Pass `--accept-dialog` when the recipe says the app asks to confirm. Otherwise the confirm is dismissed and the stored data stays as it was.
 - Restore mutated library entries before leaving a save recipe. Do not remove proof artifacts during cleanup.

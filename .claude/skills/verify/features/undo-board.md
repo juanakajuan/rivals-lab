@@ -22,13 +22,13 @@ Preconditions:
 - The page is the Position Board.
 - The board has been cleared, Angela is not on Allies, and `Undo` is enabled because `Clear` itself is an edit.
 
-- **Clear.** Choose `Clear`. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs goto /board` and `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs click --role button --name "Clear"`. `Allies 0` is present and `Undo` is visible.
-- **Add a hero.** Choose `Add Angela to Allies`. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs click --role button --name "Add Angela to Allies"`. `Allies 1` and `Remove Angela from Allies` are present.
-- **Undo the add.** Choose `Undo`. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs click --role button --name "Undo"`. `Allies 0` and `Add Angela to Allies` are present. `Redo` is visible.
-- **Redo the add.** Choose `Redo`. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs click --role button --name "Redo"`. `Allies 1` and `Remove Angela from Allies` are present.
-- **Keyboard undo.** Move focus out of the search field and press Ctrl+Z. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs press --key "Control+z"`. `Allies 0` is present.
-- **Keyboard redo.** Press Ctrl+Shift+Z. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs press --key "Control+Shift+z"`. `Allies 1` is present.
-- **Proof.** Capture the restored hero. Run `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs snapshot --path artifacts/verify/undo-board/redone.aria.yml` and `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs screenshot --path artifacts/verify/undo-board/redone.png`. Both artifacts show `Rivals Lab`, `Allies 1`, and `Angela`.
+- **Clear.** Choose `Clear`. Run `node .claude/skills/verify/scripts/verify.mjs goto /board` and `node .claude/skills/verify/scripts/verify.mjs click --role button --name "Clear"`. `Allies 0` is present and `Undo` is visible.
+- **Add a hero.** Choose `Add Angela to Allies`. Run `node .claude/skills/verify/scripts/verify.mjs click --role button --name "Add Angela to Allies"`. `Allies 1` and `Remove Angela from Allies` are present.
+- **Undo the add.** Choose `Undo`. Run `node .claude/skills/verify/scripts/verify.mjs click --role button --name "Undo"`. `Allies 0` and `Add Angela to Allies` are present. `Redo` is visible.
+- **Redo the add.** Choose `Redo`. Run `node .claude/skills/verify/scripts/verify.mjs click --role button --name "Redo"`. `Allies 1` and `Remove Angela from Allies` are present.
+- **Keyboard undo.** Move focus out of the search field and press Ctrl+Z. Run `node .claude/skills/verify/scripts/verify.mjs press --key "Control+z"`. `Allies 0` is present.
+- **Keyboard redo.** Press Ctrl+Shift+Z. Run `node .claude/skills/verify/scripts/verify.mjs press --key "Control+Shift+z"`. `Allies 1` is present.
+- **Proof.** Capture the restored hero. Run `node .claude/skills/verify/scripts/verify.mjs snapshot --path artifacts/verify/undo-board/redone.aria.yml` and `node .claude/skills/verify/scripts/verify.mjs screenshot --path artifacts/verify/undo-board/redone.png`. Both artifacts show `Rivals Lab`, `Allies 1`, and `Angela`.
 
 ## Gotchas
 

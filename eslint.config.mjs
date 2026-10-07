@@ -61,7 +61,7 @@ export default defineConfig(
     },
   },
   {
-    files: [".cursor/skills/verify-rivals-lab/scripts/**/*.mjs"],
+    files: [".claude/skills/verify/scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
