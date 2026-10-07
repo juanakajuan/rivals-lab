@@ -137,3 +137,16 @@ test("changelog direct load, refresh, and history preserve editor changes", asyn
   await page.goForward();
   await expect(link).toHaveAttribute("aria-current", "page");
 });
+
+test("the tab title names the current page after load and navigation", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  await expect(page).toHaveTitle("Draft / Comp Builder | Rivals Lab");
+  await page.getByRole("link", { name: "Changelog", exact: true }).click();
+  await expect(page).toHaveTitle("Changelog | Rivals Lab");
+  await page.goBack();
+  await expect(page).toHaveTitle("Draft / Comp Builder | Rivals Lab");
+  await page.getByRole("link", { name: "Position Board", exact: true }).click();
+  await expect(page).toHaveTitle("Position Board | Rivals Lab");
+});
