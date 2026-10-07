@@ -771,7 +771,6 @@ export function createBoardCanvas(
         activeResize ? activeResize.handle.cursor : toolCursor(current),
       );
       if (mapChanged) {
-        // A map change ends the old gesture, as stage replacement did before.
         for (const drawing of drawings.values()) {
           drawing.group.off();
           drawing.group.destroy();
