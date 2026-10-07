@@ -1,5 +1,5 @@
 ---
-name: verify-rivals-lab
+name: verify
 description: Drive the Rivals Lab web app in a disposable browser and capture proof of Position Board, Draft / Comp Builder, and Changelog behavior. Use when changing UI, routes, board edits, saved comps, or changelog rendering, and before calling that behavior done.
 ---
 
@@ -16,16 +16,16 @@ The release CLI (`npm run deploy`, `npm run deploy:confirm`, `npm run deploy:dis
 From the checkout root, with dependencies installed (`npm ci`) and Chromium installed for the locked Playwright (`npx playwright install chromium`):
 
 ```bash
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs launch
+node .claude/skills/verify/scripts/verify.mjs launch
 ```
 
-`launch` starts `npm run dev -- --host 127.0.0.1 --port 4183 --strictPort` and opens `http://127.0.0.1:4183/` in a new Chromium profile. Ready output includes `ready http://127.0.0.1:4183` and `title Position Board | Rivals Lab`. The server log is `.cursor/skills/verify-rivals-lab/.run/server.log`. The browser log is `.cursor/skills/verify-rivals-lab/.run/driver.log`.
+`launch` starts `npm run dev -- --host 127.0.0.1 --port 4183 --strictPort` and opens `http://127.0.0.1:4183/` in a new Chromium profile. Ready output includes `ready http://127.0.0.1:4183` and `title Position Board | Rivals Lab`. The server log is `.claude/skills/verify/.run/server.log`. The browser log is `.claude/skills/verify/.run/driver.log`.
 
 Override the port or run directory when 4183 is taken or a second instance is required:
 
 ```bash
 RIVALS_VERIFY_PORT=4185 RIVALS_VERIFY_RUN=/tmp/rivals-lab-verify-b \
-  node .cursor/skills/verify-rivals-lab/scripts/verify.mjs launch
+  node .claude/skills/verify/scripts/verify.mjs launch
 ```
 
 Both variables must be set together for a second instance. The port must be an integer from 1 to 65535.
@@ -45,12 +45,12 @@ To use an installed Chromium binary, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` b
 Run this before driving, and again whenever the page, port, or profile looks wrong:
 
 ```bash
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs doctor
+node .claude/skills/verify/scripts/verify.mjs doctor
 ```
 
 Doctor is read-only. It passes only when all of these are true:
 
-- The state file is `.cursor/skills/verify-rivals-lab/.run/state.json` (or `$RIVALS_VERIFY_RUN/state.json`).
+- The state file is `.claude/skills/verify/.run/state.json` (or `$RIVALS_VERIFY_RUN/state.json`).
 - The recorded server pid is alive, its command is `npm`, and its cwd is this checkout.
 - That process tree is listening on the recorded port.
 - `GET` of the recorded URL returns the dev page titled `Position Board | Rivals Lab`.
@@ -65,24 +65,24 @@ Every drive command talks to the browser `launch` already opened. Run them from 
 `assert-visible` waits up to 10 seconds and requires exactly one match. Use `assert-count` when the expected count is zero or more than one.
 
 ```bash
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs goto /builder
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs reload
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs url
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs click --role button --name "Clear"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs click --role button --name "Delete Verify dive" --accept-dialog
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs fill --label "Comp name" --value "Verify dive"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs fill --role searchbox --name "Search heroes" --value "angela"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs press --key Escape
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs select --label "Draft format" --value mrc
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs set-input-files --label "Upload map image" --file artifacts/verify/choose-map/sample.png
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs text --role button --name "Allies 0"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs assert-visible --role heading --name "Changelog"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs assert-visible --text "October 1, 2026"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs assert-value --label "Comp notes" --value "Hold high ground"
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs assert-count --role button --name "Allies 0" --count 1
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs assert-attribute --role link --name "Position Board" --attribute aria-current --value page
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs snapshot --path artifacts/verify/place-hero/added.aria.yml
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs screenshot --path artifacts/verify/place-hero/added.png
+node .claude/skills/verify/scripts/verify.mjs goto /builder
+node .claude/skills/verify/scripts/verify.mjs reload
+node .claude/skills/verify/scripts/verify.mjs url
+node .claude/skills/verify/scripts/verify.mjs click --role button --name "Clear"
+node .claude/skills/verify/scripts/verify.mjs click --role button --name "Delete Verify dive" --accept-dialog
+node .claude/skills/verify/scripts/verify.mjs fill --label "Comp name" --value "Verify dive"
+node .claude/skills/verify/scripts/verify.mjs fill --role searchbox --name "Search heroes" --value "angela"
+node .claude/skills/verify/scripts/verify.mjs press --key Escape
+node .claude/skills/verify/scripts/verify.mjs select --label "Draft format" --value mrc
+node .claude/skills/verify/scripts/verify.mjs set-input-files --label "Upload map image" --file artifacts/verify/choose-map/sample.png
+node .claude/skills/verify/scripts/verify.mjs text --role button --name "Allies 0"
+node .claude/skills/verify/scripts/verify.mjs assert-visible --role heading --name "Changelog"
+node .claude/skills/verify/scripts/verify.mjs assert-visible --text "October 1, 2026"
+node .claude/skills/verify/scripts/verify.mjs assert-value --label "Comp notes" --value "Hold high ground"
+node .claude/skills/verify/scripts/verify.mjs assert-count --role button --name "Allies 0" --count 1
+node .claude/skills/verify/scripts/verify.mjs assert-attribute --role link --name "Position Board" --attribute aria-current --value page
+node .claude/skills/verify/scripts/verify.mjs snapshot --path artifacts/verify/place-hero/added.aria.yml
+node .claude/skills/verify/scripts/verify.mjs screenshot --path artifacts/verify/place-hero/added.png
 ```
 
 `--name` is exact. `--name-pattern` is a JavaScript regular expression and is not exact. `--label` uses the accessible label. Prefer roles and accessible names from the feature map over CSS selectors or coordinates.
@@ -113,7 +113,7 @@ The dev server is the same UI as local development. It is not the production ass
 ## Cleanup
 
 ```bash
-node .cursor/skills/verify-rivals-lab/scripts/verify.mjs cleanup
+node .claude/skills/verify/scripts/verify.mjs cleanup
 ```
 
 Cleanup shuts down the browser driver recorded in this run's state file, stops Chromium processes whose command line contains this run's profile directory, and stops the recorded `npm` process group. It then deletes the run directory and the scratch profile under `/tmp/rivals-lab-verify-*` for this run. It does not delete `artifacts/verify/`.
@@ -124,7 +124,7 @@ Run cleanup after a failed launch too, so a broken attempt does not keep the por
 
 ## Helpers
 
-The only helper is `node .cursor/skills/verify-rivals-lab/scripts/verify.mjs`. `launch` starts an internal `driver` child; do not invoke `driver` yourself.
+The only helper is `node .claude/skills/verify/scripts/verify.mjs`. `launch` starts an internal `driver` child; do not invoke `driver` yourself.
 
 | Command            | Effect                                                               |
 | ------------------ | -------------------------------------------------------------------- |
