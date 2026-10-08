@@ -88,6 +88,28 @@ test("links and Back/Forward keep both pages' in-session edits", async ({
   );
 });
 
+test("changelog shows one entry per date with every note in order", async ({
+  page,
+}) => {
+  const published = parseReleases(
+    JSON.parse(await readFile("releases/published.json", "utf8")),
+  );
+  const dates = [...new Set(published.map((release) => release.date))];
+  expect(dates.length).toBeLessThan(published.length);
+  await page.goto("/changelog");
+  await expect(page.locator(".release-entry time")).toHaveCount(dates.length);
+  for (const date of dates) {
+    const expected = published
+      .filter((release) => release.date === date)
+      .flatMap((release) => release.notes.map((note) => note.text));
+    const entry = page.locator(".release-entry").filter({
+      has: page.locator(`time[datetime="${date}"]`),
+    });
+    await expect(entry).toHaveCount(1);
+    await expect(entry.locator("li")).toHaveText(expected);
+  }
+});
+
 test("changelog direct load, refresh, and history preserve editor changes", async ({
   page,
 }) => {
