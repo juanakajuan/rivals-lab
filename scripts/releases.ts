@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import type { PendingNote, Release } from "../src/releases.ts";
 
 function text(value: unknown): string {
@@ -131,6 +132,43 @@ const runCommand: CommandRunner = (command) =>
     });
   });
 
+const git = promisify(execFile);
+const RELEASE_FILES = ["releases/pending.json", "releases/published.json"];
+
+export type ReleaseCommitter = (root: string) => Promise<void>;
+
+export const commitReleaseFiles: ReleaseCommitter = async (root) => {
+  const { stdout } = await git(
+    "git",
+    ["status", "--porcelain", "--", ...RELEASE_FILES],
+    { cwd: root },
+  );
+  if (stdout.trim() === "") return;
+  await git("git", ["add", "--", ...RELEASE_FILES], { cwd: root });
+  await git(
+    "git",
+    [
+      "commit",
+      "-m",
+      "chore(releases): publish release notes",
+      "--",
+      ...RELEASE_FILES,
+    ],
+    { cwd: root },
+  );
+};
+
+async function tryCommit(root: string, commit?: ReleaseCommitter) {
+  if (!commit) return;
+  try {
+    await commit(root);
+  } catch (error) {
+    console.warn(
+      `Release files were published but not committed: ${String(error)}\nCommit ${RELEASE_FILES.join(" and ")} manually.`,
+    );
+  }
+}
+
 async function verifyLive(
   releases: readonly Release[],
   id: string,
@@ -162,6 +200,7 @@ interface DeployOptions {
   readonly run?: CommandRunner;
   readonly verify?: (releases: readonly Release[], id: string) => Promise<void>;
   readonly now?: Date;
+  readonly commit?: ReleaseCommitter;
 }
 
 export async function deployRelease({
@@ -169,6 +208,7 @@ export async function deployRelease({
   run = runCommand,
   verify = verifyLive,
   now = new Date(),
+  commit,
 }: DeployOptions): Promise<void> {
   const state = join(root, ".release");
   await mkdir(state, { recursive: true });
@@ -244,6 +284,7 @@ export async function deployRelease({
     await promote(root, candidate, published, pending);
     await rm(receipt);
     await rm(directory, { recursive: true });
+    await tryCommit(root, commit);
   } finally {
     await rm(lock, { recursive: true });
   }
@@ -281,6 +322,7 @@ async function promote(
 export async function recoverRelease(
   root: string,
   action: "confirm" | "discard",
+  commit?: ReleaseCommitter,
 ): Promise<void> {
   const state = join(root, ".release");
   const lock = join(state, "deploy.lock");
@@ -308,6 +350,7 @@ export async function recoverRelease(
     }
     await rm(receiptPath);
     await rm(join(state, id), { recursive: true });
+    if (action === "confirm") await tryCommit(root, commit);
   } finally {
     await rm(lock, { recursive: true });
   }
@@ -318,9 +361,11 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   const action = process.argv[2];
-  if (action === "--confirm") await recoverRelease(process.cwd(), "confirm");
+  if (action === "--confirm")
+    await recoverRelease(process.cwd(), "confirm", commitReleaseFiles);
   else if (action === "--discard")
     await recoverRelease(process.cwd(), "discard");
-  else if (action === undefined) await deployRelease({ root: process.cwd() });
+  else if (action === undefined)
+    await deployRelease({ root: process.cwd(), commit: commitReleaseFiles });
   else throw new Error("Use no argument, --confirm, or --discard.");
 }

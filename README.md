@@ -155,9 +155,10 @@ corrections to existing behavior.
 with `cf deploy --prebuilt --mode production`. It then checks the unique build ID
 and complete feed at the Worker's public `release-manifest.json`. Only a successful
 command and matching live manifest promote the candidate to published history.
-The command consumes only pending notes with matching IDs and text. Commit the
-updated JSON files after publication. Notes whose IDs are already published do
-not create another entry. Deployment with no new notes keeps the current history.
+The command consumes only pending notes with matching IDs and text. It then
+commits the two JSON files on the current branch. If the commit fails, it warns
+and you commit them by hand. Notes whose IDs are already published do not create
+another entry. Deployment with no new notes keeps the current history.
 Ordinary development and builds include published history only.
 Direct `cf deploy` also includes only recorded history. Use `npm run deploy`
 to publish new notes.
