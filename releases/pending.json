@@ -14,5 +14,9 @@
   {
     "id": "page-title-names-page",
     "text": "Bug fix: The browser tab title now names the current page."
+  },
+  {
+    "id": "unknown-urls-not-found",
+    "text": "Bug fix: Unknown URLs now show a not-found page, and known pages open from any capitalization."
   }
 ]

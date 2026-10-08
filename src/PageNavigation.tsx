@@ -10,7 +10,7 @@ export function PageNavigation({
   page,
   onNavigate,
 }: {
-  readonly page: Page;
+  readonly page: Page | null;
   readonly onNavigate: (page: Page) => void;
 }): React.JSX.Element {
   function handlePageLink(
