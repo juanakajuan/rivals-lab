@@ -1257,3 +1257,9 @@ button:focus-visible,
     display: none;
   }
 }
+
+.not-found-page {
+  flex: 1;
+  padding: 48px 24px;
+  text-align: center;
+}

@@ -8,15 +8,54 @@ import type { MapId } from "./maps";
 import { PAGE_LABELS, PageNavigation, type Page } from "./PageNavigation";
 import { useBoardController } from "./useBoardController";
 
-function pageFromPath(): Page {
-  switch (window.location.pathname) {
+type Route = Page | "not-found";
+
+const NOT_FOUND_TITLE = "Page not found";
+
+function routeFromPath(): Route {
+  const path = window.location.pathname.toLowerCase().replace(/\/+$/, "");
+  switch (path) {
+    case "":
+    case "/board":
+      return "board";
     case "/builder":
       return "builder";
     case "/changelog":
       return "changelog";
     default:
-      return "board";
+      return "not-found";
   }
+}
+
+function canonicalizePath(route: Route): void {
+  if (route === "not-found" || window.location.pathname === "/") return;
+  const path = `/${route}`;
+  if (window.location.pathname !== path) {
+    window.history.replaceState(null, "", path);
+  }
+}
+
+function NotFound({
+  onNavigate,
+}: {
+  readonly onNavigate: (page: Page) => void;
+}): React.JSX.Element {
+  return (
+    <main className="not-found-page">
+      <h1>{NOT_FOUND_TITLE}</h1>
+      <p>
+        <a
+          href="/board"
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigate("board");
+          }}
+        >
+          Back to the Position Board
+        </a>
+      </p>
+    </main>
+  );
 }
 
 export default function App({
@@ -25,11 +64,16 @@ export default function App({
   readonly data: AppData;
 }): React.JSX.Element {
   const { workspace, autosave, comps, compStart } = data;
-  const [page, setPage] = useState<Page>(pageFromPath);
+  const [route, setRoute] = useState<Route>(() => {
+    const initial = routeFromPath();
+    canonicalizePath(initial);
+    return initial;
+  });
+  const page = route === "not-found" ? null : route;
   const [backupOpen, setBackupOpen] = useState(false);
   const [openComp, setOpenComp] = useState(workspace.openComp);
   const board = useBoardController({
-    active: page === "board",
+    active: route === "board",
     workspace,
   });
   useEffect(() => {
@@ -43,7 +87,8 @@ export default function App({
   const { dismissMenu } = board;
 
   useEffect(() => {
-    document.title = `${PAGE_LABELS[page]} | Rivals Lab`;
+    const label = page === null ? NOT_FOUND_TITLE : PAGE_LABELS[page];
+    document.title = `${label} | Rivals Lab`;
   }, [page]);
 
   useEffect(() => {
@@ -70,7 +115,9 @@ export default function App({
 
   useEffect(() => {
     function handlePopState(): void {
-      setPage(pageFromPath());
+      const next = routeFromPath();
+      canonicalizePath(next);
+      setRoute(next);
       dismissMenu();
     }
     window.addEventListener("popstate", handlePopState);
@@ -82,7 +129,7 @@ export default function App({
     if (window.location.pathname !== path) {
       window.history.pushState(null, "", path);
     }
-    setPage(nextPage);
+    setRoute(nextPage);
     dismissMenu();
   }
 
@@ -92,7 +139,7 @@ export default function App({
 
   return (
     <div
-      className={`app-shell${page === "changelog" ? " changelog-active" : ""}`}
+      className={`app-shell${route === "changelog" ? " changelog-active" : ""}`}
     >
       <header className="topbar">
         <div className="title-group">
@@ -105,7 +152,8 @@ export default function App({
         </div>
       </header>
       {board.content}
-      <div className="builder-page" hidden={page !== "builder"}>
+      {route === "not-found" ? <NotFound onNavigate={navigate} /> : null}
+      <div className="builder-page" hidden={route !== "builder"}>
         <CompBuilder
           storage={comps}
           start={compStart}
@@ -114,7 +162,7 @@ export default function App({
           onOpenBoard={openCompOnBoard}
         />
       </div>
-      <div className="changelog-container" hidden={page !== "changelog"}>
+      <div className="changelog-container" hidden={route !== "changelog"}>
         <Changelog />
       </div>
       {board.overlays}
