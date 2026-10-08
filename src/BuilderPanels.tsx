@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Dialog } from "./ui/Dialog";
+import { normalizeSearch } from "./searchText";
 import { SearchField } from "./ui/SearchField";
 import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
@@ -52,10 +53,10 @@ export function HeroPicker({
       deadpoolRole,
     }));
   });
-  const query = search.trim().toLowerCase();
+  const query = normalizeSearch(search);
   const heroes = options.filter(
     (hero) =>
-      hero.name.toLowerCase().includes(query) &&
+      normalizeSearch(hero.name).includes(query) &&
       (role === "All" || hero.role === role || hero.role === "All Roles"),
   );
   return (

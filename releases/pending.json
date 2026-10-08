@@ -22,5 +22,9 @@
   {
     "id": "ui-polish-bans-saves-single-hero-changelog",
     "text": "Bug fix: The builder heading reads \"Bans and Saves\", a single-hero team keeps a normal card size in the downloaded comp image, and the Changelog shows one entry per date."
+  },
+  {
+    "id": "hero-search-punctuation-roles",
+    "text": "Bug fix: Hero search now finds names typed without hyphens or spaces, such as \"spiderman\", and matches roles like \"duelist\"."
   }
 ]
