@@ -9,7 +9,11 @@ import { tokenBoundary } from "../src/boardTokens";
 import { emptyComp } from "../src/comps";
 import { DEFAULT_MAP_ID } from "../src/maps";
 
-const measureNote: MeasureBoardNote = () => ({ width: 180, height: 36 });
+const measureNote: MeasureBoardNote = (text, width) => {
+  void text;
+  void width;
+  return { width: 180, height: 36 };
+};
 
 const initial: BoardState = {
   map: { kind: "builtin", id: DEFAULT_MAP_ID },
@@ -254,6 +258,7 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     y: 40,
     color: "#ffd166",
     text: "Rotate",
+    width: 180,
   };
   session.editDrawing(note);
   const withNote = session.state;
@@ -302,6 +307,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
     y: 40,
     color: "#ffd166",
     text: "Rotate",
+    width: 180,
   };
   const session = new BoardSession(measureNote, {
     ...initial,

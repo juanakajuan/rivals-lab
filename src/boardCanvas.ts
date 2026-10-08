@@ -1,10 +1,15 @@
 import Konva from "konva";
 import {
+  MIN_DRAWING_SPAN,
   createDrawing as createAnnotation,
+  drawingHandles,
   moveDrawing,
+  resizeDrawing,
   type BoardDrawing,
   type BoardPoint,
   type BoardTool,
+  type DrawingHandle,
+  type ResizeCursor,
 } from "./boardDrawings";
 import { createBoardNote, measureBoardNote } from "./boardNote";
 
@@ -65,7 +70,7 @@ interface TokenDrawing {
   dragging: boolean;
 }
 
-type BoardCursor = "default" | "grab" | "grabbing" | "crosshair";
+type BoardCursor = "default" | "grab" | "grabbing" | ResizeCursor;
 
 const TEAM_COLORS: Readonly<Record<Team, string>> = {
   ally: "#50b9ff",
@@ -179,11 +184,19 @@ export function createBoardCanvas(
   const tokenLayer = new Konva.Layer();
   const annotationLayer = new Konva.Layer();
   stage.add(mapLayer, annotationLayer, tokenLayer);
+  const handleGroup = new Konva.Group({ draggable: false });
+  annotationLayer.add(handleGroup);
   const annotations = new Map<
     string,
     { group: Konva.Group; drawing: BoardDrawing; dragging: boolean }
   >();
   let gesture: { start: BoardPoint; preview: Konva.Group } | null = null;
+  let activeResize: {
+    readonly drawing: BoardDrawing;
+    readonly handle: DrawingHandle;
+    readonly pointerId: number;
+    preview: BoardDrawing;
+  } | null = null;
   const drawings = new Map<string, TokenDrawing>();
   const heroImages = new Map<string, HTMLImageElement>();
   let snapshot: BoardSnapshot | null = null;
@@ -332,7 +345,7 @@ export function createBoardCanvas(
           dash: selected ? [10, 5] : [],
         });
       case "note": {
-        const note = createBoardNote(drawing.text);
+        const note = createBoardNote(drawing.text, drawing.width);
         note.setAttrs({
           fill: drawing.color,
           shadowColor: "#000000",
@@ -349,6 +362,188 @@ export function createBoardCanvas(
     gesture?.preview.destroy();
     gesture = null;
     annotationLayer.batchDraw();
+  }
+
+  function toolCursor(current: BoardSnapshot): BoardCursor {
+    return current.tool && current.tool !== "move" ? "crosshair" : "default";
+  }
+
+  function shownDrawing(drawing: BoardDrawing): BoardDrawing {
+    if (activeResize?.drawing.id === drawing.id) return activeResize.preview;
+    return drawing;
+  }
+
+  function pointerFromClient(
+    clientX: number,
+    clientY: number,
+  ): BoardPoint | null {
+    if (!snapshot) return null;
+    const scaleX = stage.scaleX();
+    const scaleY = stage.scaleY();
+    if (scaleX === 0 || scaleY === 0) return null;
+    const bounds = stage.getContent().getBoundingClientRect();
+    return {
+      x: Math.round(
+        clamp((clientX - bounds.left) / scaleX, 0, snapshot.map.width),
+      ),
+      y: Math.round(
+        clamp((clientY - bounds.top) / scaleY, 0, snapshot.map.height),
+      ),
+    };
+  }
+
+  function clearResize(): void {
+    if (!activeResize) return;
+    const id = activeResize.drawing.id;
+    window.removeEventListener("pointermove", onResizeMove);
+    window.removeEventListener("pointerup", onResizeUp);
+    window.removeEventListener("pointercancel", onResizeCancel);
+    activeResize = null;
+    const entry = annotations.get(id);
+    if (entry) entry.group.draggable(true);
+    if (snapshot) setBoardCursor(stage, toolCursor(snapshot));
+  }
+
+  function cancelResize(): void {
+    if (!activeResize) return;
+    clearResize();
+    if (!destroyed && snapshot) renderAnnotations(snapshot);
+  }
+
+  function beginResize(
+    drawing: BoardDrawing,
+    handle: DrawingHandle,
+    event: PointerEvent,
+  ): void {
+    if (event.button > 0 || activeResize) return;
+    activeResize = {
+      drawing,
+      handle,
+      pointerId: event.pointerId,
+      preview: drawing,
+    };
+    const entry = annotations.get(drawing.id);
+    if (entry) entry.group.draggable(false);
+    window.addEventListener("pointermove", onResizeMove);
+    window.addEventListener("pointerup", onResizeUp);
+    window.addEventListener("pointercancel", onResizeCancel);
+    setBoardCursor(stage, handle.cursor);
+  }
+
+  function onResizeMove(event: PointerEvent): void {
+    if (
+      !activeResize ||
+      !snapshot ||
+      event.pointerId !== activeResize.pointerId
+    )
+      return;
+    const point = pointerFromClient(event.clientX, event.clientY);
+    if (!point) return;
+    activeResize = {
+      ...activeResize,
+      preview: resizeDrawing(
+        activeResize.drawing,
+        activeResize.handle,
+        point,
+        snapshot.map,
+        measureBoardNote,
+      ),
+    };
+    renderAnnotations(snapshot);
+  }
+
+  function finishResize(event: PointerEvent): void {
+    if (!activeResize || event.pointerId !== activeResize.pointerId) return;
+    const gestureAtDown = activeResize;
+    const current = snapshot;
+    if (!current) {
+      clearResize();
+      return;
+    }
+    const stillThere = (current.drawings ?? []).some(
+      (item) => item.id === gestureAtDown.drawing.id,
+    );
+    if (!stillThere) {
+      clearResize();
+      renderAnnotations(current);
+      return;
+    }
+    const point = pointerFromClient(event.clientX, event.clientY);
+    if (!point) {
+      clearResize();
+      renderAnnotations(current);
+      return;
+    }
+    const next = resizeDrawing(
+      gestureAtDown.drawing,
+      gestureAtDown.handle,
+      point,
+      current.map,
+      measureBoardNote,
+    );
+    activeResize = { ...gestureAtDown, preview: next };
+    renderAnnotations(current);
+    clearResize();
+    events.onDrawingEdit?.(next);
+  }
+
+  function onResizeUp(event: PointerEvent): void {
+    finishResize(event);
+  }
+
+  function onResizeCancel(event: PointerEvent): void {
+    if (!activeResize || event.pointerId !== activeResize.pointerId) return;
+    cancelResize();
+  }
+
+  function syncHandles(current: BoardSnapshot): void {
+    handleGroup.destroyChildren();
+    const selectedId = activeResize?.drawing.id ?? current.selectedDrawingId;
+    const committed = (current.drawings ?? []).find(
+      (item) => item.id === selectedId,
+    );
+    if (!committed) {
+      handleGroup.moveToTop();
+      return;
+    }
+    const shown = shownDrawing(committed);
+    const entry = annotations.get(committed.id);
+    const offsetX = entry?.dragging ? entry.group.x() - shown.x : 0;
+    const offsetY = entry?.dragging ? entry.group.y() - shown.y : 0;
+    const scale = stage.scaleX();
+    const size = scale === 0 ? 12 : 12 / scale;
+    const strokeWidth = scale === 0 ? 1 : 1 / scale;
+    const hitStrokeWidth = scale === 0 ? 8 : 8 / scale;
+    for (const handle of drawingHandles(shown, measureBoardNote)) {
+      const square = new Konva.Rect({
+        x: handle.at.x + offsetX - size / 2,
+        y: handle.at.y + offsetY - size / 2,
+        width: size,
+        height: size,
+        fill: "#ffffff",
+        stroke: "#1b1c1f",
+        strokeWidth,
+        hitStrokeWidth,
+        draggable: false,
+      });
+      square.on("mousedown touchstart", (konvaEvent) => {
+        konvaEvent.cancelBubble = true;
+      });
+      square.on("pointerdown", (konvaEvent) => {
+        konvaEvent.cancelBubble = true;
+        if (!(konvaEvent.evt instanceof PointerEvent)) return;
+        beginResize(committed, handle, konvaEvent.evt);
+      });
+      square.on("pointerenter", () => {
+        setBoardCursor(stage, handle.cursor);
+      });
+      square.on("pointerleave", () => {
+        if (activeResize) return;
+        setBoardCursor(stage, toolCursor(current));
+      });
+      handleGroup.add(square);
+    }
+    handleGroup.moveToTop();
   }
 
   function renderAnnotations(current: BoardSnapshot): void {
@@ -383,18 +578,21 @@ export function createBoardCanvas(
           entry.dragging = true;
           events.onDrawingSelect?.(entry.drawing);
         });
+        group.on("dragmove", () => {
+          if (snapshot) syncHandles(snapshot);
+        });
         group.on("dragend", () => {
           entry.dragging = false;
-          if (snapshot)
-            events.onDrawingEdit?.(
-              moveDrawing(
-                entry.drawing,
-                group.x(),
-                group.y(),
-                snapshot.map,
-                measureBoardNote,
-              ),
-            );
+          if (activeResize || !snapshot) return;
+          events.onDrawingEdit?.(
+            moveDrawing(
+              entry.drawing,
+              group.x(),
+              group.y(),
+              snapshot.map,
+              measureBoardNote,
+            ),
+          );
         });
         group.dragBoundFunc((point) => {
           if (!snapshot) return point;
@@ -409,14 +607,16 @@ export function createBoardCanvas(
         });
         annotationLayer.add(group);
       }
+      const painted = shownDrawing(drawing);
       item.drawing = drawing;
-      item.group.draggable(true);
-      if (!item.dragging) item.group.position({ x: drawing.x, y: drawing.y });
+      item.group.draggable(activeResize?.drawing.id !== drawing.id);
+      if (!item.dragging) item.group.position({ x: painted.x, y: painted.y });
       item.group.destroyChildren();
       item.group.add(
-        annotationShape(drawing, drawing.id === current.selectedDrawingId),
+        annotationShape(painted, drawing.id === current.selectedDrawingId),
       );
     }
+    syncHandles(current);
     annotationLayer.batchDraw();
   }
 
@@ -475,9 +675,15 @@ export function createBoardCanvas(
       snapshot?.drawingColor ?? "#ffd166",
     );
     cancelGesture();
-    if (drawing.kind === "arrow" && Math.hypot(drawing.dx, drawing.dy) < 8)
+    if (
+      drawing.kind === "arrow" &&
+      Math.hypot(drawing.dx, drawing.dy) < MIN_DRAWING_SPAN
+    )
       return;
-    if (drawing.kind === "zone" && (drawing.width < 8 || drawing.height < 8))
+    if (
+      drawing.kind === "zone" &&
+      (drawing.width < MIN_DRAWING_SPAN || drawing.height < MIN_DRAWING_SPAN)
+    )
       return;
     events.onDrawingEdit?.(
       moveDrawing(
@@ -489,9 +695,15 @@ export function createBoardCanvas(
       ),
     );
   });
-  stage.on("pointerleave pointercancel", cancelGesture);
+  stage.on("pointerleave", cancelGesture);
+  stage.on("pointercancel", () => {
+    cancelGesture();
+    cancelResize();
+  });
   function cancelOnEscape(event: KeyboardEvent): void {
-    if (event.key === "Escape") cancelGesture();
+    if (event.key !== "Escape") return;
+    cancelGesture();
+    cancelResize();
   }
   window.addEventListener("keydown", cancelOnEscape);
   stage.on("click tap", (event) => {
@@ -546,6 +758,7 @@ export function createBoardCanvas(
         snapshot?.drawingColor !== current.drawingColor
       ) {
         cancelGesture();
+        clearResize();
         for (const [id, item] of annotations) {
           if (!item.dragging) continue;
           item.group.destroy();
@@ -555,10 +768,9 @@ export function createBoardCanvas(
       snapshot = current;
       setBoardCursor(
         stage,
-        current.tool && current.tool !== "move" ? "crosshair" : "default",
+        activeResize ? activeResize.handle.cursor : toolCursor(current),
       );
       if (mapChanged) {
-        // A map change ends the old gesture, as stage replacement did before.
         for (const drawing of drawings.values()) {
           drawing.group.off();
           drawing.group.destroy();
@@ -590,6 +802,7 @@ export function createBoardCanvas(
       destroyed = true;
       resizeObserver.disconnect();
       window.removeEventListener("keydown", cancelOnEscape);
+      cancelResize();
       cancelGesture();
       for (const drawing of drawings.values()) drawing.group.off();
       stage.destroy();

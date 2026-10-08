@@ -8,6 +8,10 @@
     "text": "Bug fix: A map stops at 2,000 drawings, so a later reload keeps the board."
   },
   {
+    "id": "pointer-resize-drawings",
+    "text": "Feature: Drag a handle on a selected arrow, zone, or note to resize it."
+  },
+  {
     "id": "page-title-names-page",
     "text": "Bug fix: The browser tab title now names the current page."
   }

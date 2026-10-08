@@ -122,6 +122,118 @@ async function expectSelection(
     kind ? `${kind} selected.` : "Selection cleared.",
   );
 }
+type ZoneBox = {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+type ArrowBox = {
+  readonly x: number;
+  readonly y: number;
+  readonly dx: number;
+  readonly dy: number;
+};
+
+async function readShapes(page: Page): Promise<{
+  readonly zones: readonly ZoneBox[];
+  readonly arrows: readonly ArrowBox[];
+}> {
+  return page.evaluate(() => {
+    const konva = window.Konva;
+    if (!konva) throw new Error("Missing Konva");
+    const stage = konva.stages.find((item) =>
+      item.container().matches(".stage-host"),
+    );
+    if (!stage) throw new Error("Missing board stage");
+    const layer = stage.getLayers()[1];
+    if (!layer) throw new Error("Missing drawings");
+    const zones: ZoneBox[] = [];
+    const arrows: ArrowBox[] = [];
+    for (const node of layer.getChildren()) {
+      if (!(node instanceof konva.Group) || !node.id()) continue;
+      const arrow = node.findOne("Arrow");
+      if (arrow instanceof konva.Arrow) {
+        const points = arrow.points();
+        const dx = points[2];
+        const dy = points[3];
+        if (dx === undefined || dy === undefined)
+          throw new Error("Missing arrow length");
+        arrows.push({ x: node.x(), y: node.y(), dx, dy });
+        continue;
+      }
+      const rect = node.findOne("Rect");
+      if (rect instanceof konva.Rect)
+        zones.push({
+          x: node.x(),
+          y: node.y(),
+          width: rect.width(),
+          height: rect.height(),
+        });
+    }
+    return { zones, arrows };
+  });
+}
+
+async function readZone(page: Page): Promise<ZoneBox> {
+  const { zones } = await readShapes(page);
+  if (zones.length !== 1)
+    throw new Error(`Expected one zone, found ${zones.length}.`);
+  const zone = zones[0];
+  if (!zone) throw new Error("Missing zone");
+  return zone;
+}
+
+async function readArrow(page: Page): Promise<ArrowBox> {
+  const { arrows } = await readShapes(page);
+  if (arrows.length !== 1)
+    throw new Error(`Expected one arrow, found ${arrows.length}.`);
+  const arrow = arrows[0];
+  if (!arrow) throw new Error("Missing arrow");
+  return arrow;
+}
+
+async function readNote(
+  page: Page,
+  expectedText: string,
+): Promise<{
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly fontSize: number;
+  readonly wrap: string;
+  readonly text: string;
+}> {
+  return page.evaluate((expectedText) => {
+    const konva = window.Konva;
+    if (!konva) throw new Error("Missing Konva");
+    const stage = konva.stages.find((item) =>
+      item.container().matches(".stage-host"),
+    );
+    if (!stage) throw new Error("Missing board stage");
+    const layer = stage.getLayers()[1];
+    if (!layer) throw new Error("Missing drawings");
+    for (const node of layer.getChildren()) {
+      if (!(node instanceof konva.Group) || !node.id()) continue;
+      const text = node.findOne("Text");
+      if (!(text instanceof konva.Text) || text.text() !== expectedText)
+        continue;
+      return {
+        x: node.x(),
+        y: node.y(),
+        width: text.width(),
+        height: text.height(),
+        fontSize: text.fontSize(),
+        wrap: text.wrap(),
+        text: text.text(),
+      };
+    }
+    throw new Error("Missing rendered note");
+  }, expectedText);
+}
+
 async function remove(
   page: Page,
   kind: DrawingKind,
@@ -441,3 +553,137 @@ for (const { name, text } of [
     expect(await noteLayout(page, text)).toEqual(expanded);
   });
 }
+
+test("drawing help tells you to drag a white handle", async ({ page }) => {
+  await page.goto("/");
+  const help = page.locator(".drawing-help span:visible");
+  await expect(help).toHaveText(
+    "Click any hero or drawing to select it. Drag to move it. Right-click to remove a drawing. Drag a white handle to resize the selection.",
+  );
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
+  await expect(help).toHaveText(
+    "Click empty map space to add a note. Drag existing elements to move them. Drag a white handle to resize the selection.",
+  );
+  await page.getByRole("button", { name: "Draw arrow", exact: true }).click();
+  await expect(help).toHaveText(
+    "Drag on empty map space to draw. Drag existing elements to move them. Drag a white handle to resize the selection.",
+  );
+  await page.getByRole("button", { name: "Draw zone", exact: true }).click();
+  await expect(help).toHaveText(
+    "Drag on empty map space to draw. Drag existing elements to move them. Drag a white handle to resize the selection.",
+  );
+});
+
+test("dragging a zone corner changes its size and one undo restores it", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await draw(page, "zone");
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(
+    "zone updated.",
+  );
+  const created = { x: 400, y: 200, width: 200, height: 100 };
+  expect(await readZone(page)).toEqual(created);
+  await drag(page, 600, 300, 720, 380);
+  expect(await readZone(page)).toEqual({
+    x: 400,
+    y: 200,
+    width: 320,
+    height: 180,
+  });
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(await readZone(page)).toEqual(created);
+});
+
+test("escape cancels a zone resize and leaves the create as the only history step", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await draw(page, "zone");
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(
+    "zone updated.",
+  );
+  const created = { x: 400, y: 200, width: 200, height: 100 };
+  const start = await point(page, 600, 300);
+  const end = await point(page, 720, 380);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  expect(await readZone(page)).toEqual(created);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(await readShapes(page)).toEqual({ zones: [], arrows: [] });
+});
+
+test("dragging an arrow tip changes its direction", async ({ page }) => {
+  await page.goto("/");
+  await draw(page, "arrow");
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(
+    "arrow updated.",
+  );
+  expect(await readArrow(page)).toEqual({ x: 400, y: 200, dx: 200, dy: 100 });
+  await drag(page, 600, 300, 720, 160);
+  expect(await readArrow(page)).toEqual({ x: 400, y: 200, dx: 320, dy: -40 });
+});
+
+test("dragging a note handle changes its width and keeps the text wrapping", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await draw(page, "note");
+  const text =
+    "Hold the point and watch the left flank. Wait for the team before moving forward.";
+  await page
+    .getByRole("textbox", { name: "Note text", exact: true })
+    .fill(text);
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  const before = await readNote(page, text);
+  expect(before).toMatchObject({
+    x: 400,
+    y: 200,
+    width: 180,
+    fontSize: 20,
+    wrap: "word",
+    text,
+  });
+  expect(before.height).toBeGreaterThan(36);
+  await drag(
+    page,
+    before.x + before.width,
+    before.y + before.height / 2,
+    before.x + 100,
+    before.y + before.height / 2,
+  );
+  const after = await readNote(page, text);
+  expect(after.x).toBe(400);
+  expect(after.y).toBe(before.y);
+  expect(after.width).toBe(100);
+  expect(after.fontSize).toBe(20);
+  expect(after.wrap).toBe("word");
+  expect(after.text).toBe(text);
+  expect(after.height).toBeGreaterThan(before.height);
+});
+
+test("dragging a zone body translates it and keeps its size", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await draw(page, "zone");
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(
+    "zone updated.",
+  );
+  expect(await readZone(page)).toEqual({
+    x: 400,
+    y: 200,
+    width: 200,
+    height: 100,
+  });
+  await drag(page, 500, 250, 560, 290);
+  expect(await readZone(page)).toEqual({
+    x: 460,
+    y: 241,
+    width: 200,
+    height: 100,
+  });
+});

@@ -59,15 +59,15 @@ export function DrawingTools(props: DrawingToolsProps): React.JSX.Element {
         {[
           {
             active: props.tool === "move",
-            text: "Click any hero or drawing to select it. Drag to move it. Right-click to remove a drawing.",
+            text: "Click any hero or drawing to select it. Drag to move it. Right-click to remove a drawing. Drag a white handle to resize the selection.",
           },
           {
             active: props.tool === "note",
-            text: "Click empty map space to add a note. Drag existing elements to move them.",
+            text: "Click empty map space to add a note. Drag existing elements to move them. Drag a white handle to resize the selection.",
           },
           {
             active: props.tool === "arrow" || props.tool === "zone",
-            text: "Drag on empty map space to draw. Drag existing elements to move them.",
+            text: "Drag on empty map space to draw. Drag existing elements to move them. Drag a white handle to resize the selection.",
           },
         ].map(({ active, text }) => (
           <span
