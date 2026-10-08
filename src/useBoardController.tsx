@@ -33,6 +33,7 @@ import {
 } from "./boardSession";
 import type { BoardToken, IconSize } from "./boardTokens";
 import type { Workspace } from "./appData";
+import { normalizeSearch } from "./searchText";
 import { getMap, isMapId, type MapId } from "./maps";
 
 import {
@@ -144,9 +145,11 @@ export function useBoardController({
     : undefined;
   const allyCount = tokens.filter((token) => token.team === "ally").length;
   const enemyCount = tokens.filter((token) => token.team === "enemy").length;
-  const normalizedHeroSearch = heroSearch.trim().toLocaleLowerCase();
-  const visibleHeroes = HEROES.filter((hero) =>
-    hero.name.toLocaleLowerCase().includes(normalizedHeroSearch),
+  const normalizedHeroSearch = normalizeSearch(heroSearch);
+  const visibleHeroes = HEROES.filter(
+    (hero) =>
+      normalizeSearch(hero.name).includes(normalizedHeroSearch) ||
+      normalizeSearch(hero.role).includes(normalizedHeroSearch),
   );
 
   const showDrawingEdit = useCallback(

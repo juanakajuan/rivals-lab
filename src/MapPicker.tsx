@@ -1,4 +1,5 @@
 import { Dialog } from "./ui/Dialog";
+import { normalizeSearch } from "./searchText";
 import { SearchField } from "./ui/SearchField";
 import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
@@ -23,10 +24,6 @@ interface MapPickerProps<Value extends string | null> {
   readonly onChoose: (value: NoInfer<Value>) => void;
   readonly renderActions?: (close: () => void) => ReactNode;
   readonly onClose?: () => void;
-}
-
-function normalizeSearch(text: string): string {
-  return text.trim().toLowerCase().replace(/['’]/g, "");
 }
 
 export function MapPicker<Value extends string | null>({
