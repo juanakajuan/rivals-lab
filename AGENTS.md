@@ -11,6 +11,12 @@
 - Preserve other pending notes. Skip changes to documentation, tests, or internal code unless they change user-visible behavior.
 - Follow the release note format in [README.md](README.md#changelog-publication). The deploy script assigns dates and updates published history.
 
+## Issues and pull requests
+
+- Include screenshots or videos in the description of every new GitHub issue and PR that involves a visible change or bug.
+- Show the before and after state when a PR changes existing UI.
+- Never commit screenshots or videos to the repo. Attach them through GitHub's upload in the description or comment, and keep local captures out of git.
+
 ## Cursor Cloud specific instructions
 
 - This app requires Node.js 22.18 or later (`package.json` `engines`). The image provides it under `~/.nvm/versions/node/`. `/exec-daemon/node` is older. If `node -v` is below 22.18, prepend the newest `v22` bin from that nvm directory before `node` or `npm`.
