@@ -14,6 +14,7 @@ declare global {
       text: string[];
       writes: number;
       bytes?: number[];
+      cardWidths?: number[];
       positions?: {
         readonly text: string;
         readonly x: number;
@@ -775,12 +776,18 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   page,
 }) => {
   await page.addInitScript(() => {
-    window.imageCopyTest = { text: [], writes: 0 };
+    window.imageCopyTest = { text: [], writes: 0, cardWidths: [] };
     Object.defineProperty(navigator, "clipboard", { value: undefined });
     for (const prototype of [
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
     ]) {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
+      const roundRect = prototype.roundRect;
+      prototype.roundRect = function (x, y, width, height, radii) {
+        window.imageCopyTest.cardWidths?.push(width);
+        roundRect.call(this, x, y, width, height, radii);
+      };
       // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
       const fillText = prototype.fillText;
       prototype.fillText = function (text, x, y, maxWidth) {
@@ -871,6 +878,12 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   );
   for (const included of ["Allies", "Deadpool", "Strategist", "Stay close."])
     expect(sparseText).toContain(included);
+  // One hero on a single team keeps the six-column card width (230px).
+  const cardWidths = await page.evaluate(
+    () => window.imageCopyTest.cardWidths ?? [],
+  );
+  expect(cardWidths).toContain(230);
+  expect(cardWidths).not.toContain(1480);
   for (const excluded of [
     "Opponents",
     "Empty slot",
