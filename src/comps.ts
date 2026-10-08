@@ -244,7 +244,8 @@ export function decodeCompLibrary(source: string): CompLibrary {
 /** Imports are atomic: reject files with unavailable entries without changing storage. */
 export function parseCompLibrary(source: string): readonly SavedComp[] {
   const library = decodeCompLibrary(source);
-  if (library.errors.length) throw new Error(library.errors.join(" "));
+  if (library.errors.length)
+    throw new Error([...new Set(library.errors)].join(" "));
   return library.entries;
 }
 

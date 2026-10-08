@@ -109,7 +109,7 @@ function libraryView(library: CompLibrary): SavedCompLibraryView {
     entries: library.entries,
     unavailableCount: library.unavailable.length,
     error: library.unavailable.length
-      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${library.errors.join(" ")}`
+      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${[...new Set(library.errors)].join(" ")}`
       : null,
   };
 }
