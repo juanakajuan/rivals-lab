@@ -10,5 +10,9 @@
   {
     "id": "pointer-resize-drawings",
     "text": "Feature: Drag a handle on a selected arrow, zone, or note to resize it."
+  },
+  {
+    "id": "page-title-names-page",
+    "text": "Bug fix: The browser tab title now names the current page."
   }
 ]
