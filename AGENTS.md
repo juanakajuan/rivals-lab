@@ -16,3 +16,4 @@
 - Include screenshots or videos in the description of every new GitHub issue and PR that involves a visible change or bug.
 - Show the before and after state when a PR changes existing UI.
 - Never commit screenshots or videos to the repo. Attach them through GitHub's upload in the description or comment, and keep local captures out of git.
+- To attach media from the command line, run `npm run media:login` once on each machine, then `npm run media:upload -- <PR or issue URL> <files>`. It prints one link per file. Put the links in the description. The login stays in `~/.cache/gh-upload-profile`.

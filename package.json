@@ -19,6 +19,8 @@
     "deploy": "node scripts/releases.ts",
     "deploy:confirm": "node scripts/releases.ts --confirm",
     "deploy:discard": "node scripts/releases.ts --discard",
+    "media:login": "node scripts/github-media.ts login",
+    "media:upload": "node scripts/github-media.ts upload",
     "test:releases": "node --test tests/releases.test.ts"
   },
   "dependencies": {
