@@ -1,4 +1,5 @@
 import { releases } from "virtual:releases";
+import type { PendingNote, Release } from "./releases.ts";
 
 const releaseDate = new Intl.DateTimeFormat("en", {
   year: "numeric",
@@ -6,6 +7,30 @@ const releaseDate = new Intl.DateTimeFormat("en", {
   day: "numeric",
   timeZone: "UTC",
 });
+
+interface DayEntry {
+  readonly id: string;
+  readonly date: string;
+  readonly notes: readonly PendingNote[];
+}
+
+function groupByDate(items: readonly Release[]): DayEntry[] {
+  const days: DayEntry[] = [];
+  for (const release of items) {
+    const last = days.at(-1);
+    if (last?.date === release.date) {
+      days[days.length - 1] = {
+        ...last,
+        notes: [...last.notes, ...release.notes],
+      };
+    } else {
+      days.push(release);
+    }
+  }
+  return days;
+}
+
+const days = groupByDate(releases);
 
 export function Changelog(): React.JSX.Element {
   return (
@@ -15,7 +40,7 @@ export function Changelog(): React.JSX.Element {
         <p className="changelog-intro">
           Updates to deployed features. Latest first. Dates use UTC.
         </p>
-        {releases.map((release) => (
+        {days.map((release) => (
           <article
             className="release-entry"
             key={release.id}

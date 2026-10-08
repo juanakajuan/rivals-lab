@@ -141,7 +141,7 @@ export function DraftPanel({
           <p className="eyebrow">
             {draft.format === "mrc" ? "MRC" : "Ignite"} draft
           </p>
-          <h2 id="draft-heading">Bans And Saves</h2>
+          <h2 id="draft-heading">Bans and Saves</h2>
         </div>
         <span className="status-tag">
           {filled} / {slots.length} choices set

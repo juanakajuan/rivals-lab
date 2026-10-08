@@ -311,10 +311,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     const slots = comp.teams[team]
       .map((slot, index) => ({ slot, index }))
       .filter(({ slot }) => slot.heroId || slot.notes.trim());
-    const columns =
-      teams.length === 1
-        ? Math.min(slots.length, 6)
-        : Math.min(slots.length, 3);
+    const columns = teams.length === 1 ? 6 : 3;
     const cardWidth = (teamWidth - 40 - GAP * (columns - 1)) / columns;
     let rowTop = teamTop + 62;
     for (let row = 0; row < Math.ceil(slots.length / columns); row++) {
