@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { emptyComp } from "../src/comps";
+import { emptyComp, parseCompLibrary } from "../src/comps";
 import { emptyDraft } from "../src/draft";
 import {
   addCompCopies,
@@ -728,4 +728,31 @@ test("stale tab cannot restore a deleted comp and can save its edits as a new co
     "Edits from tab B",
   );
   await expect(stale.locator(".saved-comp")).toHaveCount(1);
+});
+
+test("repeated load errors are shown once", async ({ page }) => {
+  const comp = { ...emptyComp(), name: "Bad text" };
+  const bad = (id: string) => ({
+    id,
+    updatedAt: "2026-09-30T12:00:00Z",
+    comp: { ...comp, name: 42 },
+  });
+  const source = JSON.stringify({
+    version: 1,
+    comps: [bad("a"), bad("b"), bad("c")],
+  });
+  const message = "Invalid or oversized text in comp data.";
+  expect(() => parseCompLibrary(source)).toThrow(
+    new RegExp(`^${message.replaceAll(".", "\\.")}$`),
+  );
+
+  await page.addInitScript(
+    (stored) => localStorage.setItem("rivals-lab.comps.v1", stored),
+    source,
+  );
+  await page.goto("/");
+  await openBuilder(page);
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("3 saved comp(s) cannot be loaded.");
+  expect(((await alert.textContent()) ?? "").split(message)).toHaveLength(2);
 });

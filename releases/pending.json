@@ -1,5 +1,9 @@
 [
   {
+    "id": "import-error-message-once",
+    "text": "Bug fix: Import errors now show each distinct message once instead of repeating it."
+  },
+  {
     "id": "multi-map-or-game-mode",
     "text": "Feature: A draft or comp can now use several maps or a whole game mode, with a tab for each map on the Position Board."
   }

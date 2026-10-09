@@ -271,10 +271,15 @@ export function decodeCompLibrary(source: string): CompLibrary {
   return { entries, unavailable, errors, envelope };
 }
 
+/** Join load errors, showing each distinct message once. */
+export function libraryErrorSummary(library: CompLibrary): string {
+  return [...new Set(library.errors)].join(" ");
+}
+
 /** Imports are atomic: reject files with unavailable entries without changing storage. */
 export function parseCompLibrary(source: string): readonly SavedComp[] {
   const library = decodeCompLibrary(source);
-  if (library.errors.length) throw new Error(library.errors.join(" "));
+  if (library.errors.length) throw new Error(libraryErrorSummary(library));
   return library.entries;
 }
 
