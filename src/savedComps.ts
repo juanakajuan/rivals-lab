@@ -4,6 +4,7 @@ import {
   emptyComp,
   sameComp,
   StoredLibrarySource,
+  libraryErrorSummary,
   parseCompLibrary,
   serializeCompLibrary,
   type Comp,
@@ -109,7 +110,7 @@ function libraryView(library: CompLibrary): SavedCompLibraryView {
     entries: library.entries,
     unavailableCount: library.unavailable.length,
     error: library.unavailable.length
-      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${[...new Set(library.errors)].join(" ")}`
+      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${libraryErrorSummary(library)}`
       : null,
   };
 }
