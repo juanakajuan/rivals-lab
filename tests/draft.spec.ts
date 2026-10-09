@@ -117,7 +117,7 @@ test("saved comps validate external data and preserve partial drafts and conflic
     { version: 1, comps: [entry, entry] },
     {
       version: 1,
-      comps: [{ ...entry, comp: { ...entry.comp, mapId: "unknown" } }],
+      comps: [{ ...entry, comp: { ...entry.comp, mapIds: ["unknown"] } }],
     },
     {
       version: 1,
@@ -335,7 +335,7 @@ test("duplicate saved IDs stay unavailable for recovery", () => {
   };
   const unavailable = {
     ...saved,
-    comp: { ...saved.comp, mapId: "retired-map" },
+    comp: { ...saved.comp, mapIds: ["retired-map"] },
   };
   const duplicate = decodeCompLibrary(
     JSON.stringify({ version: 1, comps: [saved, unavailable] }),

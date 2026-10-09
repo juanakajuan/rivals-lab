@@ -26,6 +26,9 @@ test("a board token and a custom map drawing survive a reload", async ({
       customMaps: [map],
       board: {
         map,
+        maps: [map],
+        mode: null,
+        positionsByMap: {},
         tokens: [
           { id: "ally-thor", heroId: "thor", team: "ally", x: 300, y: 250 },
         ],
@@ -173,6 +176,9 @@ test("writes from a replaced data generation change nothing", async ({
       ...data.workspace,
       board: {
         map: { kind: "builtin", id: "hells-heaven-domination" },
+        maps: [{ kind: "builtin", id: "hells-heaven-domination" }],
+        mode: null,
+        positionsByMap: {},
         tokens: [],
         drawingsByMap: {},
       },
@@ -236,6 +242,9 @@ async function seedWorkspace(page: Page): Promise<number> {
         customMaps: [first, second],
         board: {
           map: second,
+          maps: [second],
+          mode: null,
+          positionsByMap: {},
           tokens: [
             { id: "ally-thor", heroId: "thor", team: "ally", x: 120, y: 80 },
             {
@@ -479,7 +488,7 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
         version: 1,
         comps: [
           dive,
-          { ...poke, comp: { ...poke.comp, mapId: "retired-map" } },
+          { ...poke, comp: { ...poke.comp, mapIds: ["retired-map"] } },
         ],
       }),
       "Unknown map: retired-map.",
@@ -495,4 +504,74 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
       ),
     ).rejects.toThrow(message);
   expect(await storedRecords(page)).toEqual(before);
+});
+
+test("several maps with per-map positions and a game mode survive a reload", async ({
+  page,
+}) => {
+  await openHarness(page);
+  const wakanda = { kind: "builtin", id: "birnin-tchalla-domination" } as const;
+  const hydra = { kind: "builtin", id: "hells-heaven-domination" } as const;
+  const tokens = [
+    { id: "ally-thor", heroId: "thor", team: "ally", x: 300, y: 250 },
+  ] as const;
+  await page.evaluate(
+    async ({ wakanda, hydra, tokens }) => {
+      const data = await window.appDataHarness.openAppData();
+      data.autosave.sync({
+        ...data.workspace,
+        board: {
+          map: wakanda,
+          maps: [wakanda, hydra],
+          mode: null,
+          tokens: [...tokens],
+          positionsByMap: { [hydra.id]: { "ally-thor": { x: 100, y: 120 } } },
+          drawingsByMap: {},
+        },
+      });
+      await data.autosave.flush();
+    },
+    { wakanda, hydra, tokens },
+  );
+  await page.reload();
+  await page.waitForFunction(() => "appDataHarness" in window);
+  const multi = await page.evaluate(async () => {
+    const { workspace } = await window.appDataHarness.openAppData();
+    const { board } = workspace;
+    return {
+      maps: board.maps.map((map) => map.id),
+      mode: board.mode,
+      positions: board.positionsByMap,
+    };
+  });
+  expect(multi).toEqual({
+    maps: [wakanda.id, hydra.id],
+    mode: null,
+    positions: { [hydra.id]: { "ally-thor": { x: 100, y: 120 } } },
+  });
+  await page.evaluate(
+    async ({ wakanda, tokens }) => {
+      const data = await window.appDataHarness.openAppData();
+      data.autosave.sync({
+        ...data.workspace,
+        board: {
+          map: wakanda,
+          maps: [],
+          mode: "Convoy",
+          tokens: [...tokens],
+          positionsByMap: {},
+          drawingsByMap: {},
+        },
+      });
+      await data.autosave.flush();
+    },
+    { wakanda, tokens },
+  );
+  await page.reload();
+  await page.waitForFunction(() => "appDataHarness" in window);
+  const mode = await page.evaluate(async () => {
+    const { board } = (await window.appDataHarness.openAppData()).workspace;
+    return { maps: board.maps.length, mode: board.mode, map: board.map.id };
+  });
+  expect(mode).toEqual({ maps: 0, mode: "Convoy", map: wakanda.id });
 });

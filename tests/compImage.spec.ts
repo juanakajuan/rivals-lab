@@ -90,7 +90,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   const comp: Comp = {
     ...empty,
     name: "Saved build",
-    mapId: "god-quarry",
+    mapIds: ["god-quarry"],
     teams: {
       ally: [
         {
@@ -671,7 +671,7 @@ test("map image failure reports the map and permits retry without changing saved
     {
       id: "map-error",
       updatedAt: "2026-09-28T00:00:00Z",
-      comp: { ...emptyComp(), name: "Map plan", mapId: "midtown" },
+      comp: { ...emptyComp(), name: "Map plan", mapIds: ["midtown"] },
     },
   ]);
   await page.addInitScript((source) => {

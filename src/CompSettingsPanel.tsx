@@ -1,10 +1,12 @@
 import type { Comp } from "./comps";
 import type { DraftFormat } from "./draft";
 import { compStatus } from "./compEdits";
-import { COMP_MAPS } from "./compMaps";
+import { compMapLabel, selectedCompMaps } from "./compMaps";
+import { GameModeIcon } from "./GameModeIcon";
 import { COMP_MAP_OPTIONS } from "./mapPickerOptions";
 import { MapPicker } from "./MapPicker";
 import { Map } from "lucide-react";
+import type { GameMode } from "./maps";
 
 export interface CompSettingsPanelProps {
   readonly comp: Comp;
@@ -13,6 +15,8 @@ export interface CompSettingsPanelProps {
   readonly onSaveAs: () => void;
   readonly onSave: () => void;
   readonly onMapChange: (mapId: string | null) => void;
+  readonly onMapsChange: (mapIds: readonly string[]) => void;
+  readonly onGameModeChange: (mode: GameMode) => void;
   readonly onDraftChange: (format: DraftFormat | null) => void;
 }
 
@@ -23,10 +27,15 @@ export function CompSettingsPanel({
   onSaveAs,
   onSave,
   onMapChange,
+  onMapsChange,
+  onGameModeChange,
   onDraftChange,
 }: CompSettingsPanelProps): React.JSX.Element {
   const status = compStatus(comp);
-  const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
+  const selectedMaps = selectedCompMaps(comp);
+  const selectedMap = selectedMaps[0];
+  const { gameMode } = comp;
+  const hasSelection = selectedMaps.length > 0 || gameMode !== null;
   return (
     <section className="builder-card comp-settings" aria-label="Comp settings">
       <div className="comp-settings-fields">
@@ -84,12 +93,28 @@ export function CompSettingsPanel({
       <figure className="selected-map-preview">
         <MapPicker<string | null>
           options={COMP_MAP_OPTIONS}
-          selectedValue={comp.mapId}
+          selectedValue={
+            gameMode
+              ? undefined
+              : selectedMaps.length > 1
+                ? undefined
+                : (selectedMap?.id ?? null)
+          }
+          multiple={{
+            selectedValues: comp.mapIds,
+            onApply: (ids) =>
+              onMapsChange(ids.filter((id): id is string => id !== null)),
+          }}
+          modes={{ selected: gameMode, onChoose: onGameModeChange }}
           triggerLabel="Comp map"
           triggerClassName="selected-map-trigger"
           triggerContent={
             <>
-              {selectedMap ? (
+              {gameMode ? (
+                <span className="selected-map-neutral" aria-hidden="true">
+                  <GameModeIcon mode={gameMode} />
+                </span>
+              ) : selectedMap ? (
                 <img
                   src={selectedMap.previewImagePath}
                   alt=""
@@ -100,8 +125,13 @@ export function CompSettingsPanel({
                   <Map />
                 </span>
               )}
+              {selectedMaps.length > 1 ? (
+                <span className="selected-map-count" aria-hidden="true">
+                  {selectedMaps.length} maps
+                </span>
+              ) : null}
               <span className="selected-map-cue" aria-hidden="true">
-                {selectedMap ? "Change map" : "Choose map"}
+                {hasSelection ? "Change map" : "Choose map"}
               </span>
             </>
           }
@@ -109,9 +139,9 @@ export function CompSettingsPanel({
           onChoose={onMapChange}
         />
         <figcaption>
-          {selectedMap
+          {selectedMaps.length === 1 && selectedMap
             ? `${selectedMap.name} · ${selectedMap.mode}`
-            : "Any map"}
+            : compMapLabel(comp)}
         </figcaption>
       </figure>
     </section>

@@ -34,7 +34,7 @@ import {
 import type { BoardToken, IconSize } from "./boardTokens";
 import type { Workspace } from "./appData";
 import { normalizeSearch } from "./searchText";
-import { getMap, isMapId, type MapId } from "./maps";
+import { getMap, isMapId, type GameMode, type MapId } from "./maps";
 
 import {
   resolveBoardMap,
@@ -63,7 +63,7 @@ export interface BoardController {
   readonly headerActions: ReactNode;
   readonly content: ReactNode;
   readonly overlays: ReactNode;
-  readonly openComp: (comp: Comp, mapId: MapId) => boolean;
+  readonly openComp: (comp: Comp, mapIds: readonly MapId[]) => boolean;
   readonly dismissMenu: () => void;
   readonly document: {
     readonly board: BoardState;
@@ -105,7 +105,7 @@ export function useBoardController({
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
-  const { map: selectedBoardMap, iconSize } = boardState;
+  const { map: selectedBoardMap, iconSize, mode: gameMode } = boardState;
   const tokens = session.visibleTokens();
   const selectedMapId = selectedBoardMap.id;
   const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
@@ -518,20 +518,49 @@ export function useBoardController({
     return true;
   }
 
-  function changeMap(mapId: BoardMapId): void {
-    cancelUpload();
-    const selected = isMapId(mapId)
+  function findBoardMap(mapId: BoardMapId): SelectedBoardMap | undefined {
+    return isMapId(mapId)
       ? ({ kind: "builtin", id: mapId } satisfies SelectedBoardMap)
       : customMaps.find((map) => map.id === mapId);
-    if (!selected) return;
-    const map = resolveBoardMap(selected);
-    setBoardState(session.changeMap(selected));
-    setSelectedDrawingId(null);
-    setContextMenu(null);
-    setAnnouncement(`${map.name} selected.`);
   }
 
-  function openComp(comp: Comp, mapId: MapId): boolean {
+  function changeMap(mapId: BoardMapId): void {
+    chooseMaps([mapId]);
+  }
+
+  function chooseMaps(mapIds: readonly BoardMapId[]): void {
+    cancelUpload();
+    const selected = mapIds.flatMap((id) => findBoardMap(id) ?? []);
+    const [first] = selected;
+    if (!first) return;
+    setBoardState(session.selectMaps(selected));
+    setSelectedDrawingId(null);
+    setContextMenu(null);
+    setAnnouncement(
+      selected.length === 1
+        ? `${resolveBoardMap(first).name} selected.`
+        : `${selected.length} maps selected.`,
+    );
+  }
+
+  function chooseMode(mode: GameMode): void {
+    cancelUpload();
+    setBoardState(session.selectMode(mode));
+    setTool("move");
+    setSelectedDrawingId(null);
+    setContextMenu(null);
+    setAnnouncement(`${mode} game mode selected. Positions are off.`);
+  }
+
+  function selectMapTab(mapId: BoardMapId): void {
+    setBoardState(session.setActiveMap(mapId));
+    setSelectedDrawingId(null);
+    setContextMenu(null);
+    const map = findBoardMap(mapId);
+    if (map) setAnnouncement(`${resolveBoardMap(map).name} tab selected.`);
+  }
+
+  function openComp(comp: Comp, mapIds: readonly MapId[]): boolean {
     cancelUpload();
     if (
       tokens.length &&
@@ -540,11 +569,13 @@ export function useBoardController({
       )
     )
       return false;
-    const map = getMap(mapId);
-    setBoardState(session.openComp({ comp, mapId }));
+    setBoardState(session.openComp({ comp, mapIds }));
     setSelectedTokenId(null);
     setContextMenu(null);
-    setAnnouncement(`${comp.name || "Comp"} opened on ${map.name}.`);
+    const target = comp.gameMode
+      ? `${comp.gameMode} game mode`
+      : mapIds.map((id) => getMap(id).name).join(", ");
+    setAnnouncement(`${comp.name || "Comp"} opened on ${target}.`);
     return true;
   }
 
@@ -611,28 +642,35 @@ export function useBoardController({
         />
         <BoardPanel
           drawingControls={
-            <DrawingTools
-              tool={tool}
-              color={drawingColor}
-              selected={selectedDrawing}
-              onTool={changeTool}
-              onColor={setDrawingColor}
-              onEdit={editDrawing}
-              onAdd={() => {
-                if (tool === "move") return;
-                const drawing = session.addDrawing({
-                  kind: tool,
-                  color: drawingColor,
-                });
-                if (!drawing) {
-                  setAnnouncement(drawingLimitMessage());
-                  return;
-                }
-                showDrawingEdit(drawing);
-              }}
-            />
+            gameMode ? null : (
+              <DrawingTools
+                tool={tool}
+                color={drawingColor}
+                selected={selectedDrawing}
+                onTool={changeTool}
+                onColor={setDrawingColor}
+                onEdit={editDrawing}
+                onAdd={() => {
+                  if (tool === "move") return;
+                  const drawing = session.addDrawing({
+                    kind: tool,
+                    color: drawingColor,
+                  });
+                  if (!drawing) {
+                    setAnnouncement(drawingLimitMessage());
+                    return;
+                  }
+                  showDrawingEdit(drawing);
+                }}
+              />
+            )
           }
           selectedMapId={selectedMapId}
+          maps={boardState.maps}
+          gameMode={gameMode}
+          onMapsChange={chooseMaps}
+          onModeChange={chooseMode}
+          onMapTabChange={selectMapTab}
           selectedMap={selectedMap}
           customMaps={customMaps}
           uploadState={uploadState}

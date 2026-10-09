@@ -1,5 +1,6 @@
 import type { SavedComp } from "./comps";
-import { COMP_MAPS } from "./compMaps";
+import { compMapLabel, selectedCompMaps } from "./compMaps";
+import { GameModeIcon } from "./GameModeIcon";
 import { compStatus } from "./compEdits";
 import { HERO_BY_ID, heroImagePath } from "./heroes";
 
@@ -22,7 +23,9 @@ export function SavedCompCard({
   onExport,
   onDelete,
 }: SavedCompCardProps): React.JSX.Element {
-  const savedMap = COMP_MAPS.find((map) => map.id === entry.comp.mapId);
+  const savedMaps = selectedCompMaps(entry.comp);
+  const savedMap = savedMaps[0];
+  const { gameMode } = entry.comp;
   return (
     <article className={`saved-comp${entry.id === savedId ? " selected" : ""}`}>
       <button
@@ -39,8 +42,16 @@ export function SavedCompCard({
             loading="lazy"
           />
         )}
+        {gameMode && (
+          <span className="saved-map-preview saved-mode-preview">
+            <GameModeIcon mode={gameMode} size={28} />
+          </span>
+        )}
         <strong>{entry.comp.name}</strong>
-        <span className="saved-comp-map">{savedMap?.name ?? "Any map"}</span>
+        <span className="saved-comp-map">
+          {savedMaps.length > 1 ? `${savedMaps.length} maps · ` : ""}
+          {compMapLabel(entry.comp)}
+        </span>
         <span className="saved-comp-meta">
           {entry.comp.draft?.format.toUpperCase() ?? "Free build"} ·{" "}
           {compStatus(entry.comp)}

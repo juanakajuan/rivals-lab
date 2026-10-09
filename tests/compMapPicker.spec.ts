@@ -71,7 +71,7 @@ test("comp image opens the scenic picker and updates one map caption", async ({
   ).toBeVisible();
   await trigger(page).click();
   const dialog = picker(page);
-  await expect(dialog.getByRole("button")).toHaveCount(19);
+  await expect(dialog.getByRole("button")).toHaveCount(23);
   const anyMap = dialog.getByRole("button", { name: "Any map", exact: true });
   await expect(anyMap).toBeFocused();
   await expect(anyMap).toHaveAttribute("aria-pressed", "true");
@@ -167,7 +167,7 @@ test("comp image opens the scenic picker and updates one map caption", async ({
   await page.getByLabel("Comp name", { exact: true }).fill("Any map plan");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const exported = await exportCompLibrary(page);
-  expect(exported).toContain('"mapId": null');
+  expect(exported).toContain('"mapIds": []');
 });
 
 test("map changes preserve the complete draft without confirmation through save and reload", async ({
@@ -196,12 +196,12 @@ test("map changes preserve the complete draft without confirmation through save 
   await expect(trigger(page)).toBeFocused();
   await expect(page.getByRole("status")).toHaveText("Saved Keep draft.");
   expect(confirmations).toBe(0);
-  for (const { name, mapId, text } of [
-    { name: "Thebes", mapId: "thebes", text: "Thebes · Convoy" },
-    { name: "Any map", mapId: null, text: "Any map" },
+  for (const { name, mapIds, text } of [
+    { name: "Thebes", mapIds: ["thebes"], text: "Thebes · Convoy" },
+    { name: "Any map", mapIds: [], text: "Any map" },
     {
       name: "The God Quarry",
-      mapId: "god-quarry",
+      mapIds: ["god-quarry"],
       text: "The God Quarry · Domination",
     },
   ]) {
@@ -229,7 +229,7 @@ test("map changes preserve the complete draft without confirmation through save 
       parseCompLibrary(await exportCompLibrary(page)).map(
         (entry) => entry.comp,
       ),
-    ).toEqual(before.map((comp) => ({ ...comp, mapId })));
+    ).toEqual(before.map((comp) => ({ ...comp, mapIds })));
     await page.reload();
     await page
       .getByRole("button", { name: "Load Keep draft", exact: true })
@@ -284,7 +284,7 @@ test("map changes preserve the complete draft without confirmation through save 
       parseCompLibrary(await exportCompLibrary(importedPage)).map(
         (entry) => entry.comp,
       ),
-    ).toEqual(before.map((comp) => ({ ...comp, mapId: "god-quarry" })));
+    ).toEqual(before.map((comp) => ({ ...comp, mapIds: ["god-quarry"] })));
   } finally {
     await importedContext.close();
   }
@@ -440,7 +440,7 @@ for (const width of [320, 390]) {
                 comp: {
                   ...emptyComp(),
                   name: "Cold map",
-                  mapId: "lower-manhattan",
+                  mapIds: ["lower-manhattan"],
                 },
               },
             ]),

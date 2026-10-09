@@ -1,4 +1,5 @@
 import { COMP_MAPS } from "./compMaps";
+import { isGameMode, type GameMode } from "./maps";
 import { compSlot, emptyComp, type Comp, type CompSlot } from "./comps";
 import {
   draftChoiceError,
@@ -44,7 +45,8 @@ export type CompEdit =
   | { readonly kind: "resetTeam"; readonly team: Team }
   | { readonly kind: "draftFormat"; readonly format: DraftFormat | null }
   | { readonly kind: "resetDraft" }
-  | { readonly kind: "map"; readonly mapId: string | null };
+  | { readonly kind: "maps"; readonly mapIds: readonly string[] }
+  | { readonly kind: "gameMode"; readonly mode: GameMode };
 
 export function compChoiceError(
   comp: Comp,
@@ -171,16 +173,19 @@ export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
         ...comp,
         draft: comp.draft ? emptyDraft(comp.draft.format) : null,
       };
-    case "map":
-      if (
-        edit.mapId !== null &&
-        !COMP_MAPS.some((map) => map.id === edit.mapId)
-      )
-        throw new Error(`Unknown map: ${edit.mapId}.`);
+    case "maps": {
+      for (const id of edit.mapIds)
+        if (!COMP_MAPS.some((map) => map.id === id))
+          throw new Error(`Unknown map: ${id}.`);
       return {
         ...comp,
-        mapId: edit.mapId,
+        mapIds: [...new Set(edit.mapIds)],
+        gameMode: null,
       };
+    }
+    case "gameMode":
+      if (!isGameMode(edit.mode)) throw new Error("Unknown game mode.");
+      return { ...comp, mapIds: [], gameMode: edit.mode };
     default: {
       const exhaustive: never = edit;
       return exhaustive;

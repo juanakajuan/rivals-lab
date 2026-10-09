@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "id": "multi-map-or-game-mode",
+    "text": "Feature: A draft or comp can now use several maps or a whole game mode, with a tab for each map on the Position Board."
+  }
+]
