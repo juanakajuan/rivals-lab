@@ -109,7 +109,7 @@ export function CompBuilder({
   readonly start: SavedCompSessionStart;
   readonly onOpenComp: (openComp: OpenCompSnapshot) => void;
   readonly onImport: () => void;
-  readonly onOpenBoard: (comp: Comp, mapIds: readonly MapId[]) => void;
+  readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
   const [session] = useState(() => new SavedCompSession(storage, start));
   const [savedState, setSavedState] = useState(() => session.state);
@@ -129,8 +129,8 @@ export function CompBuilder({
   const supportedBoardMapIds = selectedMaps.flatMap((map) =>
     map.boardMapId === undefined ? [] : [map.boardMapId],
   );
-  const canOpenDirectly =
-    comp.gameMode !== null || supportedBoardMapIds.length > 0;
+  const supportedBoardMapId =
+    selectedMaps.length === 1 ? supportedBoardMapIds[0] : undefined;
   const boardTransferDisabled = !TEAMS.some((team) =>
     comp.teams[team].some((slot) => slot.heroId),
   );
@@ -376,11 +376,11 @@ export function CompBuilder({
               <Download size={15} />
               {exportingImage ? "Preparing image…" : "Download & Copy"}
             </button>
-            {canOpenDirectly ? (
+            {supportedBoardMapId !== undefined ? (
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => onOpenBoard(comp, supportedBoardMapIds)}
+                onClick={() => onOpenBoard(comp, supportedBoardMapId)}
                 disabled={boardTransferDisabled}
               >
                 Open on Position Board <ArrowUpRight size={15} />
@@ -399,7 +399,7 @@ export function CompBuilder({
                 disabled={boardTransferDisabled}
                 title="Choose a Position Board map"
                 description={`${selectedMap ? `${selectedMap.name} has no board image yet.` : "This comp has no map selected."} Choose a supported map. The saved comp’s map will stay unchanged.`}
-                onChoose={(mapId) => onOpenBoard(comp, [mapId])}
+                onChoose={(mapId) => onOpenBoard(comp, mapId)}
               />
             )}
           </div>

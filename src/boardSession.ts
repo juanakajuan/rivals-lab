@@ -17,7 +17,7 @@ import {
 } from "./boardTokens";
 import type { Comp } from "./comps";
 import type { Team } from "./heroes";
-import { DEFAULT_MAP_ID, type GameMode, type MapId } from "./maps";
+import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
 
 import {
   resolveBoardMap,
@@ -25,19 +25,9 @@ import {
   type SelectedBoardMap,
 } from "./boardMaps";
 
-/** Saved hero positions of one map, by token ID. */
-export type MapPositions = Readonly<Record<string, BoardPoint>>;
-
 export interface BoardState {
-  /** The active map. Under a game mode it only supplies board geometry. */
   readonly map: SelectedBoardMap;
-  /** Map tabs. Empty when a game mode is selected. Otherwise includes `map`. */
-  readonly maps: readonly SelectedBoardMap[];
-  readonly mode: GameMode | null;
-  /** Hero tokens, positioned for the active map. The hero list is shared by all maps. */
   readonly tokens: readonly BoardToken[];
-  /** Positions of the other selected maps. The active map's positions are in `tokens`. */
-  readonly positionsByMap: Readonly<Partial<Record<BoardMapId, MapPositions>>>;
   readonly drawingsByMap: Readonly<
     Partial<Record<BoardMapId, readonly BoardDrawing[]>>
   >;
@@ -108,79 +98,10 @@ function initialTokens(): BoardToken[] {
 
 export function initialBoard(): BoardState {
   return {
-    ...mapsSelection([{ kind: "builtin", id: DEFAULT_MAP_ID }]),
+    map: { kind: "builtin", id: DEFAULT_MAP_ID },
     tokens: initialTokens(),
-    positionsByMap: {},
     drawingsByMap: {},
   };
-}
-
-function mapsSelection(
-  maps: readonly [SelectedBoardMap, ...SelectedBoardMap[]],
-): Pick<BoardState, "map" | "maps" | "mode"> {
-  return { map: maps[0], maps, mode: null };
-}
-
-function equalPositions(
-  left: BoardState["positionsByMap"],
-  right: BoardState["positionsByMap"],
-): boolean {
-  const leftEntries = new Map<string, MapPositions | undefined>(
-    Object.entries(left),
-  );
-  const rightEntries = new Map<string, MapPositions | undefined>(
-    Object.entries(right),
-  );
-  const ids = new Set([...leftEntries.keys(), ...rightEntries.keys()]);
-  return [...ids].every((id) => {
-    const a = leftEntries.get(id) ?? {};
-    const b = rightEntries.get(id) ?? {};
-    const tokenIds = new Set([...Object.keys(a), ...Object.keys(b)]);
-    return [...tokenIds].every(
-      (tokenId) =>
-        a[tokenId]?.x === b[tokenId]?.x && a[tokenId]?.y === b[tokenId]?.y,
-    );
-  });
-}
-
-/** Make `target` the active map: save the current positions and load the target's. */
-function activateMap(
-  board: BoardState,
-  target: SelectedBoardMap,
-  iconSize: number,
-): BoardState {
-  const dimensions = resolveBoardMap(target);
-  const saved: Record<string, MapPositions> = {
-    ...board.positionsByMap,
-    [board.map.id]: Object.fromEntries(
-      board.tokens.map((token) => [token.id, { x: token.x, y: token.y }]),
-    ),
-  };
-  const stored = saved[target.id];
-  delete saved[target.id];
-  return {
-    ...board,
-    map: target,
-    positionsByMap: saved,
-    tokens: board.tokens.map((token) => {
-      const point = stored?.[token.id] ?? token;
-      return {
-        ...token,
-        x: clampToBoard(point.x, dimensions.width, iconSize),
-        y: clampToBoard(point.y, dimensions.height, iconSize),
-      };
-    }),
-  };
-}
-
-/** Drop saved positions of maps that are no longer selected. */
-function pruneMapPositions(board: BoardState): BoardState {
-  const kept = new Set<string>(board.maps.map((map) => map.id));
-  const entries = Object.entries(board.positionsByMap).filter(([id]) =>
-    kept.has(id),
-  );
-  if (entries.length === Object.keys(board.positionsByMap).length) return board;
-  return { ...board, positionsByMap: Object.fromEntries(entries) };
 }
 
 function clampTokens(board: BoardState, iconSize: number): BoardState {
@@ -201,10 +122,6 @@ function equalBoards(left: BoardState, right: BoardState): boolean {
   const rightDrawings = new Map(Object.entries(right.drawingsByMap));
   return (
     left.map.id === right.map.id &&
-    left.mode === right.mode &&
-    left.maps.length === right.maps.length &&
-    left.maps.every((map, index) => map.id === right.maps[index]?.id) &&
-    equalPositions(left.positionsByMap, right.positionsByMap) &&
     [...leftDrawings.keys(), ...rightDrawings.keys()].every((id) =>
       equalDrawings(leftDrawings.get(id) ?? [], rightDrawings.get(id) ?? []),
     ) &&
@@ -349,16 +266,6 @@ export class BoardSession {
     return this.commit({
       ...this.board,
       tokens: this.board.tokens.filter((token) => token.id !== id),
-      positionsByMap: Object.fromEntries(
-        Object.entries(this.board.positionsByMap).map(([mapId, positions]) => [
-          mapId,
-          Object.fromEntries(
-            Object.entries(positions ?? {}).filter(
-              ([tokenId]) => tokenId !== id,
-            ),
-          ),
-        ]),
-      ),
     });
   }
 
@@ -440,7 +347,6 @@ export class BoardSession {
     return this.commit({
       ...this.board,
       tokens: [],
-      positionsByMap: {},
       drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }
@@ -454,7 +360,6 @@ export class BoardSession {
         x: clampToBoard(token.x, map.width, this.iconSize),
         y: clampToBoard(token.y, map.height, this.iconSize),
       })),
-      positionsByMap: {},
       drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }
@@ -471,72 +376,27 @@ export class BoardSession {
     return this.current;
   }
 
-  /** Choose one map. */
   changeMap(map: SelectedBoardMap): BoardSessionState {
-    return this.selectMaps([map]);
-  }
-
-  /** Choose several maps. This clears any game mode. */
-  selectMaps(maps: readonly SelectedBoardMap[]): BoardSessionState {
-    const unique = maps.filter(
-      (map, index) => maps.findIndex((other) => other.id === map.id) === index,
-    );
-    const [first] = unique;
-    if (!first) return this.current;
-    const active = unique.find((map) => map.id === this.board.map.id) ?? first;
-    const switched =
-      active.id === this.board.map.id
-        ? this.board
-        : activateMap(this.board, active, this.iconSize);
-    return this.commit(
-      pruneMapPositions({ ...switched, map: active, maps: unique, mode: null }),
-    );
-  }
-
-  /** Choose a game mode. This clears the selected maps and turns off positions. */
-  selectMode(mode: GameMode): BoardSessionState {
-    return this.commit(pruneMapPositions({ ...this.board, maps: [], mode }));
-  }
-
-  /** Show another selected map tab. */
-  setActiveMap(id: BoardMapId): BoardSessionState {
-    const target = this.board.maps.find((map) => map.id === id);
-    if (!target || target.id === this.board.map.id) return this.current;
-    return this.commit(activateMap(this.board, target, this.iconSize));
+    const dimensions = resolveBoardMap(map);
+    return this.commit({
+      ...this.board,
+      map,
+      tokens: this.board.tokens.map((token) => ({
+        ...token,
+        x: clampToBoard(token.x, dimensions.width, this.iconSize),
+        y: clampToBoard(token.y, dimensions.height, this.iconSize),
+      })),
+    });
   }
 
   openComp({
     comp,
-    mapIds,
+    mapId,
   }: {
     readonly comp: Comp;
-    readonly mapIds: readonly MapId[];
+    readonly mapId: MapId;
   }): BoardSessionState {
-    const builtin = mapIds
-      .filter((id, index) => mapIds.indexOf(id) === index)
-      .map((id): SelectedBoardMap => ({ kind: "builtin", id }));
-    const [first] = builtin;
-    const active = comp.gameMode || !first ? this.board.map : first;
-    const layout = (map: SelectedBoardMap): BoardToken[] =>
-      this.formation(comp, map);
-    const others: Record<string, MapPositions> = {};
-    if (!comp.gameMode)
-      for (const map of builtin.slice(1))
-        others[map.id] = Object.fromEntries(
-          layout(map).map((token) => [token.id, { x: token.x, y: token.y }]),
-        );
-    return this.commit({
-      ...this.board,
-      map: active,
-      maps: comp.gameMode ? [] : builtin,
-      mode: comp.gameMode,
-      tokens: layout(active),
-      positionsByMap: others,
-    });
-  }
-
-  private formation(comp: Comp, selected: SelectedBoardMap): BoardToken[] {
-    const map = resolveBoardMap(selected);
+    const map = getMap(mapId);
     const tokens: BoardToken[] = [];
     const teams: readonly Team[] = ["ally", "enemy"];
     for (const team of teams) {
@@ -564,7 +424,11 @@ export class BoardSession {
         });
       });
     }
-    return tokens;
+    return this.commit({
+      ...this.board,
+      map: { kind: "builtin", id: mapId },
+      tokens,
+    });
   }
 
   undo(): BoardSessionState {

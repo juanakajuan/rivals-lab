@@ -20,16 +20,12 @@ import {
   type HeroDefinition,
   type Team,
 } from "./heroes";
-import {
-  resolveBoardMap,
-  type BoardMapDefinition,
-  type BoardMapId,
-  type CustomBoardMap,
-  type SelectedBoardMap,
+import type {
+  BoardMapDefinition,
+  BoardMapId,
+  CustomBoardMap,
 } from "./boardMaps";
 import { MapPicker } from "./MapPicker";
-import { GameModeIcon } from "./GameModeIcon";
-import type { GameMode } from "./maps";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 
 export type BoardUploadState =
@@ -207,12 +203,6 @@ interface BoardPanelProps {
   readonly onIconSizeChange: (size: IconSize) => void;
   readonly selectedMapId: BoardMapId;
   readonly selectedMap: BoardMapDefinition;
-  /** Map tabs. Empty under a game mode. */
-  readonly maps: readonly SelectedBoardMap[];
-  readonly gameMode: GameMode | null;
-  readonly onMapsChange: (mapIds: readonly BoardMapId[]) => void;
-  readonly onModeChange: (mode: GameMode) => void;
-  readonly onMapTabChange: (mapId: BoardMapId) => void;
   readonly customMaps: readonly CustomBoardMap[];
   readonly uploadState: BoardUploadState;
   readonly onUpload: (file: File) => Promise<boolean>;
@@ -232,11 +222,6 @@ export function BoardPanel({
   onIconSizeChange,
   selectedMapId,
   selectedMap,
-  maps,
-  gameMode,
-  onMapsChange,
-  onModeChange,
-  onMapTabChange,
   customMaps,
   uploadState,
   onUpload,
@@ -269,26 +254,13 @@ export function BoardPanel({
     <section className="board-panel" aria-labelledby="board-heading">
       <div className="board-heading">
         <div className="map-title">
-          <h1 id="board-heading">
-            {gameMode ? `${gameMode} game mode` : selectedMap.name}
-          </h1>
-          <p>
-            {gameMode
-              ? "Any map in this mode"
-              : maps.length > 1
-                ? `${selectedMap.mode} · ${maps.length} maps`
-                : selectedMap.mode}
-          </p>
+          <h1 id="board-heading">{selectedMap.name}</h1>
+          <p>{selectedMap.mode}</p>
         </div>
         <div className="board-heading-actions">
           <MapPicker<BoardMapId>
             options={mapOptions}
-            selectedValue={maps.length === 1 ? selectedMapId : undefined}
-            multiple={{
-              selectedValues: maps.map((map) => map.id),
-              onApply: onMapsChange,
-            }}
-            modes={{ selected: gameMode, onChoose: onModeChange }}
+            selectedValue={selectedMapId}
             triggerLabel="Choose map"
             title="Choose map"
             onChoose={onMapChange}
@@ -328,22 +300,7 @@ export function BoardPanel({
       </div>
 
       {drawingControls}
-      {maps.length > 1 ? (
-        <MapTabs
-          maps={maps}
-          activeId={selectedMapId}
-          onChange={onMapTabChange}
-        />
-      ) : null}
-      {gameMode ? (
-        <div className="mode-board">
-          <GameModeIcon mode={gameMode} size={56} />
-          <h2>{gameMode}</h2>
-          <p>Pick a map to place positions.</p>
-        </div>
-      ) : null}
       <div
-        hidden={gameMode !== null}
         className={`board-shell${isHeroDragging ? " drop-ready" : ""}`}
         style={{ aspectRatio: `${selectedMap.width} / ${selectedMap.height}` }}
         onDragOver={allowDrop}
@@ -388,49 +345,6 @@ export function BoardPanel({
         )}
       </div>
     </section>
-  );
-}
-
-function MapTabs({
-  maps,
-  activeId,
-  onChange,
-}: {
-  readonly maps: readonly SelectedBoardMap[];
-  readonly activeId: BoardMapId;
-  readonly onChange: (mapId: BoardMapId) => void;
-}): React.JSX.Element {
-  function move(event: React.KeyboardEvent<HTMLButtonElement>): void {
-    const step =
-      event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (!step) return;
-    event.preventDefault();
-    const index = maps.findIndex((map) => map.id === activeId);
-    const next = maps[(index + step + maps.length) % maps.length];
-    if (!next) return;
-    onChange(next.id);
-    requestAnimationFrame(() =>
-      document.getElementById(`map-tab-${next.id}`)?.focus(),
-    );
-  }
-
-  return (
-    <div className="map-tabs" role="tablist" aria-label="Maps">
-      {maps.map((map) => (
-        <button
-          type="button"
-          role="tab"
-          id={`map-tab-${map.id}`}
-          key={map.id}
-          aria-selected={map.id === activeId}
-          tabIndex={map.id === activeId ? 0 : -1}
-          onClick={() => onChange(map.id)}
-          onKeyDown={move}
-        >
-          {resolveBoardMap(map).name}
-        </button>
-      ))}
-    </div>
   );
 }
 

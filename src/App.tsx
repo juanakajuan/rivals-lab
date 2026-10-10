@@ -133,8 +133,8 @@ export default function App({
     dismissMenu();
   }
 
-  function openCompOnBoard(comp: Comp, mapIds: readonly MapId[]): void {
-    if (board.openComp(comp, mapIds)) navigate("board");
+  function openCompOnBoard(comp: Comp, mapId: MapId): void {
+    if (board.openComp(comp, mapId)) navigate("board");
   }
 
   return (

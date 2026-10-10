@@ -17,9 +17,6 @@ const measureNote: MeasureBoardNote = (text, width) => {
 
 const initial: BoardState = {
   map: { kind: "builtin", id: DEFAULT_MAP_ID },
-  maps: [{ kind: "builtin", id: DEFAULT_MAP_ID }],
-  mode: null,
-  positionsByMap: {},
   tokens: [
     { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 435 },
   ],
@@ -31,9 +28,6 @@ test("map changes and position bounds form one reversible edit", () => {
     measureNote,
     {
       map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
-      maps: [{ kind: "builtin", id: "museum-of-contemplation-convoy" }],
-      mode: null,
-      positionsByMap: {},
       tokens: [
         { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 640 },
       ],
@@ -49,9 +43,6 @@ test("map changes and position bounds form one reversible edit", () => {
   });
   expect(changed).toEqual({
     map: { kind: "builtin", id: "birnin-tchalla-domination" },
-    maps: [{ kind: "builtin", id: "birnin-tchalla-domination" }],
-    mode: null,
-    positionsByMap: {},
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 618 },
     ],
@@ -335,7 +326,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
   } satisfies ReturnType<typeof emptyComp>;
   const transferred = session.openComp({
     comp,
-    mapIds: ["museum-of-contemplation-convoy"],
+    mapId: "museum-of-contemplation-convoy",
   });
   expect(transferred.tokens).toEqual([
     {
@@ -365,7 +356,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
         ally: [{ heroId: "deadpool", deadpoolRole: "Strategist", notes: "" }],
       },
     },
-    mapIds: ["museum-of-contemplation-convoy"],
+    mapId: "museum-of-contemplation-convoy",
   });
   expect(changed.tokens[0]?.deadpoolRole).toBe("Strategist");
   expect(session.undo()).toEqual({ ...transferred, canRedo: true });

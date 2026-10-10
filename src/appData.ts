@@ -3,7 +3,6 @@ import {
   decodeDrawing,
   drawingLimitMessage,
   type BoardDrawing,
-  type BoardPoint,
 } from "./boardDrawings";
 import {
   decodeCustomMap,
@@ -13,11 +12,7 @@ import {
   type CustomBoardMap,
   type SelectedBoardMap,
 } from "./boardMaps";
-import {
-  initialBoard,
-  type BoardState,
-  type MapPositions,
-} from "./boardSession";
+import { initialBoard, type BoardState } from "./boardSession";
 import {
   DEFAULT_ICON_SIZE,
   decodeToken,
@@ -37,7 +32,7 @@ import {
   type SavedComp,
 } from "./comps";
 import { downloadBlob } from "./downloadBlob";
-import { MAPS, isGameMode, type GameMode } from "./maps";
+import { MAPS } from "./maps";
 import {
   decodeOpenCompSnapshot,
   emptyOpenComp,
@@ -93,12 +88,7 @@ type StoreName = typeof LIBRARY | typeof WORKSPACE | typeof CUSTOM_MAPS;
 type Read = readonly [store: StoreName, key: IDBValidKey | null];
 
 interface BoardRecord {
-  /** The active map. Under a game mode it is the last active map. */
   readonly mapId: BoardMapId;
-  /** Selected map tabs. Missing in records saved before multi-map support. */
-  readonly mapIds?: readonly BoardMapId[];
-  readonly gameMode?: GameMode | null;
-  readonly positionsByMap?: BoardState["positionsByMap"];
   readonly tokens: readonly BoardToken[];
   readonly drawingsByMap: BoardState["drawingsByMap"];
   readonly iconSize: IconSize;
@@ -321,93 +311,15 @@ function decodeBoardRecord(
       throw new Error("A drawing ID appears twice on one map.");
     drawingsByMap[owner.id] = decoded;
   }
-  const mode = record.gameMode ?? null;
-  if (mode !== null && !isGameMode(mode))
-    throw new Error("The Position Board game mode is unknown.");
-  let selected: SelectedBoardMap[] = [map];
-  if (record.mapIds !== undefined) {
-    if (!Array.isArray(record.mapIds) || record.mapIds.length > maps.size)
-      throw new Error("Invalid Position Board map list.");
-    selected = record.mapIds.map((id: unknown) => {
-      const found = typeof id === "string" ? maps.get(id) : undefined;
-      if (!found) throw new Error("The Position Board map is missing.");
-      return found;
-    });
-    if (new Set(selected.map((item) => item.id)).size !== selected.length)
-      throw new Error("A Position Board map appears twice.");
-  }
-  if (mode !== null) selected = [];
-  else if (!selected.some((item) => item.id === map.id))
-    throw new Error("The active Position Board map is not selected.");
-  const positionsByMap = decodePositions(
-    record.positionsByMap,
-    selected,
-    map,
-    tokens,
-  );
   return {
-    board: {
-      map,
-      maps: selected,
-      mode,
-      tokens,
-      positionsByMap,
-      drawingsByMap,
-    },
+    board: { map, tokens, drawingsByMap },
     iconSize: parseIconSize(record.iconSize),
   };
-}
-
-function decodePositions(
-  value: unknown,
-  selected: readonly SelectedBoardMap[],
-  active: SelectedBoardMap,
-  tokens: readonly BoardToken[],
-): BoardState["positionsByMap"] {
-  if (value === undefined) return {};
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new Error("Invalid Position Board positions.");
-  const tokenIds = new Set(tokens.map((token) => token.id));
-  const result: Partial<Record<BoardMapId, MapPositions>> = {};
-  const stored: [string, unknown][] = Object.entries(value);
-  for (const [mapId, positions] of stored) {
-    const owner = selected.find((item) => item.id === mapId);
-    if (!owner || owner.id === active.id)
-      throw new Error("Board positions belong to a missing map.");
-    if (
-      typeof positions !== "object" ||
-      positions === null ||
-      Array.isArray(positions)
-    )
-      throw new Error("Invalid Position Board positions.");
-    const decoded: Record<string, BoardPoint> = {};
-    const points: [string, unknown][] = Object.entries(positions);
-    for (const [tokenId, point] of points) {
-      if (!tokenIds.has(tokenId))
-        throw new Error("Board positions belong to a missing hero.");
-      if (typeof point !== "object" || point === null || Array.isArray(point))
-        throw new Error("Invalid hero position.");
-      const { x, y }: Partial<Record<string, unknown>> = point;
-      if (
-        typeof x !== "number" ||
-        typeof y !== "number" ||
-        !Number.isFinite(x) ||
-        !Number.isFinite(y)
-      )
-        throw new Error("Invalid hero position.");
-      decoded[tokenId] = { x, y };
-    }
-    result[owner.id] = decoded;
-  }
-  return result;
 }
 
 function encodeBoardRecord(board: BoardState, iconSize: IconSize): BoardRecord {
   return {
     mapId: board.map.id,
-    mapIds: board.maps.map((map) => map.id),
-    gameMode: board.mode,
-    positionsByMap: board.positionsByMap,
     tokens: board.tokens,
     drawingsByMap: board.drawingsByMap,
     iconSize,
@@ -861,9 +773,7 @@ function summarize(workspace: Workspace, library: CompLibrary): DataSummary {
             unsaved: !sameComp(openComp.comp, openComp.baseline),
             link,
           },
-    boardMapName: board.mode
-      ? `${board.mode} game mode`
-      : board.maps.map((map) => resolveBoardMap(map).name).join(", "),
+    boardMapName: resolveBoardMap(board.map).name,
     heroes: board.tokens.length,
     drawings: drawingLists.reduce((total, list) => total + list.length, 0),
     mapsWithDrawings: drawingLists.length,
