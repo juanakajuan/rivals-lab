@@ -136,6 +136,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/central-park.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "90% 50%",
+    boardMapId: "central-park-convergence",
   },
   {
     id: "heart-of-heaven",
@@ -144,6 +145,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/heart-of-heaven.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "50% 50%",
+    boardMapId: "heart-of-heaven-convergence",
   },
   {
     id: "shin-shibuya",

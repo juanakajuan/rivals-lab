@@ -96,6 +96,22 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "central-park-convergence",
+    name: "Central Park",
+    mode: "Convergence",
+    imagePath: "/maps/central-park-convergence.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
+    id: "heart-of-heaven-convergence",
+    name: "Heart of Heaven",
+    mode: "Convergence",
+    imagePath: "/maps/heart-of-heaven-convergence.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
