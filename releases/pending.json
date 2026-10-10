@@ -14,5 +14,9 @@
   {
     "id": "multi-map-or-game-mode",
     "text": "Feature: A draft or comp can now use several maps or a whole game mode."
+  },
+  {
+    "id": "krakoa-domination-board-map",
+    "text": "Feature: Krakoa Domination is now available as a Position Board map."
   }
 ]

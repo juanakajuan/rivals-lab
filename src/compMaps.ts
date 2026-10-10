@@ -39,6 +39,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/krakoa.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "55% 50%",
+    boardMapId: "krakoa-domination",
   },
   {
     id: "celestial-husk",

@@ -32,6 +32,14 @@ export const MAPS = [
     height: 657,
   },
   {
+    id: "krakoa-domination",
+    name: "Krakoa",
+    mode: "Domination",
+    imagePath: "/maps/krakoa-domination.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
