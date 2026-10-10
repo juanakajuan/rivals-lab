@@ -578,7 +578,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
   await expect(fallback).toContainText(
     "Thebes has no board image yet. Choose a supported map. The saved comp’s map will stay unchanged.",
   );
-  await expect(fallback.getByRole("button")).toHaveCount(8);
+  await expect(fallback.getByRole("button")).toHaveCount(9);
   const first = fallback.getByRole("button", {
     name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
     exact: true,
@@ -595,6 +595,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
       "/maps/hells-heaven-domination.png",
     ],
     ["Cradle: Krakoa", "/maps/krakoa-domination.webp"],
+    ["Arakko", "/maps/arakko-convoy.webp"],
     ["Midtown", "/maps/midtown-convoy.webp"],
     ["Yggdrasill Path", "/maps/yggdrasill-path-convoy.webp"],
     ["Spider-Islands", "/maps/spider-islands-convoy.webp"],
@@ -609,7 +610,10 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     exact: true,
   });
   await search.fill("  CONVOY  ");
-  await expect(fallback.locator(".map-picker-card")).toHaveCount(4);
+  await expect(fallback.locator(".map-picker-card")).toHaveCount(5);
+  await expect(
+    fallback.getByRole("button", { name: "Arakko", exact: true }),
+  ).toBeVisible();
   await expect(
     fallback.getByRole("button", { name: "Midtown", exact: true }),
   ).toBeVisible();

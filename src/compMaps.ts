@@ -91,6 +91,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/arakko.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "25% 50%",
+    boardMapId: "arakko-convoy",
   },
   {
     id: "museum-of-contemplation",

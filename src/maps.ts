@@ -64,6 +64,14 @@ export const MAPS = [
     height: 657,
   },
   {
+    id: "arakko-convoy",
+    name: "Arakko",
+    mode: "Convoy",
+    imagePath: "/maps/arakko-convoy.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
