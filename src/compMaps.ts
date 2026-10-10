@@ -163,6 +163,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/lower-manhattan.jpg",
     previewImageSize: [3840, 2160],
     selectedCardPosition: "90% 50%",
+    boardMapId: "lower-manhattan-convergence",
   },
 ];
 

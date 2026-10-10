@@ -120,6 +120,14 @@ export const MAPS = [
     height: 657,
   },
   {
+    id: "lower-manhattan-convergence",
+    name: "Lower Manhattan",
+    mode: "Convergence",
+    imagePath: "/maps/lower-manhattan-convergence.webp",
+    width: 1200,
+    height: 657,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
