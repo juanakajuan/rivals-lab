@@ -118,6 +118,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/hall-of-djalia.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "70% 50%",
+    boardMapId: "hall-of-djalia-convergence",
   },
   {
     id: "symbiotic-surface",

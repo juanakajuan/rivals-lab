@@ -80,6 +80,14 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "hall-of-djalia-convergence",
+    name: "Hall of Djalia",
+    mode: "Convergence",
+    imagePath: "/maps/hall-of-djalia-convergence.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
