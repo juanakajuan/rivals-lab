@@ -154,6 +154,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/shin-shibuya.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "65% 50%",
+    boardMapId: "shin-shibuya-convergence",
   },
   {
     id: "lower-manhattan",

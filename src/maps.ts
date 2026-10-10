@@ -112,6 +112,14 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "shin-shibuya-convergence",
+    name: "Shin-Shibuya",
+    mode: "Convergence",
+    imagePath: "/maps/shin-shibuya-convergence.webp",
+    width: 1200,
+    height: 657,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
