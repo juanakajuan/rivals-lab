@@ -1,7 +1,14 @@
+export const GAME_MODES = ["Domination", "Convoy", "Convergence"] as const;
+export type GameMode = (typeof GAME_MODES)[number];
+
+export function isGameMode(value: unknown): value is GameMode {
+  return GAME_MODES.some((mode) => mode === value);
+}
+
 export interface MapDefinition {
   readonly id: string;
   readonly name: string;
-  readonly mode: "Domination" | "Convoy" | "Convergence";
+  readonly mode: GameMode;
   readonly imagePath: string;
   readonly width: number;
   readonly height: number;

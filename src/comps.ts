@@ -1,4 +1,5 @@
 import { COMP_MAPS } from "./compMaps";
+import { isGameMode, type GameMode } from "./maps";
 import {
   chooseLegacyDraftHero,
   emptyDraft,
@@ -24,7 +25,10 @@ export interface CompSlot {
 export interface Comp {
   readonly name: string;
   readonly notes: string;
-  readonly mapId: string | null;
+  /** Selected maps. Empty means any map. Empty whenever `gameMode` is set. */
+  readonly mapIds: readonly string[];
+  /** A whole game mode in place of specific maps. */
+  readonly gameMode: GameMode | null;
   readonly teams: Readonly<Record<Team, readonly CompSlot[]>>;
   readonly draft: DraftState | null;
 }
@@ -35,17 +39,49 @@ export interface SavedComp {
   readonly comp: Comp;
 }
 
+export const MAX_COMP_MAPS = COMP_MAPS.length;
+
 export const COMP_STORAGE_KEY = "rivals-lab.comps.v1";
 export const MAX_IMPORT_BYTES = 2_000_000;
 export const MAX_SAVED_COMPS = 500;
 
+export function compSlot(
+  heroId: string | null,
+  notes: string,
+  deadpoolRole?: DeadpoolRole,
+): CompSlot {
+  if (deadpoolRole === undefined) return { heroId, notes };
+  return { heroId, notes, deadpoolRole };
+}
+
+/** Slot shape, including omitted Deadpool role, is the equality form. */
+export function sameComp(left: Comp, right: Comp): boolean {
+  return (
+    JSON.stringify(canonicalComp(left)) === JSON.stringify(canonicalComp(right))
+  );
+}
+
+function canonicalComp(comp: Comp): Comp {
+  const slots = (list: readonly CompSlot[]) =>
+    list.map((slot) => compSlot(slot.heroId, slot.notes, slot.deadpoolRole));
+  return {
+    name: comp.name,
+    notes: comp.notes,
+    mapIds: comp.mapIds,
+    gameMode: comp.gameMode,
+    teams: { ally: slots(comp.teams.ally), enemy: slots(comp.teams.enemy) },
+    draft: comp.draft,
+  };
+}
+
 export function emptyComp(): Comp {
   const slots = (): CompSlot[] =>
-    Array.from({ length: 6 }, () => ({ heroId: null, notes: "" }));
+    Array.from({ length: 6 }, () => compSlot(null, ""));
   return {
     name: "",
     notes: "",
-    mapId: null,
+    mapIds: [],
+    gameMode: null,
     teams: { ally: slots(), enemy: slots() },
     draft: null,
   };
@@ -90,10 +126,9 @@ function decodeSlots(value: unknown): readonly CompSlot[] {
     if (slot.deadpoolRole !== undefined) {
       if (heroId !== "deadpool" || !isDeadpoolRole(slot.deadpoolRole))
         throw new Error("Invalid Deadpool role.");
-      return { heroId, notes, deadpoolRole: slot.deadpoolRole };
+      return compSlot(heroId, notes, slot.deadpoolRole);
     }
-    // Older files did not record a Deadpool role. Keep those slots editable.
-    return { heroId, notes };
+    return compSlot(heroId, notes);
   });
 }
 
@@ -135,21 +170,56 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
-function decodeComp(value: unknown): Comp {
+/** Files saved before multi-map support store one optional `mapId`. */
+function decodeMapSelection(comp: Record<string, unknown>): {
+  readonly mapIds: readonly string[];
+  readonly gameMode: GameMode | null;
+} {
+  let mapIds: readonly string[];
+  if (comp.mapIds !== undefined)
+    mapIds = items(comp.mapIds, MAX_COMP_MAPS).map((id) => text(id, 100));
+  else if (comp.mapId === undefined || comp.mapId === null) mapIds = [];
+  else mapIds = [text(comp.mapId, 100)];
+  for (const id of mapIds)
+    if (!COMP_MAPS.some((map) => map.id === id))
+      throw new Error(`Unknown map: ${id}.`);
+  if (new Set(mapIds).size !== mapIds.length)
+    throw new Error("A map appears twice in one comp.");
+  const gameMode = comp.gameMode ?? null;
+  if (gameMode !== null && !isGameMode(gameMode))
+    throw new Error("Unknown game mode.");
+  if (gameMode !== null && mapIds.length)
+    throw new Error("A comp cannot use a game mode and specific maps.");
+  return { mapIds, gameMode };
+}
+
+function decodeCompWithName(
+  value: unknown,
+  decodeName: (name: unknown) => string,
+): Comp {
   const comp = record(value);
   const teams = record(comp.teams);
-  const mapId = comp.mapId === null ? null : text(comp.mapId, 100);
-  if (mapId !== null && !COMP_MAPS.some((map) => map.id === mapId))
-    throw new Error(`Unknown map: ${mapId}.`);
-  const name = text(comp.name, 100).trim();
-  if (!name) throw new Error("Each saved comp needs a name.");
+  const { mapIds, gameMode } = decodeMapSelection(comp);
   return {
-    name,
+    name: decodeName(comp.name),
     notes: text(comp.notes, 10_000),
-    mapId,
+    mapIds,
+    gameMode,
     teams: { ally: decodeSlots(teams.ally), enemy: decodeSlots(teams.enemy) },
     draft: decodeDraft(comp.draft),
   };
+}
+
+function decodeComp(value: unknown): Comp {
+  return decodeCompWithName(value, (value) => {
+    const name = text(value, 100).trim();
+    if (!name) throw new Error("Each saved comp needs a name.");
+    return name;
+  });
+}
+
+export function decodeOpenComp(value: unknown): Comp {
+  return decodeCompWithName(value, (name) => text(name, 100));
 }
 
 export interface CompLibrary {
@@ -201,11 +271,37 @@ export function decodeCompLibrary(source: string): CompLibrary {
   return { entries, unavailable, errors, envelope };
 }
 
+/** Join load errors, showing each distinct message once. */
+export function libraryErrorSummary(library: CompLibrary): string {
+  return [...new Set(library.errors)].join(" ");
+}
+
 /** Imports are atomic: reject files with unavailable entries without changing storage. */
 export function parseCompLibrary(source: string): readonly SavedComp[] {
   const library = decodeCompLibrary(source);
-  if (library.errors.length) throw new Error(library.errors.join(" "));
+  if (library.errors.length) throw new Error(libraryErrorSummary(library));
   return library.entries;
+}
+
+export class StoredLibrarySource {
+  private constructor(readonly text: string) {}
+
+  static encode(library: CompLibrary): StoredLibrarySource {
+    const ids = new Set(library.entries.map((entry) => entry.id));
+    for (const item of library.unavailable)
+      if (isRecord(item) && typeof item.id === "string" && ids.has(item.id))
+        throw new Error("A comp ID belongs to an unavailable entry.");
+    const comps = [...library.entries, ...library.unavailable];
+    if (comps.length > MAX_SAVED_COMPS)
+      throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
+    parseCompLibrary(serializeCompLibrary(library.entries));
+    const source = JSON.stringify({ ...library.envelope, comps }, null, 2);
+    if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
+      throw new Error(
+        "The library limit is 2 MB. Export and remove older comps to make space.",
+      );
+    return new StoredLibrarySource(source);
+  }
 }
 
 export function serializeCompLibrary(comps: readonly SavedComp[]): string {

@@ -81,10 +81,18 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     comp.teams[team].some((slot) => slot.heroId || slot.notes.trim()),
   );
   const cards = draftCards(comp).filter((card) => card.heroId);
-  const map = COMP_MAPS.find((entry) => entry.id === comp.mapId);
+  const maps = COMP_MAPS.filter((entry) => comp.mapIds.includes(entry.id));
+  const map = maps.length === 1 ? maps[0] : undefined;
+  const mapLabel = comp.gameMode
+    ? `Game mode: ${comp.gameMode}`
+    : map
+      ? `Map: ${map.name} · ${map.mode}`
+      : maps.length
+        ? `Maps: ${maps.map((entry) => entry.name).join(", ")}`
+        : null;
   if (
     !comp.name.trim() &&
-    !map &&
+    !mapLabel &&
     !teams.length &&
     !cards.length &&
     !comp.notes.trim()
@@ -264,17 +272,10 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     y +=
       text(comp.name, PADDING, y, WIDTH - PADDING * 2, 32, COLORS.text, true) +
       10;
-  if (map)
+  if (mapLabel)
     y +=
-      text(
-        `Map: ${map.name} · ${map.mode}`,
-        PADDING,
-        y,
-        WIDTH - PADDING * 2,
-        18,
-        COLORS.muted,
-        true,
-      ) + 10;
+      text(mapLabel, PADDING, y, WIDTH - PADDING * 2, 18, COLORS.muted, true) +
+      10;
   y += 18;
   if (mapImage) {
     const image = mapImage;
@@ -311,10 +312,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     const slots = comp.teams[team]
       .map((slot, index) => ({ slot, index }))
       .filter(({ slot }) => slot.heroId || slot.notes.trim());
-    const columns =
-      teams.length === 1
-        ? Math.min(slots.length, 6)
-        : Math.min(slots.length, 3);
+    const columns = teams.length === 1 ? 6 : 3;
     const cardWidth = (teamWidth - 40 - GAP * (columns - 1)) / columns;
     let rowTop = teamTop + 62;
     for (let row = 0; row < Math.ceil(slots.length / columns); row++) {

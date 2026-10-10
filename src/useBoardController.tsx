@@ -10,7 +10,11 @@ import { Redo2, Undo2 } from "lucide-react";
 
 import { BoardPanel, HeroPanel, type BoardUploadState } from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
-import type { BoardDrawing, BoardTool } from "./boardDrawings";
+import {
+  drawingLimitMessage,
+  type BoardDrawing,
+  type BoardTool,
+} from "./boardDrawings";
 import { measureBoardNote } from "./boardNote";
 import type { Comp } from "./comps";
 import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
@@ -22,8 +26,14 @@ import {
   type HeroDefinition,
   type Team,
 } from "./heroes";
-import { BoardSession, type HeroPlacement } from "./boardSession";
-import { clampToBoard, type BoardToken } from "./boardTokens";
+import {
+  BoardSession,
+  type BoardState,
+  type HeroPlacement,
+} from "./boardSession";
+import type { BoardToken, IconSize } from "./boardTokens";
+import type { Workspace } from "./appData";
+import { normalizeSearch } from "./searchText";
 import { getMap, isMapId, type MapId } from "./maps";
 
 import {
@@ -55,19 +65,31 @@ export interface BoardController {
   readonly overlays: ReactNode;
   readonly openComp: (comp: Comp, mapId: MapId) => boolean;
   readonly dismissMenu: () => void;
+  readonly document: {
+    readonly board: BoardState;
+    readonly iconSize: IconSize;
+    readonly customMaps: readonly CustomBoardMap[];
+  };
 }
 
 export function useBoardController({
   active,
+  workspace,
 }: {
   readonly active: boolean;
+  readonly workspace: Workspace;
 }): BoardController {
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
-  const [session] = useState(() => new BoardSession(measureBoardNote));
+  const [session] = useState(
+    () =>
+      new BoardSession(measureBoardNote, workspace.board, workspace.iconSize),
+  );
   const [boardState, setBoardState] = useState(session.state);
-  const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>([]);
+  const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>(
+    workspace.customMaps,
+  );
   const [uploadState, setUploadState] = useState<BoardUploadState>({
     kind: "idle",
   });
@@ -83,22 +105,21 @@ export function useBoardController({
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
-  const [iconSize, setIconSize] = useState(100);
-  const { map: selectedBoardMap, tokens: savedTokens } = boardState;
+  const { map: selectedBoardMap, iconSize } = boardState;
+  const tokens = session.visibleTokens();
   const selectedMapId = selectedBoardMap.id;
   const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
   const selectedDrawing = mapDrawings.find(
     (drawing) => drawing.id === selectedDrawingId,
   );
   const selectedMap = resolveBoardMap(selectedBoardMap);
-  const tokens = useMemo(
-    () =>
-      savedTokens.map((token) => ({
-        ...token,
-        x: clampToBoard(token.x, selectedMap.width, iconSize),
-        y: clampToBoard(token.y, selectedMap.height, iconSize),
-      })),
-    [savedTokens, selectedMap, iconSize],
+  const document = useMemo(
+    () => ({
+      board: boardState,
+      iconSize,
+      customMaps,
+    }),
+    [boardState, customMaps, iconSize],
   );
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState("");
@@ -124,9 +145,11 @@ export function useBoardController({
     : undefined;
   const allyCount = tokens.filter((token) => token.team === "ally").length;
   const enemyCount = tokens.filter((token) => token.team === "enemy").length;
-  const normalizedHeroSearch = heroSearch.trim().toLocaleLowerCase();
-  const visibleHeroes = HEROES.filter((hero) =>
-    hero.name.toLocaleLowerCase().includes(normalizedHeroSearch),
+  const normalizedHeroSearch = normalizeSearch(heroSearch);
+  const visibleHeroes = HEROES.filter(
+    (hero) =>
+      normalizeSearch(hero.name).includes(normalizedHeroSearch) ||
+      normalizeSearch(hero.role).includes(normalizedHeroSearch),
   );
 
   const showDrawingEdit = useCallback(
@@ -141,7 +164,15 @@ export function useBoardController({
 
   const editDrawing = useCallback(
     (drawing: BoardDrawing): void => {
-      session.editDrawing(drawing);
+      const before = session.state;
+      const next = session.editDrawing(drawing);
+      const exists = (before.drawingsByMap[before.map.id] ?? []).some(
+        (item) => item.id === drawing.id,
+      );
+      if (next === before && !exists) {
+        setAnnouncement(drawingLimitMessage());
+        return;
+      }
       showDrawingEdit(drawing);
     },
     [session, showDrawingEdit],
@@ -327,7 +358,7 @@ export function useBoardController({
   ): void {
     showHeroPlacement(
       hero,
-      session.placeHero({ heroId: hero.id, team, point: { x, y }, iconSize }),
+      session.placeHero({ heroId: hero.id, team, point: { x, y } }),
     );
   }
 
@@ -335,7 +366,6 @@ export function useBoardController({
     const result = session.addHero({
       heroId: hero.id,
       team: selectedTeam,
-      iconSize,
     });
     if (result.kind === "added" || result.kind === "moved") {
       showHeroPlacement(hero, result);
@@ -454,7 +484,7 @@ export function useBoardController({
   }
 
   function resetBoard(): void {
-    setBoardState(session.reset(iconSize));
+    setBoardState(session.reset());
     setSelectedTokenId(null);
     setAnnouncement("The example formation is restored.");
   }
@@ -481,7 +511,7 @@ export function useBoardController({
     }
     setCustomMaps((maps) => [...maps, result.map]);
     setUploadState({ kind: "idle" });
-    setBoardState(session.changeMap({ map: result.map, iconSize }));
+    setBoardState(session.changeMap(result.map));
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${result.map.name} selected.`);
@@ -495,7 +525,7 @@ export function useBoardController({
       : customMaps.find((map) => map.id === mapId);
     if (!selected) return;
     const map = resolveBoardMap(selected);
-    setBoardState(session.changeMap({ map: selected, iconSize }));
+    setBoardState(session.changeMap(selected));
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);
@@ -590,9 +620,15 @@ export function useBoardController({
               onEdit={editDrawing}
               onAdd={() => {
                 if (tool === "move") return;
-                showDrawingEdit(
-                  session.addDrawing({ kind: tool, color: drawingColor }),
-                );
+                const drawing = session.addDrawing({
+                  kind: tool,
+                  color: drawingColor,
+                });
+                if (!drawing) {
+                  setAnnouncement(drawingLimitMessage());
+                  return;
+                }
+                showDrawingEdit(drawing);
               }}
             />
           }
@@ -607,7 +643,7 @@ export function useBoardController({
           selectedToken={selectedToken}
           selectedHero={selectedHero}
           iconSize={iconSize}
-          onIconSizeChange={setIconSize}
+          onIconSizeChange={(size) => setBoardState(session.setIconSize(size))}
           onMapChange={changeMap}
           onDrop={handleBoardDrop}
           onKeyDown={handleBoardKeyDown}
@@ -655,5 +691,6 @@ export function useBoardController({
     ),
     openComp,
     dismissMenu,
+    document,
   };
 }

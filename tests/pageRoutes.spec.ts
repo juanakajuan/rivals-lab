@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { parsePending, parseReleases } from "../scripts/releases";
 
-for (const path of ["/", "/board", "/unknown-page"]) {
+for (const path of ["/", "/board"]) {
   test(`${path} opens the board and keeps it after refresh`, async ({
     page,
   }) => {
@@ -24,7 +24,7 @@ for (const path of ["/", "/board", "/unknown-page"]) {
   });
 }
 
-test("builder direct loads and refresh keep the page without saving unsaved edits", async ({
+test("builder direct loads and refresh keep the page and the unsaved comp", async ({
   page,
 }) => {
   await page.goto("/builder");
@@ -38,7 +38,10 @@ test("builder direct loads and refresh keep the page without saving unsaved edit
   await page.reload();
   await expect(page).toHaveURL(/\/builder$/);
   await expect(builderLink).toHaveAttribute("aria-current", "page");
-  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
+    "Unsaved note",
+  );
+  await expect(page.getByRole("status")).toHaveText("Unsaved changes");
 });
 
 test("links and Back/Forward keep both pages' in-session edits", async ({
@@ -83,6 +86,28 @@ test("links and Back/Forward keep both pages' in-session edits", async ({
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Keep this note",
   );
+});
+
+test("changelog shows one entry per date with every note in order", async ({
+  page,
+}) => {
+  const published = parseReleases(
+    JSON.parse(await readFile("releases/published.json", "utf8")),
+  );
+  const dates = [...new Set(published.map((release) => release.date))];
+  expect(dates.length).toBeLessThan(published.length);
+  await page.goto("/changelog");
+  await expect(page.locator(".release-entry time")).toHaveCount(dates.length);
+  for (const date of dates) {
+    const expected = published
+      .filter((release) => release.date === date)
+      .flatMap((release) => release.notes.map((note) => note.text));
+    const entry = page.locator(".release-entry").filter({
+      has: page.locator(`time[datetime="${date}"]`),
+    });
+    await expect(entry).toHaveCount(1);
+    await expect(entry.locator("li")).toHaveText(expected);
+  }
 });
 
 test("changelog direct load, refresh, and history preserve editor changes", async ({
@@ -134,3 +159,55 @@ test("changelog direct load, refresh, and history preserve editor changes", asyn
   await page.goForward();
   await expect(link).toHaveAttribute("aria-current", "page");
 });
+
+test("the tab title names the current page after load and navigation", async ({
+  page,
+}) => {
+  await page.goto("/builder");
+  await expect(page).toHaveTitle("Draft / Comp Builder | Rivals Lab");
+  await page.getByRole("link", { name: "Changelog", exact: true }).click();
+  await expect(page).toHaveTitle("Changelog | Rivals Lab");
+  await page.goBack();
+  await expect(page).toHaveTitle("Draft / Comp Builder | Rivals Lab");
+  await page.getByRole("link", { name: "Position Board", exact: true }).click();
+  await expect(page).toHaveTitle("Position Board | Rivals Lab");
+});
+
+for (const path of ["/nope/deep", "/unknown-page", "/builder/extra"]) {
+  test(`${path} shows the not-found page with no nav page highlighted`, async ({
+    page,
+  }) => {
+    await page.goto(path);
+    await expect(
+      page.getByRole("heading", { name: "Page not found", exact: true }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page).toHaveTitle("Page not found | Rivals Lab");
+    await expect(page.locator('nav a[aria-current="page"]')).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Clear", exact: true }),
+    ).toBeHidden();
+    await page
+      .getByRole("link", { name: "Back to the Position Board" })
+      .click();
+    await expect(page).toHaveURL(/\/board$/);
+    await expect(
+      page.getByRole("button", { name: "Clear", exact: true }),
+    ).toBeVisible();
+  });
+}
+
+for (const [typed, canonical, name] of [
+  ["/Builder", "/builder", "Draft / Comp Builder"],
+  ["/CHANGELOG/", "/changelog", "Changelog"],
+  ["/Board", "/board", "Position Board"],
+] as const) {
+  test(`${typed} redirects to ${canonical}`, async ({ page }) => {
+    await page.goto(typed);
+    await expect(page).toHaveURL(new RegExp(`${canonical}$`));
+    await expect(page.getByRole("link", { name, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+}

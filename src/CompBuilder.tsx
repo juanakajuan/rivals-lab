@@ -7,7 +7,7 @@ import { Dialog } from "./ui/Dialog";
 import { downloadBlob } from "./downloadBlob";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { downloadAndCopyCompImage } from "./compImage";
-import { COMP_MAPS } from "./compMaps";
+import { selectedCompMaps } from "./compMaps";
 import type { Comp, SavedComp } from "./comps";
 import {
   compChoiceError,
@@ -16,11 +16,15 @@ import {
   type CompEdit,
   type CompHeroTarget,
 } from "./compEdits";
-import { SavedCompSession, SavedCompWriteError } from "./savedComps";
-import { browserCompStorage } from "./compStorage";
+import {
+  SavedCompSession,
+  type OpenCompSnapshot,
+  type SavedCompSessionStart,
+} from "./savedComps";
+import type { CompStorage } from "./appData";
 import { draftEffects, type DraftFormat } from "./draft";
 import { teamLabel, type HeroSelection, type Team } from "./heroes";
-import type { MapId } from "./maps";
+import type { GameMode, MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 import "./builder.css";
@@ -95,11 +99,19 @@ function NameDialog({
 }
 
 export function CompBuilder({
+  storage,
+  start,
+  onOpenComp,
+  onImport,
   onOpenBoard,
 }: {
+  readonly storage: CompStorage;
+  readonly start: SavedCompSessionStart;
+  readonly onOpenComp: (openComp: OpenCompSnapshot) => void;
+  readonly onImport: () => void;
   readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
 }): React.JSX.Element {
-  const [session] = useState(() => new SavedCompSession());
+  const [session] = useState(() => new SavedCompSession(storage, start));
   const [savedState, setSavedState] = useState(() => session.state);
   const { comp, savedId, dirty, library } = savedState;
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
@@ -112,8 +124,13 @@ export function CompBuilder({
   const writingRef = useRef(false);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
-  const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
-  const supportedBoardMapId = selectedMap?.boardMapId;
+  const selectedMaps = selectedCompMaps(comp);
+  const selectedMap = selectedMaps[0];
+  const supportedBoardMapIds = selectedMaps.flatMap((map) =>
+    map.boardMapId === undefined ? [] : [map.boardMapId],
+  );
+  const supportedBoardMapId =
+    selectedMaps.length === 1 ? supportedBoardMapIds[0] : undefined;
   const boardTransferDisabled = !TEAMS.some((team) =>
     comp.teams[team].some((slot) => slot.heroId),
   );
@@ -123,15 +140,10 @@ export function CompBuilder({
   else if (dirty) saveStatus = "Unsaved changes";
   else if (savedId) saveStatus = "All changes saved";
 
-  useEffect(() => {
-    function warnBeforeUnload(event: BeforeUnloadEvent): void {
-      if (!dirty) return;
-      event.preventDefault();
-      event.returnValue = "";
-    }
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [dirty]);
+  useEffect(
+    () => onOpenComp(session.openComp),
+    [onOpenComp, session, savedState],
+  );
 
   useEffect(() => {
     let active = true;
@@ -139,13 +151,13 @@ export function CompBuilder({
       await session.refresh();
       if (active) setSavedState(session.state);
     }
-    const unsubscribe = browserCompStorage.subscribe(() => void refresh());
+    const unsubscribe = storage.subscribe(() => void refresh());
     void refresh();
     return () => {
       active = false;
       unsubscribe();
     };
-  }, [session]);
+  }, [session, storage]);
 
   async function commit<T>(
     operation: () => Promise<T>,
@@ -241,23 +253,6 @@ export function CompBuilder({
     setMessage(`Deleted ${entry.comp.name}.`);
   }
 
-  async function importFile(file: File): Promise<void> {
-    try {
-      const result = await session.importFile(file);
-      setSavedState(session.state);
-      setError(null);
-      setMessage(
-        `Imported ${result.count} comp${result.count === 1 ? "" : "s"} as copies.`,
-      );
-    } catch (cause) {
-      setError(
-        cause instanceof SavedCompWriteError
-          ? writeErrorMessage(cause)
-          : `Import failed. ${errorMessage(cause)}`,
-      );
-    }
-  }
-
   function resetTeam(team: Team): void {
     if (
       !window.confirm(`Clear all heroes and slot notes for ${teamLabel(team)}?`)
@@ -287,8 +282,22 @@ export function CompBuilder({
   }
 
   function changeMap(mapId: string | null): void {
-    if (mapId === comp.mapId) return;
-    edit({ kind: "map", mapId });
+    changeMaps(mapId === null ? [] : [mapId]);
+  }
+
+  function changeMaps(mapIds: readonly string[]): void {
+    if (
+      comp.gameMode === null &&
+      mapIds.length === comp.mapIds.length &&
+      mapIds.every((id, index) => id === comp.mapIds[index])
+    )
+      return;
+    edit({ kind: "maps", mapIds });
+  }
+
+  function changeGameMode(mode: GameMode): void {
+    if (comp.gameMode === mode) return;
+    edit({ kind: "gameMode", mode });
   }
 
   async function shareImage(): Promise<void> {
@@ -346,7 +355,7 @@ export function CompBuilder({
         }
         onExport={(entry) => void exportStoredData("rivals-comp.json", entry)}
         onDelete={(entry) => void deleteComp(entry)}
-        onImport={(file) => void importFile(file)}
+        onImport={onImport}
         onExportAll={() => void exportStoredData("rivals-comps.json")}
       />
 
@@ -434,6 +443,8 @@ export function CompBuilder({
           }
           onSave={() => void save(comp.name)}
           onMapChange={changeMap}
+          onMapsChange={changeMaps}
+          onGameModeChange={changeGameMode}
           onDraftChange={changeDraft}
         />
         {comp.draft && (

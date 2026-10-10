@@ -1,8 +1,10 @@
 import {
-  MAX_IMPORT_BYTES,
-  MAX_SAVED_COMPS,
   decodeCompLibrary,
+  decodeOpenComp,
   emptyComp,
+  sameComp,
+  StoredLibrarySource,
+  libraryErrorSummary,
   parseCompLibrary,
   serializeCompLibrary,
   type Comp,
@@ -10,7 +12,7 @@ import {
   type SavedComp,
 } from "./comps";
 import { applyCompEdit, type CompEdit } from "./compEdits";
-import { browserCompStorage, type CompStorage } from "./compStorage";
+import type { CompStorage } from "./appData";
 
 export interface SavedCompLibraryView {
   readonly entries: readonly SavedComp[];
@@ -25,13 +27,57 @@ export interface SavedCompSessionState {
   readonly library: SavedCompLibraryView;
 }
 
-export interface CompImportFile {
-  readonly size: number;
-  text(): Promise<string>;
+export interface OpenCompSnapshot {
+  readonly comp: Comp;
+  readonly baseline: Comp;
+  readonly saved: { readonly id: string; readonly baseline: Comp } | null;
 }
 
-export interface CompImportResult {
-  readonly count: number;
+export type OpenCompLink = "empty" | "unsaved" | "saved" | "detached";
+
+export interface SavedCompSessionStart {
+  readonly openComp: OpenCompSnapshot;
+  readonly library: CompLibrary;
+}
+
+export function emptyOpenComp(): OpenCompSnapshot {
+  return { comp: emptyComp(), baseline: emptyComp(), saved: null };
+}
+
+export function decodeOpenCompSnapshot(value: unknown): OpenCompSnapshot {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Invalid open comp.");
+  const snapshot: Partial<Record<string, unknown>> = value;
+  return {
+    comp: decodeOpenComp(snapshot.comp),
+    baseline: decodeOpenComp(snapshot.baseline),
+    saved: decodeSavedLink(snapshot.saved),
+  };
+}
+
+function decodeSavedLink(value: unknown): OpenCompSnapshot["saved"] {
+  if (value === null) return null;
+  if (typeof value !== "object" || value === undefined || Array.isArray(value))
+    throw new Error("Invalid open comp link.");
+  const link: Partial<Record<string, unknown>> = value;
+  if (typeof link.id !== "string" || !link.id || link.id.length > 100)
+    throw new Error("Invalid open comp link.");
+  return { id: link.id, baseline: decodeOpenComp(link.baseline) };
+}
+
+export function openCompLink(
+  openComp: OpenCompSnapshot,
+  entries: readonly SavedComp[],
+): OpenCompLink {
+  const { saved } = openComp;
+  if (saved) {
+    const entry = entries.find((item) => item.id === saved.id);
+    return entry && sameComp(entry.comp, saved.baseline) ? "saved" : "detached";
+  }
+  const empty = emptyComp();
+  return sameComp(openComp.comp, empty) && sameComp(openComp.baseline, empty)
+    ? "empty"
+    : "unsaved";
 }
 
 export type SaveResult =
@@ -41,7 +87,12 @@ export type SaveResult =
 
 type EditorLink =
   | { readonly kind: "new" }
-  | { readonly kind: "saved"; readonly id: string; readonly revision: string };
+  | {
+      readonly kind: "saved";
+      readonly id: string;
+      readonly revision: string;
+      readonly baseline: Comp;
+    };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
@@ -59,41 +110,70 @@ function libraryView(library: CompLibrary): SavedCompLibraryView {
     entries: library.entries,
     unavailableCount: library.unavailable.length,
     error: library.unavailable.length
-      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${library.errors.join(" ")}`
+      ? `${library.unavailable.length} saved comp(s) cannot be loaded. ${libraryErrorSummary(library)}`
       : null,
   };
 }
 
-// Normalize optional fields and key order, including legacy saved data.
+// Stored bytes, not comp equality. A newer library write changes this text.
 function savedCompRevision(entry: SavedComp): string {
   return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
 }
 
-function sameComp(left: Comp, right: Comp): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+function savedLink(entry: SavedComp): EditorLink {
+  return {
+    kind: "saved",
+    id: entry.id,
+    revision: savedCompRevision(entry),
+    baseline: entry.comp,
+  };
 }
 
 /** Owns the library and editor save state; display code owns confirmations. */
 export class SavedCompSession {
-  private baseline = emptyComp();
-  private link: EditorLink = { kind: "new" };
+  private baseline: Comp;
+  private link: EditorLink;
   private current: SavedCompSessionState;
   private editorIdentity = Symbol();
   private editorGeneration = Symbol();
   private refreshGeneration = 0;
   private writeTail: Promise<void> = Promise.resolve();
 
-  constructor(private readonly storage: CompStorage = browserCompStorage) {
+  constructor(
+    private readonly storage: CompStorage,
+    start: SavedCompSessionStart = {
+      openComp: emptyOpenComp(),
+      library: { entries: [], unavailable: [], errors: [], envelope: {} },
+    },
+  ) {
+    const { openComp, library } = start;
+    const entry =
+      openCompLink(openComp, library.entries) === "saved"
+        ? library.entries.find((item) => item.id === openComp.saved?.id)
+        : undefined;
+    this.baseline = openComp.baseline;
+    this.link = entry ? savedLink(entry) : { kind: "new" };
     this.current = {
-      comp: this.baseline,
-      savedId: null,
-      dirty: false,
-      library: { entries: [], unavailableCount: 0, error: null },
+      comp: openComp.comp,
+      savedId: entry?.id ?? null,
+      dirty: !sameComp(openComp.comp, openComp.baseline),
+      library: libraryView(library),
     };
   }
 
   get state(): SavedCompSessionState {
     return this.current;
+  }
+
+  get openComp(): OpenCompSnapshot {
+    return {
+      comp: this.current.comp,
+      baseline: this.baseline,
+      saved:
+        this.link.kind === "saved"
+          ? { id: this.link.id, baseline: this.link.baseline }
+          : null,
+    };
   }
 
   edit(edit: CompEdit): SavedCompSessionState {
@@ -110,9 +190,7 @@ export class SavedCompSession {
   load(entry: SavedComp | null): SavedCompSessionState {
     const comp = entry?.comp ?? emptyComp();
     this.baseline = comp;
-    this.link = entry
-      ? { kind: "saved", id: entry.id, revision: savedCompRevision(entry) }
-      : { kind: "new" };
+    this.link = entry ? savedLink(entry) : { kind: "new" };
     this.current = {
       ...this.current,
       comp,
@@ -157,7 +235,7 @@ export class SavedCompSession {
       });
       if (identity === this.editorIdentity) {
         this.baseline = comp;
-        this.link = { kind: "saved", id, revision: savedCompRevision(entry) };
+        this.link = savedLink(entry);
         const live = this.current.comp;
         const nextComp =
           live.name === originalName ? { ...live, name: trimmed } : live;
@@ -180,7 +258,7 @@ export class SavedCompSession {
     const link = this.link;
     const originalName = this.current.comp.name;
     return this.runWrite(async () => {
-      let renamedRevision: string | null = null;
+      let renamedLink: EditorLink | null = null;
       await this.write((current) =>
         current.map((entry) => {
           if (entry.id !== id) return entry;
@@ -195,7 +273,7 @@ export class SavedCompSession {
             link.id === id &&
             savedCompRevision(entry) === link.revision
           )
-            renamedRevision = savedCompRevision(nextEntry);
+            renamedLink = savedLink(nextEntry);
           return nextEntry;
         }),
       );
@@ -203,8 +281,7 @@ export class SavedCompSession {
         const live = this.current.comp;
         const comp = live.name === originalName ? { ...live, name } : live;
         this.baseline = { ...this.baseline, name };
-        if (renamedRevision !== null)
-          this.link = { kind: "saved", id, revision: renamedRevision };
+        if (renamedLink) this.link = renamedLink;
         this.current = {
           ...this.current,
           comp,
@@ -234,25 +311,13 @@ export class SavedCompSession {
     });
   }
 
-  async importFile(file: CompImportFile): Promise<CompImportResult> {
-    if (file.size > MAX_IMPORT_BYTES)
-      throw new Error("The file must be smaller than 2 MB.");
-    const source = await file.text();
-    if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
-      throw new Error("The file must be smaller than 2 MB.");
-    const imported = parseCompLibrary(source);
-    if (!imported.length) throw new Error("This file has no saved comps.");
+  async addCopies(
+    comps: readonly SavedComp[],
+  ): Promise<{ readonly count: number }> {
     return this.runWrite(async () => {
-      await this.write((current) => {
-        const copies = imported.map((entry): SavedComp => ({
-          ...entry,
-          id: crypto.randomUUID(),
-          updatedAt: new Date().toISOString(),
-        }));
-        return [...copies, ...current];
-      });
+      const count = await prependCompCopies(this.storage, comps);
       await this.refresh();
-      return { count: imported.length };
+      return { count };
     });
   }
 
@@ -295,27 +360,34 @@ export class SavedCompSession {
   private write(
     update: (current: readonly SavedComp[]) => readonly SavedComp[],
   ): Promise<void> {
-    return this.storage.update((stored) => {
-      const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
-      const next = update(current.entries);
-      for (const item of current.unavailable)
-        if (
-          typeof item === "object" &&
-          item !== null &&
-          "id" in item &&
-          next.some((entry) => entry.id === item.id)
-        )
-          throw new Error("A comp ID belongs to an unavailable entry.");
-      const comps = [...next, ...current.unavailable];
-      if (comps.length > MAX_SAVED_COMPS)
-        throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
-      parseCompLibrary(serializeCompLibrary(next));
-      const source = JSON.stringify({ ...current.envelope, comps }, null, 2);
-      if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
-        throw new Error(
-          "The library limit is 2 MB. Export and remove older comps to make space.",
-        );
-      return source;
-    });
+    return updateLibrary(this.storage, update);
   }
+}
+
+function updateLibrary(
+  storage: CompStorage,
+  update: (current: readonly SavedComp[]) => readonly SavedComp[],
+): Promise<void> {
+  return storage.update((stored) => {
+    const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
+    return StoredLibrarySource.encode({
+      ...current,
+      entries: update(current.entries),
+    });
+  });
+}
+
+export async function prependCompCopies(
+  storage: CompStorage,
+  comps: readonly SavedComp[],
+): Promise<number> {
+  await updateLibrary(storage, (current) => [
+    ...comps.map((entry): SavedComp => ({
+      ...entry,
+      id: crypto.randomUUID(),
+      updatedAt: new Date().toISOString(),
+    })),
+    ...current,
+  ]);
+  return comps.length;
 }

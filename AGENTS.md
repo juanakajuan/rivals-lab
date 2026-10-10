@@ -11,8 +11,9 @@
 - Preserve other pending notes. Skip changes to documentation, tests, or internal code unless they change user-visible behavior.
 - Follow the release note format in [README.md](README.md#changelog-publication). The deploy script assigns dates and updates published history.
 
-## Cursor Cloud specific instructions
+## Issues and pull requests
 
-- This app requires Node.js 22.18 or later (`package.json` `engines`). The image provides it under `~/.nvm/versions/node/`. `/exec-daemon/node` is older. If `node -v` is below 22.18, prepend the newest `v22` bin from that nvm directory before `node` or `npm`.
-- After a lockfile change, run `npm ci`, then `npx playwright install --with-deps chromium firefox webkit`. Browser setup is in [tests/README.md](tests/README.md).
-- The environment start command serves `npm run dev` on port 5173. `npm test` uses port 4173, `npm run test:production` uses port 4174, and the verify skill uses port 4183. Leave each port to the command that owns it.
+- Include screenshots or videos in the description of every new GitHub issue and PR that involves a visible change or bug.
+- Show the before and after state when a PR changes existing UI.
+- Never commit screenshots or videos to the repo. Attach them through GitHub's upload in the description or comment, and keep local captures out of git.
+- To attach media from the command line, run `npm run media:login` once on each machine, then `npm run media:upload -- <PR or issue URL> <files>`. It prints one link per file. Put the links in the description. The login stays in `~/.cache/gh-upload-profile`.

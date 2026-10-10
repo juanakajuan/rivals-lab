@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { emptyDraft, setDraftHero } from "../src/draft";
 import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
-import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
+import {
+  addCompCopies,
+  exportCompLibrary,
+  readStoredCompLibrary,
+} from "./compLibrary";
 
 declare global {
   interface Window {
@@ -10,6 +14,7 @@ declare global {
       text: string[];
       writes: number;
       bytes?: number[];
+      cardWidths?: number[];
       positions?: {
         readonly text: string;
         readonly x: number;
@@ -85,7 +90,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   const comp: Comp = {
     ...empty,
     name: "Saved build",
-    mapId: "god-quarry",
+    mapIds: ["god-quarry"],
     teams: {
       ally: [
         {
@@ -666,7 +671,7 @@ test("map image failure reports the map and permits retry without changing saved
     {
       id: "map-error",
       updatedAt: "2026-09-28T00:00:00Z",
-      comp: { ...emptyComp(), name: "Map plan", mapId: "midtown" },
+      comp: { ...emptyComp(), name: "Map plan", mapIds: ["midtown"] },
     },
   ]);
   await page.addInitScript((source) => {
@@ -771,12 +776,18 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   page,
 }) => {
   await page.addInitScript(() => {
-    window.imageCopyTest = { text: [], writes: 0 };
+    window.imageCopyTest = { text: [], writes: 0, cardWidths: [] };
     Object.defineProperty(navigator, "clipboard", { value: undefined });
     for (const prototype of [
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
     ]) {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
+      const roundRect = prototype.roundRect;
+      prototype.roundRect = function (x, y, width, height, radii) {
+        window.imageCopyTest.cardWidths?.push(width);
+        roundRect.call(this, x, y, width, height, radii);
+      };
       // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
       const fillText = prototype.fillText;
       prototype.fillText = function (text, x, y, maxWidth) {
@@ -838,22 +849,24 @@ test("sparse export omits empty sections and rejects an empty build", async ({
     },
     draft: emptyDraft("mrc"),
   };
-  await page.getByLabel("Import comps JSON").setInputFiles({
-    name: "sparse.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(
-      serializeCompLibrary([
-        { id: "sparse", updatedAt: "2026-09-28T00:00:00Z", comp: sparse },
-      ]),
-    ),
-  });
-  await expect(page.getByRole("status")).toHaveText(
-    "Imported 1 comp as copies.",
+  await addCompCopies(
+    page,
+    {
+      name: "sparse.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        serializeCompLibrary([
+          { id: "sparse", updatedAt: "2026-09-28T00:00:00Z", comp: sparse },
+        ]),
+      ),
+    },
+    1,
   );
   await page.reload();
   await page
     .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Load Sparse", exact: true }).click();
   const sparseDownload = page.waitForEvent("download");
   await page
@@ -865,6 +878,12 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   );
   for (const included of ["Allies", "Deadpool", "Strategist", "Stay close."])
     expect(sparseText).toContain(included);
+  // One hero on a single team keeps the six-column card width (230px).
+  const cardWidths = await page.evaluate(
+    () => window.imageCopyTest.cardWidths ?? [],
+  );
+  expect(cardWidths).toContain(230);
+  expect(cardWidths).not.toContain(1480);
   for (const excluded of [
     "Opponents",
     "Empty slot",

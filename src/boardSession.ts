@@ -1,4 +1,5 @@
 import {
+  MAX_DRAWINGS_PER_MAP,
   createDrawing,
   equalDrawings,
   moveDrawing,
@@ -6,7 +7,14 @@ import {
   type BoardPoint,
   type MeasureBoardNote,
 } from "./boardDrawings";
-import { clampToBoard, tokenBoundary, type BoardToken } from "./boardTokens";
+import {
+  DEFAULT_ICON_SIZE,
+  boardTokenId,
+  clampToBoard,
+  tokenBoundary,
+  type BoardToken,
+  type IconSize,
+} from "./boardTokens";
 import type { Comp } from "./comps";
 import type { Team } from "./heroes";
 import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
@@ -26,6 +34,7 @@ export interface BoardState {
 }
 
 export interface BoardSessionState extends BoardState {
+  readonly iconSize: IconSize;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
 }
@@ -42,13 +51,70 @@ const HISTORY_LIMIT = 100;
 
 function initialTokens(): BoardToken[] {
   return [
-    { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 435 },
-    { id: "ally-psylocke", heroId: "psylocke", team: "ally", x: 380, y: 350 },
-    { id: "ally-luna", heroId: "luna", team: "ally", x: 230, y: 520 },
-    { id: "enemy-magneto", heroId: "magneto", team: "enemy", x: 865, y: 310 },
-    { id: "enemy-magik", heroId: "magik", team: "enemy", x: 960, y: 410 },
-    { id: "enemy-rocket", heroId: "rocket", team: "enemy", x: 910, y: 515 },
+    {
+      id: boardTokenId("ally", "strange"),
+      heroId: "strange",
+      team: "ally",
+      x: 270,
+      y: 435,
+    },
+    {
+      id: boardTokenId("ally", "psylocke"),
+      heroId: "psylocke",
+      team: "ally",
+      x: 380,
+      y: 350,
+    },
+    {
+      id: boardTokenId("ally", "luna"),
+      heroId: "luna",
+      team: "ally",
+      x: 230,
+      y: 520,
+    },
+    {
+      id: boardTokenId("enemy", "magneto"),
+      heroId: "magneto",
+      team: "enemy",
+      x: 865,
+      y: 310,
+    },
+    {
+      id: boardTokenId("enemy", "magik"),
+      heroId: "magik",
+      team: "enemy",
+      x: 960,
+      y: 410,
+    },
+    {
+      id: boardTokenId("enemy", "rocket"),
+      heroId: "rocket",
+      team: "enemy",
+      x: 910,
+      y: 515,
+    },
   ];
+}
+
+export function initialBoard(): BoardState {
+  return {
+    map: { kind: "builtin", id: DEFAULT_MAP_ID },
+    tokens: initialTokens(),
+    drawingsByMap: {},
+  };
+}
+
+function clampTokens(board: BoardState, iconSize: number): BoardState {
+  const map = resolveBoardMap(board.map);
+  let moved = false;
+  const tokens = board.tokens.map((token) => {
+    const x = clampToBoard(token.x, map.width, iconSize);
+    const y = clampToBoard(token.y, map.height, iconSize);
+    if (x === token.x && y === token.y) return token;
+    moved = true;
+    return { ...token, x, y };
+  });
+  return moved ? { ...board, tokens } : board;
 }
 
 function equalBoards(left: BoardState, right: BoardState): boolean {
@@ -79,42 +145,49 @@ export class BoardSession {
   private past: readonly BoardState[] = [];
   private future: readonly BoardState[] = [];
   private board: BoardState;
+  private iconSize: IconSize;
   private current: BoardSessionState;
 
   constructor(
     private readonly measureNote: MeasureBoardNote,
-    board: BoardState = {
-      map: { kind: "builtin", id: DEFAULT_MAP_ID },
-      tokens: initialTokens(),
-      drawingsByMap: {},
-    },
+    board: BoardState = initialBoard(),
+    iconSize: IconSize = DEFAULT_ICON_SIZE,
   ) {
+    this.iconSize = iconSize;
     this.board = board;
-    this.current = { ...board, canUndo: false, canRedo: false };
+    this.current = {
+      ...board,
+      iconSize,
+      canUndo: false,
+      canRedo: false,
+    };
   }
 
   get state(): BoardSessionState {
     return this.current;
   }
 
+  /** Stored points stay put. Callers paint this list for the current icon size. */
+  visibleTokens(): readonly BoardToken[] {
+    return clampTokens(this.board, this.iconSize).tokens;
+  }
+
   placeHero({
     heroId,
     team,
     point,
-    iconSize,
   }: {
     readonly heroId: string;
     readonly team: Team;
     readonly point: BoardPoint;
-    readonly iconSize: number;
   }): HeroPlacement {
     const map = resolveBoardMap(this.board.map);
-    const id = `${team}-${heroId}`;
+    const id = boardTokenId(team, heroId);
     const existing = this.board.tokens.find((token) => token.id === id);
     const token: BoardToken = {
       ...(existing ?? { id, heroId, team }),
-      x: clampToBoard(point.x, map.width, iconSize),
-      y: clampToBoard(point.y, map.height, iconSize),
+      x: clampToBoard(point.x, map.width, this.iconSize),
+      y: clampToBoard(point.y, map.height, this.iconSize),
     };
     this.commit({
       ...this.board,
@@ -128,22 +201,22 @@ export class BoardSession {
   addHero({
     heroId,
     team,
-    iconSize,
   }: {
     readonly heroId: string;
     readonly team: Team;
-    readonly iconSize: number;
   }): HeroAddResult {
-    if (this.board.tokens.some((token) => token.id === `${team}-${heroId}`))
+    if (
+      this.board.tokens.some((token) => token.id === boardTokenId(team, heroId))
+    )
       return { kind: "existing" };
     const map = resolveBoardMap(this.board.map);
-    const boundary = tokenBoundary(iconSize);
+    const boundary = tokenBoundary(this.iconSize);
     const spacing = boundary * 2 + 4;
     const halfWidth = Math.floor(map.width / 2);
     const preferredStart = team === "ally" ? 0 : halfWidth;
     const tokens = this.board.tokens.map((token) => ({
-      x: clampToBoard(token.x, map.width, iconSize),
-      y: clampToBoard(token.y, map.height, iconSize),
+      x: clampToBoard(token.x, map.width, this.iconSize),
+      y: clampToBoard(token.y, map.height, this.iconSize),
     }));
     for (const startX of [preferredStart, halfWidth - preferredStart]) {
       for (let y = spacing; y <= map.height - boundary; y += spacing) {
@@ -160,14 +233,13 @@ export class BoardSession {
             )
           )
             continue;
-          return this.placeHero({ heroId, team, point: { x, y }, iconSize });
+          return this.placeHero({ heroId, team, point: { x, y } });
         }
       }
     }
     return { kind: "full" };
   }
 
-  // Canvas gestures supply their final bounded board coordinates.
   moveToken({
     id,
     point,
@@ -175,10 +247,17 @@ export class BoardSession {
     readonly id: string;
     readonly point: BoardPoint;
   }): BoardSessionState {
+    const map = resolveBoardMap(this.board.map);
     return this.commit({
       ...this.board,
       tokens: this.board.tokens.map((token) =>
-        token.id === id ? { ...token, ...point } : token,
+        token.id === id
+          ? {
+              ...token,
+              x: clampToBoard(point.x, map.width, this.iconSize),
+              y: clampToBoard(point.y, map.height, this.iconSize),
+            }
+          : token,
       ),
     });
   }
@@ -202,9 +281,11 @@ export class BoardSession {
             this.measureNote,
           )
         : drawing;
+    const exists = drawings.some((item) => item.id === bounded.id);
+    if (!exists && drawings.length >= MAX_DRAWINGS_PER_MAP) return this.current;
     return this.commitDrawings(
-      drawings.some((item) => item.id === drawing.id)
-        ? drawings.map((item) => (item.id === drawing.id ? bounded : item))
+      exists
+        ? drawings.map((item) => (item.id === bounded.id ? bounded : item))
         : [...drawings, bounded],
     );
   }
@@ -215,7 +296,7 @@ export class BoardSession {
   }: {
     readonly kind: BoardDrawing["kind"];
     readonly color: string;
-  }): BoardDrawing {
+  }): BoardDrawing | null {
     const map = resolveBoardMap(this.board.map);
     const created = createDrawing(
       kind,
@@ -227,8 +308,9 @@ export class BoardSession {
       created.kind === "note"
         ? moveDrawing(created, created.x, created.y, map, this.measureNote)
         : created;
+    const before = this.current;
     this.editDrawing(drawing);
-    return drawing;
+    return this.current === before ? null : drawing;
   }
 
   moveDrawing({
@@ -269,34 +351,40 @@ export class BoardSession {
     });
   }
 
-  reset(iconSize = 100): BoardSessionState {
+  reset(): BoardSessionState {
     const map = resolveBoardMap(this.board.map);
     return this.commit({
       ...this.board,
       tokens: initialTokens().map((token) => ({
         ...token,
-        x: clampToBoard(token.x, map.width, iconSize),
-        y: clampToBoard(token.y, map.height, iconSize),
+        x: clampToBoard(token.x, map.width, this.iconSize),
+        y: clampToBoard(token.y, map.height, this.iconSize),
       })),
       drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }
 
-  changeMap({
-    map,
-    iconSize,
-  }: {
-    readonly map: SelectedBoardMap;
-    readonly iconSize: number;
-  }): BoardSessionState {
+  setIconSize(iconSize: IconSize): BoardSessionState {
+    if (iconSize === this.iconSize) return this.current;
+    this.iconSize = iconSize;
+    this.current = {
+      ...this.board,
+      iconSize,
+      canUndo: this.past.length > 0,
+      canRedo: this.future.length > 0,
+    };
+    return this.current;
+  }
+
+  changeMap(map: SelectedBoardMap): BoardSessionState {
     const dimensions = resolveBoardMap(map);
     return this.commit({
       ...this.board,
       map,
       tokens: this.board.tokens.map((token) => ({
         ...token,
-        x: clampToBoard(token.x, dimensions.width, iconSize),
-        y: clampToBoard(token.y, dimensions.height, iconSize),
+        x: clampToBoard(token.x, dimensions.width, this.iconSize),
+        y: clampToBoard(token.y, dimensions.height, this.iconSize),
       })),
     });
   }
@@ -315,14 +403,24 @@ export class BoardSession {
       comp.teams[team].forEach((slot, index) => {
         if (!slot.heroId) return;
         tokens.push({
-          id: `${team}-${slot.heroId}`,
+          id: boardTokenId(team, slot.heroId),
           heroId: slot.heroId,
           team,
           ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),
-          x: Math.round(
-            map.width * (team === "ally" ? 0.25 : 0.75) + (index % 2) * 65 - 32,
+          x: clampToBoard(
+            Math.round(
+              map.width * (team === "ally" ? 0.25 : 0.75) +
+                (index % 2) * 65 -
+                32,
+            ),
+            map.width,
+            this.iconSize,
           ),
-          y: Math.round(map.height * 0.3 + Math.floor(index / 2) * 80),
+          y: clampToBoard(
+            Math.round(map.height * 0.3 + Math.floor(index / 2) * 80),
+            map.height,
+            this.iconSize,
+          ),
         });
       });
     }
@@ -370,6 +468,7 @@ export class BoardSession {
     this.board = board;
     this.current = {
       ...board,
+      iconSize: this.iconSize,
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0,
     };

@@ -1165,3 +1165,155 @@ button:focus-visible,
 .changelog-active .topbar {
   flex-shrink: 0;
 }
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backup-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.backup-dialog {
+  display: grid;
+  gap: 16px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.backup-dialog p {
+  margin: 0;
+}
+
+.backup-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.backup-choices > div {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.backup-choices button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.backup-choices p,
+.backup-dialog .muted-copy {
+  color: var(--muted);
+}
+
+.backup-preview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.backup-preview h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.backup-preview-actions {
+  flex-wrap: wrap;
+}
+
+.backup-preview-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.storage-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 1px solid #713c46;
+  border-radius: 8px;
+  background: #361d24;
+  color: #f8b7c0;
+  font-size: 13px;
+}
+
+.storage-notice p {
+  margin: 0;
+}
+
+@media (max-width: 460px) {
+  .topbar-actions {
+    gap: 4px;
+  }
+
+  .backup-button {
+    padding: 0 8px;
+  }
+
+  .backup-button span {
+    display: none;
+  }
+}
+
+.not-found-page {
+  flex: 1;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.map-picker-selection {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 0;
+  overflow-x: auto;
+}
+
+.map-picker-selection .map-picker-trigger {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.map-picker-footer {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.map-picker-modes {
+  display: flex;
+  gap: 8px;
+}
+
+.map-picker-selection button[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.map-picker-selection button svg {
+  vertical-align: -3px;
+}

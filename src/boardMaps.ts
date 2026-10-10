@@ -29,8 +29,111 @@ const TOTAL_BYTES_LIMIT = 50 * 1024 * 1024;
 const PIXEL_LIMIT = 24_000_000;
 const TOTAL_PIXELS_LIMIT = 80_000_000;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const CUSTOM_MAP_ID =
+  /^custom:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const IMAGE_DATA_URL =
+  /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
 
-async function hasRasterHeader(file: File): Promise<boolean> {
+function scaledSize(
+  width: number,
+  height: number,
+): { readonly width: number; readonly height: number } {
+  const scale = Math.max(
+    1200 / Math.max(width, height),
+    300 / Math.min(width, height),
+  );
+  return { width: width * scale, height: height * scale };
+}
+
+export function customMapBudgetError(
+  maps: readonly Pick<CustomBoardMap, "sourceBytes" | "sourcePixels">[],
+): string | null {
+  if (
+    maps.reduce((total, map) => total + map.sourceBytes, 0) > TOTAL_BYTES_LIMIT
+  )
+    return "Custom maps have a 50 MiB total image limit. This browser has reached its custom map limit.";
+  if (
+    maps.reduce((total, map) => total + map.sourcePixels, 0) >
+    TOTAL_PIXELS_LIMIT
+  )
+    return "Custom maps have an 80 million pixel total image limit. This browser has reached its custom map limit.";
+  return null;
+}
+
+function positiveInteger(value: unknown, limit: number): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value <= 0 ||
+    value > limit
+  )
+    throw new Error("Invalid custom map size.");
+  return value;
+}
+
+function positive(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+    throw new Error("Invalid custom map size.");
+  return value;
+}
+
+function isCustomMapId(value: unknown): value is CustomBoardMapId {
+  return typeof value === "string" && CUSTOM_MAP_ID.test(value);
+}
+
+export function decodeCustomMap(value: unknown): CustomBoardMap {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Invalid custom map.");
+  const map: Partial<Record<string, unknown>> = value;
+  const { id, name, imagePath } = map;
+  if (map.kind !== "custom" || map.mode !== "Custom image")
+    throw new Error("Invalid custom map.");
+  if (!isCustomMapId(id)) throw new Error("Invalid custom map ID.");
+  if (typeof name !== "string" || !name || name.length > 255)
+    throw new Error("Invalid custom map name.");
+  if (typeof imagePath !== "string" || !IMAGE_DATA_URL.test(imagePath))
+    throw new Error(`The image for ${name} is not a supported image.`);
+  return {
+    kind: "custom",
+    id,
+    name,
+    mode: "Custom image",
+    imagePath,
+    width: positive(map.width),
+    height: positive(map.height),
+    sourceBytes: positiveInteger(map.sourceBytes, FILE_LIMIT),
+    sourcePixels: positiveInteger(map.sourcePixels, PIXEL_LIMIT),
+  };
+}
+
+export async function verifyCustomMapImages(
+  maps: readonly CustomBoardMap[],
+): Promise<void> {
+  const budgetError = customMapBudgetError(maps);
+  if (budgetError) throw new Error(budgetError);
+  for (const map of maps) {
+    const unreadable = new Error(`The image for ${map.name} cannot be read.`);
+    const image = await (await fetch(map.imagePath)).blob();
+    if (image.size !== map.sourceBytes || !(await hasRasterHeader(image)))
+      throw unreadable;
+    const element = new Image();
+    element.src = map.imagePath;
+    try {
+      await element.decode();
+    } catch {
+      throw unreadable;
+    }
+    const expected = scaledSize(element.naturalWidth, element.naturalHeight);
+    if (
+      element.naturalWidth * element.naturalHeight !== map.sourcePixels ||
+      Math.abs(expected.width - map.width) > 0.01 ||
+      Math.abs(expected.height - map.height) > 0.01
+    )
+      throw unreadable;
+  }
+}
+
+async function hasRasterHeader(file: Blob): Promise<boolean> {
   const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   const matches = (bytes: readonly number[], offset = 0): boolean =>
     bytes.every((byte, index) => header[index + offset] === byte);
@@ -76,15 +179,11 @@ export async function uploadBoardMap(
     };
   if (file.size > FILE_LIMIT)
     return { kind: "error", message: "Choose an image of 10 MiB or less." };
-  if (
-    accepted.reduce((total, map) => total + map.sourceBytes, file.size) >
-    TOTAL_BYTES_LIMIT
-  )
-    return {
-      kind: "error",
-      message:
-        "This tab has a 50 MiB total image limit. Reload to start again.",
-    };
+  const bytesError = customMapBudgetError([
+    ...accepted,
+    { sourceBytes: file.size, sourcePixels: 0 },
+  ]);
+  if (bytesError) return { kind: "error", message: bytesError };
   try {
     if (!(await hasRasterHeader(file)))
       return {
@@ -109,19 +208,11 @@ export async function uploadBoardMap(
         message:
           "Choose an image with valid dimensions and at most 24 million pixels.",
       };
-    if (
-      accepted.reduce((total, map) => total + map.sourcePixels, sourcePixels) >
-      TOTAL_PIXELS_LIMIT
-    )
-      return {
-        kind: "error",
-        message:
-          "This tab has an 80 million pixel total image limit. Reload to start again.",
-      };
-    const scale = Math.max(
-      1200 / Math.max(width, height),
-      300 / Math.min(width, height),
-    );
+    const pixelsError = customMapBudgetError([
+      ...accepted,
+      { sourceBytes: file.size, sourcePixels },
+    ]);
+    if (pixelsError) return { kind: "error", message: pixelsError };
     return {
       kind: "ready",
       map: {
@@ -130,8 +221,7 @@ export async function uploadBoardMap(
         name: file.name,
         mode: "Custom image",
         imagePath,
-        width: width * scale,
-        height: height * scale,
+        ...scaledSize(width, height),
         sourceBytes: file.size,
         sourcePixels,
       },

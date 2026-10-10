@@ -1,10 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { BoardSession, type BoardState } from "../src/boardSession";
-import type { BoardDrawing, MeasureBoardNote } from "../src/boardDrawings";
+import {
+  MAX_DRAWINGS_PER_MAP,
+  type BoardDrawing,
+  type MeasureBoardNote,
+} from "../src/boardDrawings";
+import { tokenBoundary } from "../src/boardTokens";
 import { emptyComp } from "../src/comps";
 import { DEFAULT_MAP_ID } from "../src/maps";
 
-const measureNote: MeasureBoardNote = () => ({ width: 180, height: 36 });
+const measureNote: MeasureBoardNote = (text, width) => {
+  void text;
+  void width;
+  return { width: 180, height: 36 };
+};
 
 const initial: BoardState = {
   map: { kind: "builtin", id: DEFAULT_MAP_ID },
@@ -15,23 +24,30 @@ const initial: BoardState = {
 };
 
 test("map changes and position bounds form one reversible edit", () => {
-  const session = new BoardSession(measureNote, {
-    ...initial,
-    tokens: [
-      { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 635 },
-    ],
-  });
+  const session = new BoardSession(
+    measureNote,
+    {
+      map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
+      tokens: [
+        { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 640 },
+      ],
+      drawingsByMap: {},
+    },
+    150,
+  );
   const original = session.state;
+  expect(original.tokens[0]?.y).toBe(640);
   const changed = session.changeMap({
-    map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
-    iconSize: 150,
+    kind: "builtin",
+    id: "birnin-tchalla-domination",
   });
   expect(changed).toEqual({
-    map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
+    map: { kind: "builtin", id: "birnin-tchalla-domination" },
     tokens: [
-      { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 622 },
+      { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 618 },
     ],
     drawingsByMap: {},
+    iconSize: 150,
     canUndo: true,
     canRedo: false,
   });
@@ -63,20 +79,16 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   expect(
     session.moveDrawing({ id: "missing", delta: { x: 10, y: 0 } }),
   ).toBeNull();
-  expect(
-    session.changeMap({
-      map: { kind: "builtin", id: DEFAULT_MAP_ID },
-      iconSize: 100,
-    }),
-  ).toBe(restored);
-  expect(
-    session.addHero({ heroId: "strange", team: "ally", iconSize: 150 }),
-  ).toEqual({ kind: "existing" });
+  expect(session.changeMap({ kind: "builtin", id: DEFAULT_MAP_ID })).toBe(
+    restored,
+  );
+  expect(session.addHero({ heroId: "strange", team: "ally" })).toEqual({
+    kind: "existing",
+  });
   session.placeHero({
     heroId: "strange",
     team: "ally",
     point: { x: 270, y: 435 },
-    iconSize: 100,
   });
   expect(session.state).toBe(restored);
   session.removeToken("ally-strange");
@@ -115,22 +127,24 @@ test("history retains the last 100 edits in order and supports branching", () =>
   expect(session.undo().tokens[0]?.x).toBe(403);
 });
 
-test("placement bounds, team identity, and free positions use the supplied icon size", () => {
-  const session = new BoardSession(measureNote, { ...initial, tokens: [] });
+test("placement bounds, team identity, and free positions use the current icon size", () => {
+  const session = new BoardSession(
+    measureNote,
+    { ...initial, tokens: [] },
+    150,
+  );
   expect(
     session.placeHero({
       heroId: "angela",
       team: "ally",
       point: { x: -10, y: 999 },
-      iconSize: 150,
     }),
   ).toEqual({
     kind: "added",
     token: { id: "ally-angela", heroId: "angela", team: "ally", x: 36, y: 618 },
   });
-  expect(
-    session.addHero({ heroId: "angela", team: "enemy", iconSize: 100 }),
-  ).toEqual({
+  session.setIconSize(100);
+  expect(session.addHero({ heroId: "angela", team: "enemy" })).toEqual({
     kind: "added",
     token: {
       id: "enemy-angela",
@@ -140,9 +154,8 @@ test("placement bounds, team identity, and free positions use the supplied icon 
       y: 52,
     },
   });
-  expect(
-    session.addHero({ heroId: "strange", team: "ally", iconSize: 150 }),
-  ).toEqual({
+  session.setIconSize(150);
+  expect(session.addHero({ heroId: "strange", team: "ally" })).toEqual({
     kind: "added",
     token: {
       id: "ally-strange",
@@ -152,12 +165,12 @@ test("placement bounds, team identity, and free positions use the supplied icon 
       y: 76,
     },
   });
+  session.setIconSize(100);
   expect(
     session.placeHero({
       heroId: "angela",
       team: "ally",
       point: { x: 9999, y: -10 },
-      iconSize: 100,
     }),
   ).toEqual({
     kind: "moved",
@@ -180,32 +193,60 @@ test("placement bounds, team identity, and free positions use the supplied icon 
 });
 
 test("free placement uses visible positions, falls back to the other half, and preserves a full board", () => {
-  const session = new BoardSession(measureNote, {
-    ...initial,
-    tokens: [
-      { id: "ally-strange", heroId: "strange", team: "ally", x: 0, y: 0 },
-    ],
+  const session = new BoardSession(
+    measureNote,
+    {
+      ...initial,
+      tokens: [
+        { id: "ally-strange", heroId: "strange", team: "ally", x: 0, y: 0 },
+      ],
+    },
+    150,
+  );
+  expect(session.addHero({ heroId: "angela", team: "ally" })).toMatchObject({
+    token: { x: 152, y: 76 },
   });
-  expect(
-    session.addHero({ heroId: "angela", team: "ally", iconSize: 150 }),
-  ).toMatchObject({ token: { x: 152, y: 76 } });
 
-  const occupied = new BoardSession(measureNote, {
-    ...initial,
-    tokens: [
-      { id: "enemy-strange", heroId: "strange", team: "enemy", x: 292, y: 292 },
-      { id: "enemy-angela", heroId: "angela", team: "enemy", x: 892, y: 292 },
-    ],
-  });
+  const boundary = tokenBoundary(150);
+  const spacing = boundary * 2 + 4;
+  const halfWidth = 600;
+  const height = 654;
+  const blockers = [];
+  let index = 0;
+  for (const startX of [0, halfWidth]) {
+    for (let y = spacing; y <= height - boundary; y += spacing) {
+      for (
+        let x = startX + spacing;
+        x <= startX + halfWidth - boundary;
+        x += spacing
+      ) {
+        blockers.push({
+          id: `ally-block-${index}`,
+          heroId: "strange",
+          team: "ally" as const,
+          x,
+          y,
+        });
+        index += 1;
+      }
+    }
+  }
+  const occupied = new BoardSession(
+    measureNote,
+    { ...initial, tokens: blockers },
+    150,
+  );
   const full = occupied.state;
-  expect(
-    occupied.addHero({ heroId: "luna", team: "ally", iconSize: 600 }),
-  ).toEqual({ kind: "full" });
+  expect(occupied.addHero({ heroId: "luna", team: "ally" })).toEqual({
+    kind: "full",
+  });
   expect(occupied.state).toBe(full);
-  occupied.removeToken("enemy-angela");
-  expect(
-    occupied.addHero({ heroId: "luna", team: "ally", iconSize: 600 }),
-  ).toMatchObject({ token: { x: 892, y: 292 } });
+  const freed = blockers[0];
+  if (!freed) throw new Error("Expected a blocking token.");
+  occupied.removeToken(freed.id);
+  expect(occupied.addHero({ heroId: "luna", team: "ally" })).toMatchObject({
+    token: { x: freed.x, y: freed.y },
+  });
 });
 
 test("drawings remain isolated by map through edit, clear, reset, and history", () => {
@@ -217,6 +258,7 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     y: 40,
     color: "#ffd166",
     text: "Rotate",
+    width: 180,
   };
   session.editDrawing(note);
   const withNote = session.state;
@@ -225,11 +267,9 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     session.moveDrawing({ id: "note", delta: { x: -10, y: 9999 } }),
   ).toEqual({ ...note, x: 20, y: 618 });
   expect(session.undo().drawingsByMap[DEFAULT_MAP_ID]).toEqual([note]);
-  session.changeMap({
-    map: { kind: "builtin", id: "hells-heaven-domination" },
-    iconSize: 100,
-  });
+  session.changeMap({ kind: "builtin", id: "hells-heaven-domination" });
   const arrow = session.addDrawing({ kind: "arrow", color: "#ff6268" });
+  if (!arrow) throw new Error("Expected an arrow.");
   expect(arrow).toMatchObject({
     kind: "arrow",
     x: 520,
@@ -267,6 +307,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
     y: 40,
     color: "#ffd166",
     text: "Rotate",
+    width: 180,
   };
   const session = new BoardSession(measureNote, {
     ...initial,
@@ -320,4 +361,54 @@ test("comp transfer preserves drawings and roles and restores map and formation 
   expect(changed.tokens[0]?.deadpoolRole).toBe("Strategist");
   expect(session.undo()).toEqual({ ...transferred, canRedo: true });
   expect(session.redo()).toEqual(changed);
+});
+
+test("icon size changes visible bounds without a history edit", () => {
+  const session = new BoardSession(
+    measureNote,
+    {
+      ...initial,
+      tokens: [
+        { id: "ally-strange", heroId: "strange", team: "ally", x: 12, y: 12 },
+      ],
+    },
+    50,
+  );
+  const larger = session.setIconSize(150);
+  expect(larger.canUndo).toBe(false);
+  expect(larger.tokens[0]).toMatchObject({ x: 12, y: 12 });
+  expect(session.visibleTokens()[0]).toMatchObject({ x: 36, y: 36 });
+  const smaller = session.setIconSize(50);
+  expect(smaller.tokens[0]).toMatchObject({ x: 12, y: 12 });
+  expect(session.visibleTokens()[0]).toMatchObject({ x: 12, y: 12 });
+  expect(session.undo()).toBe(smaller);
+});
+
+test("a map refuses drawings past the stored limit", () => {
+  const drawings: BoardDrawing[] = Array.from(
+    { length: MAX_DRAWINGS_PER_MAP },
+    (_, index) => ({
+      id: `arrow-${index}`,
+      kind: "arrow",
+      x: 100,
+      y: 100,
+      dx: 40,
+      dy: 20,
+      color: "#ffd166",
+    }),
+  );
+  const session = new BoardSession(measureNote, {
+    ...initial,
+    drawingsByMap: { [DEFAULT_MAP_ID]: drawings },
+  });
+  const full = session.state;
+  expect(session.addDrawing({ kind: "zone", color: "#ffffff" })).toBeNull();
+  expect(session.state).toBe(full);
+  const first = drawings[0];
+  if (!first) throw new Error("Expected a drawing.");
+  const edited = session.editDrawing({ ...first, color: "#000000" });
+  expect(edited.drawingsByMap[DEFAULT_MAP_ID]).toHaveLength(
+    MAX_DRAWINGS_PER_MAP,
+  );
+  expect(edited.drawingsByMap[DEFAULT_MAP_ID]?.[0]?.color).toBe("#000000");
 });

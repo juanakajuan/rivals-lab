@@ -8,7 +8,12 @@ import {
 } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import type { BoardToken } from "./boardTokens";
+import {
+  boardTokenId,
+  ICON_SIZES,
+  type BoardToken,
+  type IconSize,
+} from "./boardTokens";
 import {
   heroImagePath,
   teamLabel,
@@ -106,7 +111,7 @@ export function HeroPanel({
 
       <div className="hero-list">
         {visibleHeroes.map((hero, index) => {
-          const tokenId = `${selectedTeam}-${hero.id}`;
+          const tokenId = boardTokenId(selectedTeam, hero.id);
           const token = tokens.find((token) => token.id === tokenId);
 
           return (
@@ -194,8 +199,8 @@ function HeroRow({
 
 interface BoardPanelProps {
   readonly drawingControls: ReactNode;
-  readonly iconSize: number;
-  readonly onIconSizeChange: (size: number) => void;
+  readonly iconSize: IconSize;
+  readonly onIconSizeChange: (size: IconSize) => void;
   readonly selectedMapId: BoardMapId;
   readonly selectedMap: BoardMapDefinition;
   readonly customMaps: readonly CustomBoardMap[];
@@ -319,16 +324,15 @@ export function BoardPanel({
           <span>Hero icon size</span>
           <input
             type="range"
-            min={50}
-            max={150}
-            step={10}
+            min={ICON_SIZES[0]}
+            max={ICON_SIZES[ICON_SIZES.length - 1]}
+            step={ICON_SIZES[1] - ICON_SIZES[0]}
             value={iconSize}
             aria-valuetext={`${iconSize}%`}
             onChange={(event) => {
-              const size = event.currentTarget.valueAsNumber;
-              if (Number.isFinite(size) && size >= 50 && size <= 150) {
-                onIconSizeChange(size);
-              }
+              const value = event.currentTarget.valueAsNumber;
+              const size = ICON_SIZES.find((candidate) => candidate === value);
+              if (size !== undefined) onIconSizeChange(size);
             }}
           />
           <span aria-hidden="true">{iconSize}%</span>

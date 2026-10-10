@@ -991,3 +991,22 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.saved-mode-preview {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.selected-map-count {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 5px 8px;
+  border: 1px solid #ffffff40;
+  border-radius: 4px;
+  background: #08090ae6;
+  color: #f4f5f8;
+  font-size: 11px;
+  line-height: 1.2;
+}

@@ -1,5 +1,6 @@
 import { COMP_MAPS } from "./compMaps";
-import { emptyComp, type Comp, type CompSlot } from "./comps";
+import { isGameMode, type GameMode } from "./maps";
+import { compSlot, emptyComp, type Comp, type CompSlot } from "./comps";
 import {
   draftChoiceError,
   draftEffects,
@@ -44,7 +45,8 @@ export type CompEdit =
   | { readonly kind: "resetTeam"; readonly team: Team }
   | { readonly kind: "draftFormat"; readonly format: DraftFormat | null }
   | { readonly kind: "resetDraft" }
-  | { readonly kind: "map"; readonly mapId: string | null };
+  | { readonly kind: "maps"; readonly mapIds: readonly string[] }
+  | { readonly kind: "gameMode"; readonly mode: GameMode };
 
 export function compChoiceError(
   comp: Comp,
@@ -126,11 +128,9 @@ function changeHero(
       draft: setDraftHero(comp.draft, target.slot, selection?.heroId ?? null),
     };
   }
-  return changeSlot(comp, target.team, target.index, (slot) => ({
-    ...selection,
-    heroId: selection?.heroId ?? null,
-    notes: slot.notes,
-  }));
+  return changeSlot(comp, target.team, target.index, (slot) =>
+    compSlot(selection?.heroId ?? null, slot.notes, selection?.deadpoolRole),
+  );
 }
 
 export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
@@ -152,15 +152,14 @@ export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
     case "clearHero":
       return changeHero(comp, edit.target, null);
     case "slotNotes":
-      return changeSlot(comp, edit.team, edit.index, (slot) => ({
-        ...slot,
-        notes: edit.notes,
-      }));
+      return changeSlot(comp, edit.team, edit.index, (slot) =>
+        compSlot(slot.heroId, edit.notes, slot.deadpoolRole),
+      );
     case "deadpoolRole":
       return changeSlot(comp, edit.team, edit.index, (slot) => {
         if (slot.heroId !== "deadpool")
           throw new Error("Invalid Deadpool role.");
-        return { ...slot, deadpoolRole: edit.role };
+        return compSlot(slot.heroId, slot.notes, edit.role);
       });
     case "resetTeam":
       return {
@@ -174,16 +173,19 @@ export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
         ...comp,
         draft: comp.draft ? emptyDraft(comp.draft.format) : null,
       };
-    case "map":
-      if (
-        edit.mapId !== null &&
-        !COMP_MAPS.some((map) => map.id === edit.mapId)
-      )
-        throw new Error(`Unknown map: ${edit.mapId}.`);
+    case "maps": {
+      for (const id of edit.mapIds)
+        if (!COMP_MAPS.some((map) => map.id === id))
+          throw new Error(`Unknown map: ${id}.`);
       return {
         ...comp,
-        mapId: edit.mapId,
+        mapIds: [...new Set(edit.mapIds)],
+        gameMode: null,
       };
+    }
+    case "gameMode":
+      if (!isGameMode(edit.mode)) throw new Error("Unknown game mode.");
+      return { ...comp, mapIds: [], gameMode: edit.mode };
     default: {
       const exhaustive: never = edit;
       return exhaustive;

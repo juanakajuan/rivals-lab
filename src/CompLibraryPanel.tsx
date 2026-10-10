@@ -4,7 +4,6 @@ import type { SavedComp } from "./comps";
 import type { SavedCompLibraryView } from "./savedComps";
 import { SavedCompCard } from "./SavedCompCard";
 import { SearchField } from "./ui/SearchField";
-import { FilePickerButton } from "./ui/FilePickerButton";
 
 export interface CompLibraryPanelProps {
   readonly library: SavedCompLibraryView;
@@ -14,7 +13,7 @@ export interface CompLibraryPanelProps {
   readonly onRename: (entry: SavedComp) => void;
   readonly onExport: (entry: SavedComp) => void;
   readonly onDelete: (entry: SavedComp) => void;
-  readonly onImport: (file: File) => void;
+  readonly onImport: () => void;
   readonly onExportAll: () => void;
 }
 
@@ -88,36 +87,29 @@ export function CompLibraryPanel({
         )}
       </div>
       <div className="library-footer">
-        <FilePickerButton
-          accept=".json,application/json"
-          inputLabel="Import comps JSON"
-          inputAppearance="hidden"
-          buttonClassName="secondary-button"
-          disabled={writing}
-          onFile={onImport}
-          render={({ button, input }) => (
-            <>
-              <div className="library-file-actions">
-                {button}
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={!library.entries.length && !library.error}
-                  onClick={onExportAll}
-                >
-                  <Download size={14} />
-                  Export all
-                </button>
-              </div>
-              {input}
-            </>
-          )}
-        >
-          <Upload size={14} />
-          Import
-        </FilePickerButton>
+        <div className="library-file-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={writing}
+            onClick={onImport}
+          >
+            <Upload size={14} />
+            Import
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!library.entries.length && !library.error}
+            onClick={onExportAll}
+          >
+            <Download size={14} />
+            Export all
+          </button>
+        </div>
         <p>
-          Saved in this browser. Export a file to back up or move your comps.
+          Saved in this browser. Export all saves only your comps. To move the
+          board, custom maps, and open comp too, use Backup in the top bar.
         </p>
       </div>
     </aside>
