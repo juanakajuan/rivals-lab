@@ -139,14 +139,14 @@ test("map changes preserve the draft; explicit resets preserve heroes and notes"
     selection: { heroId: "strange" },
   });
   expect(hasDraftChoices(comp)).toBe(true);
-  comp = applyCompEdit(comp, { kind: "map", mapId: "midtown" });
-  expect(comp.mapId).toBe("midtown");
+  comp = applyCompEdit(comp, { kind: "maps", mapIds: ["midtown"] });
+  expect(comp.mapIds).toEqual(["midtown"]);
   expect(comp.draft?.teams.ally).toEqual({
     ban: [null, null, null, null],
     save: ["strange", null],
   });
-  comp = applyCompEdit(comp, { kind: "map", mapId: null });
-  expect(comp.mapId).toBeNull();
+  comp = applyCompEdit(comp, { kind: "maps", mapIds: [] });
+  expect(comp.mapIds).toEqual([]);
   expect(comp.draft).toEqual({
     format: "mrc",
     teams: {
@@ -166,11 +166,11 @@ test("map changes preserve the draft; explicit resets preserve heroes and notes"
     target: draftTarget,
     selection: { heroId: "strange" },
   });
-  comp = applyCompEdit(comp, { kind: "map", mapId: "god-quarry" });
-  expect(comp.mapId).toBe("god-quarry");
+  comp = applyCompEdit(comp, { kind: "maps", mapIds: ["god-quarry"] });
+  expect(comp.mapIds).toEqual(["god-quarry"]);
   expect(comp.draft?.teams.ally.save).toEqual(["strange", null]);
   comp = applyCompEdit(comp, { kind: "draftFormat", format: "ignite" });
-  expect(comp.mapId).toBe("god-quarry");
+  expect(comp.mapIds).toEqual(["god-quarry"]);
   expect(comp.draft?.teams.ally).toEqual({
     ban: [null, null, null, null, null],
     save: [null, null],

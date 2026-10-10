@@ -478,7 +478,11 @@ test("mixed saved data stays recoverable through valid library changes", async (
   const comp = { ...emptyComp(), name: "Valid comp" };
   const saved = { id: "valid", updatedAt: "2026-09-30T12:00:00Z", comp };
   const unavailable = [
-    { ...saved, id: "obsolete-map", comp: { ...comp, mapId: "retired-map" } },
+    {
+      ...saved,
+      id: "obsolete-map",
+      comp: { ...comp, mapIds: ["retired-map"] },
+    },
     {
       ...saved,
       id: "obsolete-hero",

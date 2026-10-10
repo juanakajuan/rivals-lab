@@ -154,3 +154,22 @@ export const COMP_MAPS: readonly CompMap[] = [
     selectedCardPosition: "90% 50%",
   },
 ];
+
+export interface CompMapSelection {
+  readonly mapIds: readonly string[];
+  readonly gameMode: MapDefinition["mode"] | null;
+}
+
+export function selectedCompMaps(
+  selection: CompMapSelection,
+): readonly CompMap[] {
+  return COMP_MAPS.filter((map) => selection.mapIds.includes(map.id));
+}
+
+/** Short text for lists and captions. */
+export function compMapLabel(selection: CompMapSelection): string {
+  if (selection.gameMode) return `${selection.gameMode} · Any map in mode`;
+  const maps = selectedCompMaps(selection);
+  if (maps.length === 0) return "Any map";
+  return maps.map((map) => map.name).join(", ");
+}

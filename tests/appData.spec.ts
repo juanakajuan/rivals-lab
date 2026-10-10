@@ -479,7 +479,7 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
         version: 1,
         comps: [
           dive,
-          { ...poke, comp: { ...poke.comp, mapId: "retired-map" } },
+          { ...poke, comp: { ...poke.comp, mapIds: ["retired-map"] } },
         ],
       }),
       "Unknown map: retired-map.",

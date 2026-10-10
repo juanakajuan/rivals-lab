@@ -1,4 +1,5 @@
 import { COMP_MAPS } from "./compMaps";
+import { isGameMode, type GameMode } from "./maps";
 import {
   chooseLegacyDraftHero,
   emptyDraft,
@@ -24,7 +25,10 @@ export interface CompSlot {
 export interface Comp {
   readonly name: string;
   readonly notes: string;
-  readonly mapId: string | null;
+  /** Selected maps. Empty means any map. Empty whenever `gameMode` is set. */
+  readonly mapIds: readonly string[];
+  /** A whole game mode in place of specific maps. */
+  readonly gameMode: GameMode | null;
   readonly teams: Readonly<Record<Team, readonly CompSlot[]>>;
   readonly draft: DraftState | null;
 }
@@ -34,6 +38,8 @@ export interface SavedComp {
   readonly updatedAt: string;
   readonly comp: Comp;
 }
+
+export const MAX_COMP_MAPS = COMP_MAPS.length;
 
 export const COMP_STORAGE_KEY = "rivals-lab.comps.v1";
 export const MAX_IMPORT_BYTES = 2_000_000;
@@ -61,7 +67,8 @@ function canonicalComp(comp: Comp): Comp {
   return {
     name: comp.name,
     notes: comp.notes,
-    mapId: comp.mapId,
+    mapIds: comp.mapIds,
+    gameMode: comp.gameMode,
     teams: { ally: slots(comp.teams.ally), enemy: slots(comp.teams.enemy) },
     draft: comp.draft,
   };
@@ -73,7 +80,8 @@ export function emptyComp(): Comp {
   return {
     name: "",
     notes: "",
-    mapId: null,
+    mapIds: [],
+    gameMode: null,
     teams: { ally: slots(), enemy: slots() },
     draft: null,
   };
@@ -162,19 +170,41 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
+/** Files saved before multi-map support store one optional `mapId`. */
+function decodeMapSelection(comp: Record<string, unknown>): {
+  readonly mapIds: readonly string[];
+  readonly gameMode: GameMode | null;
+} {
+  let mapIds: readonly string[];
+  if (comp.mapIds !== undefined)
+    mapIds = items(comp.mapIds, MAX_COMP_MAPS).map((id) => text(id, 100));
+  else if (comp.mapId === undefined || comp.mapId === null) mapIds = [];
+  else mapIds = [text(comp.mapId, 100)];
+  for (const id of mapIds)
+    if (!COMP_MAPS.some((map) => map.id === id))
+      throw new Error(`Unknown map: ${id}.`);
+  if (new Set(mapIds).size !== mapIds.length)
+    throw new Error("A map appears twice in one comp.");
+  const gameMode = comp.gameMode ?? null;
+  if (gameMode !== null && !isGameMode(gameMode))
+    throw new Error("Unknown game mode.");
+  if (gameMode !== null && mapIds.length)
+    throw new Error("A comp cannot use a game mode and specific maps.");
+  return { mapIds, gameMode };
+}
+
 function decodeCompWithName(
   value: unknown,
   decodeName: (name: unknown) => string,
 ): Comp {
   const comp = record(value);
   const teams = record(comp.teams);
-  const mapId = comp.mapId === null ? null : text(comp.mapId, 100);
-  if (mapId !== null && !COMP_MAPS.some((map) => map.id === mapId))
-    throw new Error(`Unknown map: ${mapId}.`);
+  const { mapIds, gameMode } = decodeMapSelection(comp);
   return {
     name: decodeName(comp.name),
     notes: text(comp.notes, 10_000),
-    mapId,
+    mapIds,
+    gameMode,
     teams: { ally: decodeSlots(teams.ally), enemy: decodeSlots(teams.enemy) },
     draft: decodeDraft(comp.draft),
   };

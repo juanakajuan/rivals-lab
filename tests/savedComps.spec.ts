@@ -285,7 +285,7 @@ test("a deleted or unavailable saved comp cannot be restored by a stale editor",
     serializeCompLibrary([]),
     JSON.stringify({
       version: 1,
-      comps: [{ ...saved, comp: { ...saved.comp, mapId: "retired-map" } }],
+      comps: [{ ...saved, comp: { ...saved.comp, mapIds: ["retired-map"] } }],
     }),
   ]) {
     const storage = new MemoryStorage(serializeCompLibrary([saved]));
@@ -310,7 +310,7 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
   const unavailable = {
     ...saved,
     id: "obsolete",
-    comp: { ...saved.comp, mapId: "retired-map" },
+    comp: { ...saved.comp, mapIds: ["retired-map"] },
   };
   const legacy = {
     ...saved,
@@ -387,7 +387,7 @@ test("unavailable entries count toward storage limits and failed imports are ato
   const unavailable = {
     ...saved,
     id: "obsolete",
-    comp: { ...saved.comp, mapId: "retired-map" },
+    comp: { ...saved.comp, mapIds: ["retired-map"] },
   };
   const full = JSON.stringify({
     version: 1,

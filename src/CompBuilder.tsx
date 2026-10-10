@@ -7,7 +7,7 @@ import { Dialog } from "./ui/Dialog";
 import { downloadBlob } from "./downloadBlob";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { downloadAndCopyCompImage } from "./compImage";
-import { COMP_MAPS } from "./compMaps";
+import { selectedCompMaps } from "./compMaps";
 import type { Comp, SavedComp } from "./comps";
 import {
   compChoiceError,
@@ -24,7 +24,7 @@ import {
 import type { CompStorage } from "./appData";
 import { draftEffects, type DraftFormat } from "./draft";
 import { teamLabel, type HeroSelection, type Team } from "./heroes";
-import type { MapId } from "./maps";
+import type { GameMode, MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 import "./builder.css";
@@ -124,8 +124,13 @@ export function CompBuilder({
   const writingRef = useRef(false);
   const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
-  const selectedMap = COMP_MAPS.find((map) => map.id === comp.mapId);
-  const supportedBoardMapId = selectedMap?.boardMapId;
+  const selectedMaps = selectedCompMaps(comp);
+  const selectedMap = selectedMaps[0];
+  const supportedBoardMapIds = selectedMaps.flatMap((map) =>
+    map.boardMapId === undefined ? [] : [map.boardMapId],
+  );
+  const supportedBoardMapId =
+    selectedMaps.length === 1 ? supportedBoardMapIds[0] : undefined;
   const boardTransferDisabled = !TEAMS.some((team) =>
     comp.teams[team].some((slot) => slot.heroId),
   );
@@ -277,8 +282,22 @@ export function CompBuilder({
   }
 
   function changeMap(mapId: string | null): void {
-    if (mapId === comp.mapId) return;
-    edit({ kind: "map", mapId });
+    changeMaps(mapId === null ? [] : [mapId]);
+  }
+
+  function changeMaps(mapIds: readonly string[]): void {
+    if (
+      comp.gameMode === null &&
+      mapIds.length === comp.mapIds.length &&
+      mapIds.every((id, index) => id === comp.mapIds[index])
+    )
+      return;
+    edit({ kind: "maps", mapIds });
+  }
+
+  function changeGameMode(mode: GameMode): void {
+    if (comp.gameMode === mode) return;
+    edit({ kind: "gameMode", mode });
   }
 
   async function shareImage(): Promise<void> {
@@ -424,6 +443,8 @@ export function CompBuilder({
           }
           onSave={() => void save(comp.name)}
           onMapChange={changeMap}
+          onMapsChange={changeMaps}
+          onGameModeChange={changeGameMode}
           onDraftChange={changeDraft}
         />
         {comp.draft && (
