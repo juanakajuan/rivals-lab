@@ -16,7 +16,7 @@
     "text": "Feature: A draft or comp can now use several maps or a whole game mode."
   },
   {
-    "id": "krakoa-domination-board-map",
-    "text": "Feature: Krakoa Domination is now available as a Position Board map."
+    "id": "krakoa-yggdrasill-board-maps",
+    "text": "Feature: Cradle: Krakoa (Domination) and Yggdrasill Path (Convoy) are now available as Position Board maps."
   }
 ]

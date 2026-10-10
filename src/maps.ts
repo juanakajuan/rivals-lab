@@ -40,6 +40,14 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "yggdrasill-path-convoy",
+    name: "Yggdrasill Path",
+    mode: "Convoy",
+    imagePath: "/maps/yggdrasill-path-convoy.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",

@@ -578,7 +578,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
   await expect(fallback).toContainText(
     "Midtown has no board image yet. Choose a supported map. The saved comp’s map will stay unchanged.",
   );
-  await expect(fallback.getByRole("button")).toHaveCount(5);
+  await expect(fallback.getByRole("button")).toHaveCount(6);
   const first = fallback.getByRole("button", {
     name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
     exact: true,
@@ -595,6 +595,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
       "/maps/hells-heaven-domination.png",
     ],
     ["Cradle: Krakoa", "/maps/krakoa-domination.webp"],
+    ["Yggdrasill Path", "/maps/yggdrasill-path-convoy.webp"],
     ["Museum of Contemplation", "/maps/museum-of-contemplation-convoy.png"],
   ] satisfies readonly (readonly [string, string])[]) {
     await expect(
@@ -606,12 +607,15 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     exact: true,
   });
   await search.fill("  CONVOY  ");
-  await expect(fallback.locator(".map-picker-card")).toHaveCount(1);
+  await expect(fallback.locator(".map-picker-card")).toHaveCount(2);
   await expect(
     fallback.getByRole("button", {
       name: "Museum of Contemplation",
       exact: true,
     }),
+  ).toBeVisible();
+  await expect(
+    fallback.getByRole("button", { name: "Yggdrasill Path", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
     "Midtown · Convoy",

@@ -64,6 +64,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/yggdrasill-path.webp",
     previewImageSize: [1920, 804],
     selectedCardPosition: "30% 50%",
+    boardMapId: "yggdrasill-path-convoy",
   },
   {
     id: "spider-islands",
