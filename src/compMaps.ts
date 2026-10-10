@@ -82,6 +82,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/midtown.webp",
     previewImageSize: [1920, 803],
     selectedCardPosition: "40% 50%",
+    boardMapId: "midtown-convoy",
   },
   {
     id: "arakko",

@@ -56,6 +56,14 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "midtown-convoy",
+    name: "Midtown",
+    mode: "Convoy",
+    imagePath: "/maps/midtown-convoy.webp",
+    width: 1200,
+    height: 657,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
