@@ -73,6 +73,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/spider-islands.webp",
     previewImageSize: [1920, 804],
     selectedCardPosition: "50% 50%",
+    boardMapId: "spider-islands-convoy",
   },
   {
     id: "midtown",

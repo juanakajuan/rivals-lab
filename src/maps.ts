@@ -48,6 +48,14 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "spider-islands-convoy",
+    name: "Spider-Islands",
+    mode: "Convoy",
+    imagePath: "/maps/spider-islands-convoy.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",
