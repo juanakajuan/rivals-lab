@@ -76,7 +76,7 @@ test("the comp builder shows several maps and a game mode and lists them when sa
     name: "Choose comp map",
     exact: true,
   });
-  await dialog.getByRole("button", { name: "Select several maps" }).click();
+  await dialog.getByRole("button", { name: "Select multiple maps" }).click();
   for (const name of ["Midtown", "Thebes"])
     await dialog.getByRole("button", { name, exact: true }).click();
   await dialog.getByRole("button", { name: /Use 2 maps/ }).click();

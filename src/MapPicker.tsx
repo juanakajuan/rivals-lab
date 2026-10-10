@@ -167,7 +167,7 @@ export function MapPicker<Value extends string | null>({
                   setDraft(multiple.selectedValues);
                 }}
               >
-                Select several maps
+                Select multiple maps
               </button>
             ) : null}
             {modes ? (
