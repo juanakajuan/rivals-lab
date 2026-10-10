@@ -1,18 +1,1 @@
-[
-  {
-    "id": "import-error-message-once",
-    "text": "Bug fix: Import errors now show each distinct message once instead of repeating it."
-  },
-  {
-    "id": "position-board-map-placeholders",
-    "text": "Feature: The Position Board map picker lists every available map and marks maps that still need an image as placeholders."
-  },
-  {
-    "id": "multi-map-or-game-mode",
-    "text": "Feature: A draft or comp can now use several maps or a whole game mode."
-  },
-  {
-    "id": "krakoa-and-convoy-board-maps",
-    "text": "Feature: Cradle: Krakoa (Domination), Central Park, Hall of Djalia, Heart of Heaven, Lower Manhattan, Shin-Shibuya and Symbiotic Surface (Convergence), and Arakko, Midtown, Thebes, Yggdrasill Path and Spider-Islands (Convoy) are now available as Position Board maps."
-  }
-]
+[]
