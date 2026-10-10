@@ -594,7 +594,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
       "Hydra Charteris Base: Hell's Heaven",
       "/maps/hells-heaven-domination.png",
     ],
-    ["Krakoa", "/maps/krakoa-domination.webp"],
+    ["Cradle: Krakoa", "/maps/krakoa-domination.webp"],
     ["Museum of Contemplation", "/maps/museum-of-contemplation-convoy.png"],
   ] satisfies readonly (readonly [string, string])[]) {
     await expect(

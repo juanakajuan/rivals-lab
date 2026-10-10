@@ -33,7 +33,7 @@ export const MAPS = [
   },
   {
     id: "krakoa-domination",
-    name: "Krakoa",
+    name: "Cradle: Krakoa",
     mode: "Domination",
     imagePath: "/maps/krakoa-domination.webp",
     width: 1200,
