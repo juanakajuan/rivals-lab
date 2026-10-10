@@ -109,6 +109,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/thebes.jpg",
     previewImageSize: [3840, 2160],
     selectedCardPosition: "50% 50%",
+    boardMapId: "thebes-convoy",
   },
   {
     id: "hall-of-djalia",

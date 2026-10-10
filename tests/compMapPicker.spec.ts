@@ -567,7 +567,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     exact: true,
   });
   await expect(transfer).toBeDisabled();
-  await chooseMap(page, "Thebes");
+  await chooseMap(page, "Hall of Djalia");
   await pickHero(page, "Allies slot 1: Choose hero", "Hulk");
   await page.getByLabel("Comp notes", { exact: true }).fill("Keep these notes");
   await transfer.click();
@@ -576,9 +576,9 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     exact: true,
   });
   await expect(fallback).toContainText(
-    "Thebes has no board image yet. Choose a supported map. The saved comp’s map will stay unchanged.",
+    "Hall of Djalia has no board image yet. Choose a supported map. The saved comp’s map will stay unchanged.",
   );
-  await expect(fallback.getByRole("button")).toHaveCount(9);
+  await expect(fallback.getByRole("button")).toHaveCount(10);
   const first = fallback.getByRole("button", {
     name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
     exact: true,
@@ -595,6 +595,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
       "/maps/hells-heaven-domination.png",
     ],
     ["Cradle: Krakoa", "/maps/krakoa-domination.webp"],
+    ["Thebes", "/maps/thebes-convoy.webp"],
     ["Arakko", "/maps/arakko-convoy.webp"],
     ["Midtown", "/maps/midtown-convoy.webp"],
     ["Yggdrasill Path", "/maps/yggdrasill-path-convoy.webp"],
@@ -610,7 +611,10 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     exact: true,
   });
   await search.fill("  CONVOY  ");
-  await expect(fallback.locator(".map-picker-card")).toHaveCount(5);
+  await expect(fallback.locator(".map-picker-card")).toHaveCount(6);
+  await expect(
+    fallback.getByRole("button", { name: "Thebes", exact: true }),
+  ).toBeVisible();
   await expect(
     fallback.getByRole("button", { name: "Arakko", exact: true }),
   ).toBeVisible();
@@ -630,7 +634,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     fallback.getByRole("button", { name: "Spider-Islands", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
-    "Thebes · Convoy",
+    "Hall of Djalia · Convergence",
   );
   await page.keyboard.press("Escape");
   await expect(fallback).toBeHidden();
@@ -652,7 +656,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
   await expect(page).toHaveURL(/\/builder$/);
   await expect(transfer).toBeFocused();
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
-    "Thebes · Convoy",
+    "Hall of Djalia · Convergence",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Keep these notes",
@@ -694,7 +698,7 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
-    "Thebes · Convoy",
+    "Hall of Djalia · Convergence",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Keep these notes",

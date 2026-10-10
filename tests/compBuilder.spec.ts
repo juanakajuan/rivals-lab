@@ -283,13 +283,13 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await expect(page).toHaveURL(/\/builder$/);
   await pickHero(page, "Allies slot 1: Choose hero", "Hulk");
   await pickHero(page, "Opponents slot 1: Choose hero", "Loki");
-  await chooseCompMap(page, "Thebes");
+  await chooseCompMap(page, "Hall of Djalia");
   await page
     .getByLabel("Comp notes", { exact: true })
     .fill("Preserve these notes.");
   await page.getByRole("button", { name: "Open on Position Board" }).click();
   await expect(page.getByRole("dialog")).toContainText(
-    "Thebes has no board image yet.",
+    "Hall of Djalia has no board image yet.",
   );
   page.once("dialog", (dialog) => dialog.accept());
   await page
@@ -337,7 +337,7 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await expect(page.locator(".selection-name strong")).toHaveText("Hulk");
   await openBuilder(page);
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
-    "Thebes · Convoy",
+    "Hall of Djalia · Convergence",
   );
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Preserve these notes.",
