@@ -88,6 +88,14 @@ export const MAPS = [
     height: 658,
   },
   {
+    id: "symbiotic-surface-convergence",
+    name: "Symbiotic Surface",
+    mode: "Convergence",
+    imagePath: "/maps/symbiotic-surface-convergence.webp",
+    width: 1200,
+    height: 658,
+  },
+  {
     id: "museum-of-contemplation-convoy",
     name: "Museum of Contemplation",
     mode: "Convoy",

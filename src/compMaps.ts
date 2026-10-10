@@ -127,6 +127,7 @@ export const COMP_MAPS: readonly CompMap[] = [
     previewImagePath: "/map-previews/symbiotic-surface.webp",
     previewImageSize: [1720, 720],
     selectedCardPosition: "60% 50%",
+    boardMapId: "symbiotic-surface-convergence",
   },
   {
     id: "central-park",
