@@ -1,8 +1,14 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { COMP_MAPS } from "../src/compMaps";
 
 const wakanda = "Intergalactic Empire of Wakanda: Birnin T'Challa";
 const hydra = "Hydra Charteris Base: Hell's Heaven";
 const museum = "Museum of Contemplation";
+const placeholderMaps = COMP_MAPS.filter((map) => map.boardMapId === undefined);
+const convoyCount = COMP_MAPS.filter((map) => map.mode === "Convoy").length;
+const dominationCount = COMP_MAPS.filter(
+  (map) => map.mode === "Domination",
+).length;
 
 function picker(page: Page): Locator {
   return page.getByRole("dialog", { name: "Choose map", exact: true });
@@ -49,7 +55,15 @@ test("map cards show complete names and uncropped images; selection closes and r
   await trigger(page).click();
   const dialog = picker(page);
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(3);
+  await expect(dialog).toContainText(
+    "Placeholder cards still need an overhead map image.",
+  );
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(
+    COMP_MAPS.length,
+  );
+  await expect(dialog.locator(".map-picker-placeholder")).toHaveCount(
+    placeholderMaps.length,
+  );
   await expect(
     dialog.getByRole("button", { name: "Upload image", exact: true }),
   ).toBeVisible();
@@ -104,6 +118,22 @@ test("map cards show complete names and uncropped images; selection closes and r
       };
     });
     expect(ratios.actual).toBeCloseTo(ratios.natural, 2);
+    await expect(card).toBeEnabled();
+  }
+  for (const map of placeholderMaps) {
+    const card = dialog.getByRole("button", { name: map.name, exact: true });
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toBeDisabled();
+    await expect(card).not.toHaveAttribute("aria-pressed");
+    await expect(card.locator(".map-picker-card-name")).toHaveText(map.name);
+    await expect(card.locator(".map-picker-card-mode")).toHaveText(map.mode);
+    await expect(card.locator(".map-picker-neutral")).toHaveText(
+      "Map image needed",
+    );
+    await expect(card.locator(".map-picker-placeholder-label")).toHaveText(
+      "Placeholder",
+    );
+    await expect(card.locator("img")).toHaveCount(0);
   }
   await expect(dialog.getByText("Selected", { exact: true })).toHaveCount(1);
   await expect(
@@ -194,12 +224,15 @@ test("search matches names and modes without edits, recovers from no results, an
     ).toBeVisible();
   }
   await search.fill("  CONVOY  ");
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(1);
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(convoyCount);
   await expect(
     dialog.getByRole("button", { name: museum, exact: true }),
   ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Krakoa", exact: true }),
+  ).toHaveCount(0);
   await search.fill("domination");
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(2);
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(dominationCount);
   await expect(
     dialog.getByRole("button", { name: wakanda, exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -209,8 +242,23 @@ test("search matches names and modes without edits, recovers from no results, an
   );
   await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
+  await search.fill("placeholder");
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(
+    placeholderMaps.length,
+  );
+  await expect(dialog.locator(".map-picker-placeholder")).toHaveCount(
+    placeholderMaps.length,
+  );
+  await expect(
+    dialog.getByRole("button", { name: wakanda, exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: "The God Quarry", exact: true }),
+  ).toBeDisabled();
   await search.fill("");
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(3);
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(
+    COMP_MAPS.length,
+  );
   await expect(dialog.getByRole("status")).toHaveCount(0);
   await expect(search).toBeFocused();
   await page.keyboard.type("museum");

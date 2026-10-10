@@ -26,7 +26,7 @@ import type {
   CustomBoardMap,
 } from "./boardMaps";
 import { MapPicker } from "./MapPicker";
-import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
+import { BOARD_MAP_PICKER_OPTIONS } from "./mapPickerOptions";
 
 export type BoardUploadState =
   | { readonly kind: "idle" }
@@ -235,7 +235,7 @@ export function BoardPanel({
   onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
   const mapOptions = [
-    ...BOARD_MAP_OPTIONS,
+    ...BOARD_MAP_PICKER_OPTIONS,
     ...customMaps.map((map) => ({
       value: map.id,
       name: map.name,
@@ -263,6 +263,7 @@ export function BoardPanel({
             selectedValue={selectedMapId}
             triggerLabel="Choose map"
             title="Choose map"
+            description="Placeholder cards still need an overhead map image."
             onChoose={onMapChange}
             onClose={onMapPickerClose}
             renderActions={(close) => (
