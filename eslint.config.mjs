@@ -67,6 +67,8 @@ export default defineConfig(
         console: "readonly",
         fetch: "readonly",
         URL: "readonly",
+        process: "readonly",
+        setTimeout: "readonly",
       },
     },
   },

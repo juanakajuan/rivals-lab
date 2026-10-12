@@ -2,7 +2,13 @@
 // Usage: server.mjs up | doctor | down
 // Starts a private Vite dev server for verification. State lives in ../.run (gitignored).
 import { spawn } from "node:child_process";
-import { mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,7 +43,9 @@ const cmd = process.argv[2];
 if (cmd === "up") {
   const before = await probe();
   if (before.ok && readPid() === null) {
-    console.error(`Port ${port} is answering but this run did not start it. Set VERIFY_PORT to a free port.`);
+    console.error(
+      `Port ${port} is answering but this run did not start it. Set VERIFY_PORT to a free port.`,
+    );
     process.exit(1);
   }
   if (!before.ok) {
@@ -45,7 +53,16 @@ if (cmd === "up") {
     const log = openSync(logFile, "w");
     const child = spawn(
       "npm",
-      ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+      [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        String(port),
+        "--strictPort",
+      ],
       { cwd: root, detached: true, stdio: ["ignore", log, log] },
     );
     child.unref();
@@ -66,9 +83,11 @@ if (cmd === "up") {
   const pid = readPid();
   const state = await probe();
   const problems = [];
-  if (pid === null) problems.push("no server.pid: this run did not start the server");
+  if (pid === null)
+    problems.push("no server.pid: this run did not start the server");
   if (!state.ok) problems.push(`${url}/board does not answer`);
-  if (state.ok && !state.vite) problems.push("page is not served by the Vite dev server");
+  if (state.ok && !state.vite)
+    problems.push("page is not served by the Vite dev server");
   console.log(JSON.stringify({ url, pid, ...state, problems }, null, 2));
   process.exit(problems.length ? 1 : 0);
 } else if (cmd === "down") {
