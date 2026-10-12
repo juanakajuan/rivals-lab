@@ -1,4 +1,5 @@
 export type Team = "ally" | "enemy";
+export const TEAM_SIZE = 6;
 export type HeroRole = "Vanguard" | "Duelist" | "Strategist" | "All Roles";
 export const DEADPOOL_ROLES = ["Vanguard", "Duelist", "Strategist"] as const;
 export type DeadpoolRole = (typeof DEADPOOL_ROLES)[number];

@@ -21,6 +21,7 @@ import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
 import {
   HERO_BY_ID,
   HEROES,
+  TEAM_SIZE,
   isTeam,
   teamLabel,
   type HeroDefinition,
@@ -87,6 +88,11 @@ export function useBoardController({
       new BoardSession(measureBoardNote, workspace.board, workspace.iconSize),
   );
   const [boardState, setBoardState] = useState(session.state);
+  const [legacyBoardNotice] = useState(
+    session.state.tokens.length < workspace.board.tokens.length
+      ? `Saved board limited to the first ${TEAM_SIZE} heroes per team. Extra placements were removed.`
+      : null,
+  );
   const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>(
     workspace.customMaps,
   );
@@ -126,7 +132,7 @@ export function useBoardController({
   const [isHeroDragging, setIsHeroDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null);
   const [announcement, setAnnouncement] = useState(
-    "Drag any token to explain a rotation or position.",
+    legacyBoardNotice ?? "Drag any token to explain a rotation or position.",
   );
   const selectedToken = tokens.find((token) => token.id === selectedTokenId);
   const selectedHero = selectedToken
@@ -356,9 +362,21 @@ export function useBoardController({
     y: number,
     team: Team,
   ): void {
-    showHeroPlacement(
-      hero,
-      session.placeHero({ heroId: hero.id, team, point: { x, y } }),
+    const result = session.placeHero({
+      heroId: hero.id,
+      team,
+      point: { x, y },
+    });
+    if (result.kind === "team-full") {
+      announceTeamFull(team);
+      return;
+    }
+    showHeroPlacement(hero, result);
+  }
+
+  function announceTeamFull(team: Team): void {
+    setAnnouncement(
+      `${teamLabel(team)} is full (${TEAM_SIZE} heroes). Remove a hero first.`,
     );
   }
 
@@ -369,6 +387,8 @@ export function useBoardController({
     });
     if (result.kind === "added" || result.kind === "moved") {
       showHeroPlacement(hero, result);
+    } else if (result.kind === "team-full") {
+      announceTeamFull(selectedTeam);
     } else if (result.kind === "full") {
       setAnnouncement(
         `No free position for ${hero.name}. Move or remove a hero first.`,
@@ -597,6 +617,7 @@ export function useBoardController({
       <main className="app-main" hidden={!active}>
         <HeroPanel
           selectedTeam={selectedTeam}
+          notice={legacyBoardNotice}
           allyCount={allyCount}
           enemyCount={enemyCount}
           heroSearch={heroSearch}

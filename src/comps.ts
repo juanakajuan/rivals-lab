@@ -11,6 +11,7 @@ import {
 } from "./draft";
 import {
   HERO_BY_ID,
+  TEAM_SIZE,
   isDeadpoolRole,
   type DeadpoolRole,
   type Team,
@@ -76,7 +77,7 @@ function canonicalComp(comp: Comp): Comp {
 
 export function emptyComp(): Comp {
   const slots = (): CompSlot[] =>
-    Array.from({ length: 6 }, () => compSlot(null, ""));
+    Array.from({ length: TEAM_SIZE }, () => compSlot(null, ""));
   return {
     name: "",
     notes: "",
@@ -110,8 +111,9 @@ function items(value: unknown, limit: number): readonly unknown[] {
 }
 
 function decodeSlots(value: unknown): readonly CompSlot[] {
-  const list = items(value, 6);
-  if (list.length !== 6) throw new Error("Each team must have six slots.");
+  const list = items(value, TEAM_SIZE);
+  if (list.length !== TEAM_SIZE)
+    throw new Error("Each team must have six slots.");
   const seen = new Set<string>();
   return list.map((item) => {
     const slot = record(item);
