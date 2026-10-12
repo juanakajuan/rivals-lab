@@ -111,12 +111,10 @@ test("six per team disables Add and rejects new drops while allowing moves and r
       name: `Remove Angela from ${label}`,
       exact: true,
     });
-    await angela
-      .locator("..")
-      .dragTo(canvas, {
-        sourcePosition: { x: 60, y: 21 },
-        targetPosition: { x: 220, y: 220 },
-      });
+    await angela.locator("..").dragTo(canvas, {
+      sourcePosition: { x: 60, y: 21 },
+      targetPosition: { x: 220, y: 220 },
+    });
     await expect(page.locator(".selection-name strong")).toHaveText("Angela");
     await expect(team).toHaveText(`${label} 6`);
     await angela.click();
