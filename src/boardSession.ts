@@ -16,7 +16,7 @@ import {
   type IconSize,
 } from "./boardTokens";
 import type { Comp } from "./comps";
-import type { Team } from "./heroes";
+import { TEAM_SIZE, type Team } from "./heroes";
 import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
 
 import {
@@ -44,8 +44,18 @@ export interface HeroPlacement {
   readonly token: BoardToken;
 }
 
+export type HeroPlaceResult = HeroPlacement | { readonly kind: "team-full" };
 export type HeroAddResult =
-  HeroPlacement | { readonly kind: "existing" | "full" };
+  HeroPlaceResult | { readonly kind: "existing" | "full" };
+
+/** Legacy saved boards retain the earliest placements, independently per team. */
+function limitTeams(board: BoardState): BoardState {
+  const counts: Record<Team, number> = { ally: 0, enemy: 0 };
+  const tokens = board.tokens.filter(
+    (token) => ++counts[token.team] <= TEAM_SIZE,
+  );
+  return tokens.length === board.tokens.length ? board : { ...board, tokens };
+}
 
 const HISTORY_LIMIT = 100;
 
@@ -154,9 +164,9 @@ export class BoardSession {
     iconSize: IconSize = DEFAULT_ICON_SIZE,
   ) {
     this.iconSize = iconSize;
-    this.board = board;
+    this.board = limitTeams(board);
     this.current = {
-      ...board,
+      ...this.board,
       iconSize,
       canUndo: false,
       canRedo: false,
@@ -180,10 +190,11 @@ export class BoardSession {
     readonly heroId: string;
     readonly team: Team;
     readonly point: BoardPoint;
-  }): HeroPlacement {
+  }): HeroPlaceResult {
     const map = resolveBoardMap(this.board.map);
     const id = boardTokenId(team, heroId);
     const existing = this.board.tokens.find((token) => token.id === id);
+    if (!existing && this.isTeamFull(team)) return { kind: "team-full" };
     const token: BoardToken = {
       ...(existing ?? { id, heroId, team }),
       x: clampToBoard(point.x, map.width, this.iconSize),
@@ -209,6 +220,7 @@ export class BoardSession {
       this.board.tokens.some((token) => token.id === boardTokenId(team, heroId))
     )
       return { kind: "existing" };
+    if (this.isTeamFull(team)) return { kind: "team-full" };
     const map = resolveBoardMap(this.board.map);
     const boundary = tokenBoundary(this.iconSize);
     const spacing = boundary * 2 + 4;
@@ -457,7 +469,15 @@ export class BoardSession {
     });
   }
 
+  private isTeamFull(team: Team): boolean {
+    return (
+      this.board.tokens.filter((token) => token.team === team).length >=
+      TEAM_SIZE
+    );
+  }
+
   private commit(board: BoardState): BoardSessionState {
+    board = limitTeams(board);
     if (equalBoards(this.board, board)) return this.current;
     this.past = [...this.past, this.board].slice(-HISTORY_LIMIT);
     this.future = [];

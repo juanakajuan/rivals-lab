@@ -33,6 +33,7 @@ import {
 } from "./comps";
 import { downloadBlob } from "./downloadBlob";
 import { MAPS } from "./maps";
+import { TEAM_SIZE } from "./heroes";
 import {
   decodeOpenCompSnapshot,
   emptyOpenComp,
@@ -276,6 +277,7 @@ async function boot(onReplaced: () => void): Promise<{
 function decodeBoardRecord(
   value: unknown,
   customMaps: readonly CustomBoardMap[],
+  allowLegacyTeams = false,
 ): { readonly board: BoardState; readonly iconSize: IconSize } {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Invalid Position Board.");
@@ -291,6 +293,16 @@ function decodeBoardRecord(
   const tokens = record.tokens.map(decodeToken);
   if (new Set(tokens.map((token) => token.id)).size !== tokens.length)
     throw new Error("A hero appears twice on the Position Board.");
+  if (
+    !allowLegacyTeams &&
+    ["ally", "enemy"].some(
+      (team) =>
+        tokens.filter((token) => token.team === team).length > TEAM_SIZE,
+    )
+  )
+    throw new Error(
+      `Position Board teams cannot exceed ${TEAM_SIZE} heroes. Remove extra heroes before importing this backup.`,
+    );
   const drawings = record.drawingsByMap;
   if (
     typeof drawings !== "object" ||
@@ -345,7 +357,7 @@ function decodeStoredRecords(records: StoredRecords): {
     ),
   );
   const { board, iconSize } = lenient(
-    () => decodeBoardRecord(records.board, customMaps),
+    () => decodeBoardRecord(records.board, customMaps, true),
     () => ({ board: initialBoard(), iconSize: DEFAULT_ICON_SIZE }),
   );
   return {

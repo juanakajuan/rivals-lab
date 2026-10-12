@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { HEROES } from "../src/heroes";
+import { TEAM_SIZE } from "../src/heroes";
 
 async function boardPoint(
   page: Page,
@@ -77,6 +77,65 @@ for (const key of ["Enter", "Space"]) {
     await expect(page.locator(".selection-summary")).toHaveCount(0);
   });
 }
+
+test("six per team disables Add and rejects new drops while allowing moves and removal", async ({
+  page,
+}) => {
+  await page.goto("/board");
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  const canvas = page.locator(".stage-host canvas").last();
+  for (const label of ["Allies", "Opponents"]) {
+    const team = page.getByRole("button", { name: new RegExp(`^${label}`) });
+    await team.click();
+    for (let index = 0; index < TEAM_SIZE; index++) {
+      await page
+        .getByRole("button", { name: new RegExp(`^Add .+ to ${label}$`) })
+        .first()
+        .click();
+    }
+    await expect(team).toHaveText(`${label} 6`);
+    const adds = page.getByRole("button", {
+      name: new RegExp(`^Add .+ to ${label}$`),
+    });
+    for (const add of await adds.all()) await expect(add).toBeDisabled();
+    const newRow = adds.first().locator("..");
+    await newRow.dragTo(canvas, {
+      sourcePosition: { x: 60, y: 21 },
+      targetPosition: { x: 200, y: 200 },
+    });
+    await expect(team).toHaveText(`${label} 6`);
+    await expect(page.locator("[aria-live='polite']")).toHaveText(
+      `${label} is full (6 heroes). Remove a hero first.`,
+    );
+    const angela = page.getByRole("button", {
+      name: `Remove Angela from ${label}`,
+      exact: true,
+    });
+    await angela
+      .locator("..")
+      .dragTo(canvas, {
+        sourcePosition: { x: 60, y: 21 },
+        targetPosition: { x: 220, y: 220 },
+      });
+    await expect(page.locator(".selection-name strong")).toHaveText("Angela");
+    await expect(team).toHaveText(`${label} 6`);
+    await angela.click();
+    await expect(adds.first()).toBeEnabled();
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(adds.first()).toBeDisabled();
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(adds.first()).toBeEnabled();
+    await adds.first().click();
+    await expect(team).toHaveText(`${label} 6`);
+  }
+  await page.reload();
+  await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
+    "Allies 6",
+  );
+  await expect(page.getByRole("button", { name: /^Opponents/ })).toHaveText(
+    "Opponents 6",
+  );
+});
 
 test("Add and Remove preserve other tokens and native row dragging", async ({
   page,
@@ -157,8 +216,8 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
 });
 
 for (const { iconSize, count } of [
-  { iconSize: 140, count: 18 },
-  { iconSize: 150, count: HEROES.length },
+  { iconSize: 140, count: TEAM_SIZE },
+  { iconSize: 150, count: TEAM_SIZE },
 ]) {
   test(`${iconSize}% keeps ${count} added heroes apart and preserves positions`, async ({
     page,

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import type {} from "./fixtures/appData.ts";
+import { HEROES } from "../src/heroes";
 import {
   decodeCompLibrary,
   emptyComp,
@@ -11,6 +12,47 @@ async function openHarness(page: Page): Promise<void> {
   await page.goto("/tests/fixtures/appData.html");
   await page.waitForFunction(() => "appDataHarness" in window);
 }
+
+test("legacy saved teams migrate to six, show a notice, and autosave the retained board", async ({
+  page,
+}) => {
+  await openHarness(page);
+  const tokens = HEROES.slice(0, 8).flatMap((hero, index) =>
+    (["ally", "enemy"] as const).map((team) => ({
+      id: `${team}-${hero.id}`,
+      heroId: hero.id,
+      team,
+      x: 100 + index * 50,
+      y: 100,
+    })),
+  );
+  await page.evaluate(async (tokens) => {
+    const data = await window.appDataHarness.openAppData();
+    data.autosave.sync({
+      ...data.workspace,
+      board: { ...data.workspace.board, tokens },
+    });
+    await data.autosave.flush();
+  }, tokens);
+  await page.goto("/board");
+  await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
+    "Allies 6",
+  );
+  await expect(page.getByRole("button", { name: /^Opponents/ })).toHaveText(
+    "Opponents 6",
+  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "Saved board limited" }),
+  ).toHaveText(
+    "Saved board limited to the first 6 heroes per team. Extra placements were removed.",
+  );
+  await openHarness(page);
+  const retained = await page.evaluate(
+    async () =>
+      (await window.appDataHarness.openAppData()).workspace.board.tokens,
+  );
+  expect(retained).toEqual(tokens.slice(0, 12));
+});
 
 test("a board token and a custom map drawing survive a reload", async ({
   page,
@@ -453,6 +495,18 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
     /"sourceBytes":(\d+)/,
     (_, bytes: string) => `"sourceBytes":${Number(bytes) + 1}`,
   );
+  const overfull = backup.replace(
+    /"tokens":\[[^\]]*\]/,
+    `"tokens":${JSON.stringify(
+      HEROES.slice(0, 7).map((hero) => ({
+        id: `ally-${hero.id}`,
+        heroId: hero.id,
+        team: "ally",
+        x: 100,
+        y: 100,
+      })),
+    )}`,
+  );
   const cases: readonly (readonly [string, string, number?])[] = [
     ["{", "This file is damaged or is not JSON."],
     [
@@ -485,6 +539,7 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
       "Unknown map: retired-map.",
     ],
     [crowded, "A map can hold at most 2,000 drawings."],
+    [overfull, "Position Board teams cannot exceed 6 heroes."],
     [resized, "cannot be read."],
   ];
   for (const [file, message, size] of cases)

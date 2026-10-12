@@ -5,7 +5,7 @@ import {
   type BoardDrawing,
   type MeasureBoardNote,
 } from "../src/boardDrawings";
-import { tokenBoundary } from "../src/boardTokens";
+import { HEROES, TEAM_SIZE } from "../src/heroes";
 import { emptyComp } from "../src/comps";
 import { DEFAULT_MAP_ID } from "../src/maps";
 
@@ -192,7 +192,7 @@ test("placement bounds, team identity, and free positions use the current icon s
   });
 });
 
-test("free placement uses visible positions, falls back to the other half, and preserves a full board", () => {
+test("free placement uses visible positions", () => {
   const session = new BoardSession(
     measureNote,
     {
@@ -206,47 +206,49 @@ test("free placement uses visible positions, falls back to the other half, and p
   expect(session.addHero({ heroId: "angela", team: "ally" })).toMatchObject({
     token: { x: 152, y: 76 },
   });
+});
 
-  const boundary = tokenBoundary(150);
-  const spacing = boundary * 2 + 4;
-  const halfWidth = 600;
-  const height = 654;
-  const blockers = [];
-  let index = 0;
-  for (const startX of [0, halfWidth]) {
-    for (let y = spacing; y <= height - boundary; y += spacing) {
-      for (
-        let x = startX + spacing;
-        x <= startX + halfWidth - boundary;
-        x += spacing
-      ) {
-        blockers.push({
-          id: `ally-block-${index}`,
-          heroId: "strange",
-          team: "ally" as const,
-          x,
-          y,
-        });
-        index += 1;
-      }
+test("teams cap additions without blocking moves or changing history on rejection", () => {
+  const session = new BoardSession(measureNote, { ...initial, tokens: [] });
+  for (const team of ["ally", "enemy"] as const) {
+    for (const hero of HEROES.slice(0, TEAM_SIZE)) {
+      expect(session.addHero({ heroId: hero.id, team }).kind).toBe("added");
     }
+    const full = session.state;
+    expect(session.addHero({ heroId: "luna", team })).toEqual({
+      kind: "team-full",
+    });
+    expect(
+      session.placeHero({ heroId: "luna", team, point: { x: 200, y: 200 } }),
+    ).toEqual({ kind: "team-full" });
+    expect(session.state).toBe(full);
+    expect(
+      session.placeHero({ heroId: "angela", team, point: { x: 200, y: 200 } })
+        .kind,
+    ).toBe("moved");
+    session.undo();
+    const withRedo = session.state;
+    session.addHero({ heroId: "luna", team });
+    expect(session.state).toBe(withRedo);
+    session.removeToken(`${team}-angela`);
+    expect(session.addHero({ heroId: "luna", team }).kind).toBe("added");
   }
-  const occupied = new BoardSession(
-    measureNote,
-    { ...initial, tokens: blockers },
-    150,
+});
+
+test("legacy boards keep the first six placements independently per team", () => {
+  const tokens = HEROES.slice(0, 8).flatMap((hero, index) =>
+    (["ally", "enemy"] as const).map((team) => ({
+      id: `${team}-${hero.id}`,
+      heroId: hero.id,
+      team,
+      x: index * 50,
+      y: 100,
+    })),
   );
-  const full = occupied.state;
-  expect(occupied.addHero({ heroId: "luna", team: "ally" })).toEqual({
-    kind: "full",
-  });
-  expect(occupied.state).toBe(full);
-  const freed = blockers[0];
-  if (!freed) throw new Error("Expected a blocking token.");
-  occupied.removeToken(freed.id);
-  expect(occupied.addHero({ heroId: "luna", team: "ally" })).toMatchObject({
-    token: { x: freed.x, y: freed.y },
-  });
+  const session = new BoardSession(measureNote, { ...initial, tokens });
+  expect(session.state.tokens).toEqual(tokens.slice(0, TEAM_SIZE * 2));
+  session.clear();
+  expect(session.undo().tokens).toEqual(tokens.slice(0, TEAM_SIZE * 2));
 });
 
 test("drawings remain isolated by map through edit, clear, reset, and history", () => {

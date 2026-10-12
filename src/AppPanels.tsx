@@ -16,6 +16,7 @@ import {
 } from "./boardTokens";
 import {
   heroImagePath,
+  TEAM_SIZE,
   teamLabel,
   type HeroDefinition,
   type Team,
@@ -34,6 +35,7 @@ export type BoardUploadState =
   | { readonly kind: "error"; readonly message: string };
 
 interface HeroPanelProps {
+  readonly notice: string | null;
   readonly selectedTeam: Team;
   readonly allyCount: number;
   readonly enemyCount: number;
@@ -52,6 +54,7 @@ interface HeroPanelProps {
 }
 
 export function HeroPanel({
+  notice,
   selectedTeam,
   allyCount,
   enemyCount,
@@ -70,7 +73,11 @@ export function HeroPanel({
       <div className="hero-panel-header">
         <div className="sidebar-heading">
           <h2 id="heroes-heading">Heroes</h2>
-          <p>Choose a team, then add or drag a hero onto the map.</p>
+          <p>
+            Choose a team, then add or drag a hero onto the map. Up to{" "}
+            {TEAM_SIZE} heroes per team.
+          </p>
+          {notice ? <p role="status">{notice}</p> : null}
         </div>
 
         <div className="team-picker" aria-label="Team for new heroes">
@@ -123,6 +130,10 @@ export function HeroPanel({
                 hero={hero}
                 team={selectedTeam}
                 token={token}
+                teamFull={
+                  (selectedTeam === "ally" ? allyCount : enemyCount) >=
+                  TEAM_SIZE
+                }
                 onDragStart={onHeroDragStart}
                 onDragEnd={onHeroDragEnd}
                 onAdd={onHeroAdd}
@@ -143,6 +154,7 @@ interface HeroRowProps {
   readonly hero: HeroDefinition;
   readonly team: Team;
   readonly token: BoardToken | undefined;
+  readonly teamFull: boolean;
   readonly onDragStart: (
     event: DragEvent<HTMLDivElement>,
     hero: HeroDefinition,
@@ -156,6 +168,7 @@ function HeroRow({
   hero,
   team,
   token,
+  teamFull,
   onDragStart,
   onDragEnd,
   onAdd,
@@ -184,7 +197,12 @@ function HeroRow({
         className="row-action"
         type="button"
         aria-label={actionLabel}
-        title={actionLabel}
+        title={
+          !token && teamFull
+            ? `${teamLabel(team)} is full (${TEAM_SIZE} heroes). Remove a hero first.`
+            : actionLabel
+        }
+        disabled={!token && teamFull}
         onClick={() => (token ? onRemove(token) : onAdd(hero))}
       >
         {token ? (
