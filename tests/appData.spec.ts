@@ -2,11 +2,8 @@ import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import type {} from "./fixtures/appData.ts";
 import { HEROES } from "../src/heroes";
-import {
-  decodeCompLibrary,
-  emptyComp,
-  serializeCompLibrary,
-} from "../src/comps";
+import { emptyComp } from "../src/comps";
+import { decodeCompLibrary, serializeCompLibrary } from "../src/compLibrary";
 
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/tests/fixtures/appData.html");

@@ -42,10 +42,6 @@ export interface SavedComp {
 
 export const MAX_COMP_MAPS = COMP_MAPS.length;
 
-export const COMP_STORAGE_KEY = "rivals-lab.comps.v1";
-export const MAX_IMPORT_BYTES = 2_000_000;
-export const MAX_SAVED_COMPS = 500;
-
 export function compSlot(
   heroId: string | null,
   notes: string,
@@ -88,11 +84,11 @@ export function emptyComp(): Comp {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function record(value: unknown): Record<string, unknown> {
+export function record(value: unknown): Record<string, unknown> {
   if (!isRecord(value))
     throw new Error("Invalid comp data. Expected an object.");
   return value;
@@ -104,7 +100,7 @@ function text(value: unknown, limit: number): string {
   return value;
 }
 
-function items(value: unknown, limit: number): readonly unknown[] {
+export function items(value: unknown, limit: number): readonly unknown[] {
   if (!Array.isArray(value) || value.length > limit)
     throw new Error("Invalid or oversized list in comp data.");
   return value;
@@ -224,14 +220,7 @@ export function decodeOpenComp(value: unknown): Comp {
   return decodeCompWithName(value, (name) => text(name, 100));
 }
 
-export interface CompLibrary {
-  readonly entries: readonly SavedComp[];
-  readonly unavailable: readonly unknown[];
-  readonly errors: readonly string[];
-  readonly envelope: Readonly<Record<string, unknown>>;
-}
-
-function decodeSavedComp(value: unknown): SavedComp {
+export function decodeSavedComp(value: unknown): SavedComp {
   const saved = record(value);
   const id = text(saved.id, 100);
   if (!id) throw new Error("Invalid comp ID.");
@@ -239,73 +228,4 @@ function decodeSavedComp(value: unknown): SavedComp {
   if (!Number.isFinite(Date.parse(updatedAt)))
     throw new Error("Invalid comp date.");
   return { id, updatedAt, comp: decodeComp(saved.comp) };
-}
-
-/** Validate the envelope first, then isolate entries that cannot be loaded. */
-export function decodeCompLibrary(source: string): CompLibrary {
-  const data: unknown = JSON.parse(source);
-  const envelope = record(data);
-  if (envelope.version !== 1) throw new Error("Unsupported comp file version.");
-  const raw = items(envelope.comps, MAX_SAVED_COMPS);
-  const idCounts = new Map<string, number>();
-  for (const item of raw)
-    if (isRecord(item) && typeof item.id === "string")
-      idCounts.set(item.id, (idCounts.get(item.id) ?? 0) + 1);
-  const entries: SavedComp[] = [];
-  const unavailable: unknown[] = [];
-  const errors: string[] = [];
-  for (const item of raw) {
-    try {
-      if (
-        isRecord(item) &&
-        typeof item.id === "string" &&
-        (idCounts.get(item.id) ?? 0) > 1
-      )
-        throw new Error("Duplicate comp ID.");
-      entries.push(decodeSavedComp(item));
-    } catch (error) {
-      unavailable.push(item);
-      errors.push(
-        error instanceof Error ? error.message : "Invalid comp data.",
-      );
-    }
-  }
-  return { entries, unavailable, errors, envelope };
-}
-
-/** Join load errors, showing each distinct message once. */
-export function libraryErrorSummary(library: CompLibrary): string {
-  return [...new Set(library.errors)].join(" ");
-}
-
-/** Imports are atomic: reject files with unavailable entries without changing storage. */
-export function parseCompLibrary(source: string): readonly SavedComp[] {
-  const library = decodeCompLibrary(source);
-  if (library.errors.length) throw new Error(libraryErrorSummary(library));
-  return library.entries;
-}
-
-export class StoredLibrarySource {
-  private constructor(readonly text: string) {}
-
-  static encode(library: CompLibrary): StoredLibrarySource {
-    const ids = new Set(library.entries.map((entry) => entry.id));
-    for (const item of library.unavailable)
-      if (isRecord(item) && typeof item.id === "string" && ids.has(item.id))
-        throw new Error("A comp ID belongs to an unavailable entry.");
-    const comps = [...library.entries, ...library.unavailable];
-    if (comps.length > MAX_SAVED_COMPS)
-      throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
-    parseCompLibrary(serializeCompLibrary(library.entries));
-    const source = JSON.stringify({ ...library.envelope, comps }, null, 2);
-    if (new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES)
-      throw new Error(
-        "The library limit is 2 MB. Export and remove older comps to make space.",
-      );
-    return new StoredLibrarySource(source);
-  }
-}
-
-export function serializeCompLibrary(comps: readonly SavedComp[]): string {
-  return JSON.stringify({ version: 1, comps }, null, 2);
 }

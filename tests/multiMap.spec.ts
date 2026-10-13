@@ -1,10 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { applyCompEdit } from "../src/compEdits";
-import {
-  emptyComp,
-  parseCompLibrary,
-  serializeCompLibrary,
-} from "../src/comps";
+import { emptyComp } from "../src/comps";
+import { parseCompLibrary, serializeCompLibrary } from "../src/compLibrary";
 
 function libraryWith(comp: unknown): string {
   return JSON.stringify({

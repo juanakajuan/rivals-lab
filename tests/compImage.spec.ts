@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { emptyDraft, setDraftHero } from "../src/draft";
-import { emptyComp, serializeCompLibrary, type Comp } from "../src/comps";
+import { emptyComp, type Comp } from "../src/comps";
+import { serializeCompLibrary } from "../src/compLibrary";
 import {
   addCompCopies,
   exportCompLibrary,
