@@ -12,7 +12,9 @@ import {
   type CompLibrary,
 } from "../src/compLibrary";
 import type { CompStorage } from "../src/appData";
+import { readImportFile, type StoredState } from "../src/backup";
 import { prependCompCopies } from "../src/savedComps";
+import { decodeBoardRecord, decodeStoredRecords } from "../src/workspaceRecord";
 
 const MAP_ID = "custom:0b4c5f7e-8c1d-4f2a-9e3b-6a7d8c9e0f12";
 
@@ -268,4 +270,64 @@ test("copies are prepended with new IDs and existing comps stay", async () => {
   expect(entries[2]?.id).toBe("dive");
   expect(new Set(entries.map((entry) => entry.id)).size).toBe(3);
   expect(entries[0]?.updatedAt).not.toBe("2026-10-01T12:00:00.000Z");
+});
+
+const HEROES = [
+  "angela",
+  "captain-america",
+  "devil-dinosaur",
+  "strange",
+  "emma-frost",
+  "groot",
+  "hulk",
+] as const;
+
+function boardRecord(allies: number): Record<string, unknown> {
+  return {
+    mapId: "birnin-tchalla-domination",
+    tokens: HEROES.slice(0, allies).map((heroId, index) => ({
+      id: `ally-${heroId}`,
+      heroId,
+      team: "ally",
+      x: index,
+      y: index,
+    })),
+    drawingsByMap: {},
+    iconSize: 120,
+  };
+}
+
+test("board records cap teams except for boards this browser already saved", () => {
+  expect(() => decodeBoardRecord(boardRecord(7), [])).toThrow(
+    "Position Board teams cannot exceed 6 heroes. Remove extra heroes before importing this backup.",
+  );
+  expect(decodeBoardRecord(boardRecord(7), [], true).board.tokens).toHaveLength(
+    7,
+  );
+  expect(decodeBoardRecord(boardRecord(6), []).iconSize).toBe(120);
+});
+
+test("damaged stored records fall back to empty state one by one", () => {
+  const { workspace, library } = decodeStoredRecords({
+    library: "not json",
+    board: boardRecord(7),
+    openComp: { broken: true },
+    customMaps: [{ id: "custom:bad" }],
+  });
+  expect(workspace.board.tokens).toHaveLength(7);
+  expect(workspace.iconSize).toBe(120);
+  expect(workspace.customMaps).toEqual([]);
+  expect(workspace.openComp.comp.name).toBe("");
+  expect(library.entries).toEqual([]);
+});
+
+test("an import plan applies its comps only once", async () => {
+  const text = serializeCompLibrary([saved("c1", "Dive")]);
+  const plan = await readImportFile(
+    { size: text.length, text: () => Promise.resolve(text) },
+    () => Promise.reject<StoredState>(new Error("not needed")),
+  );
+  expect(plan.preview).toEqual({ kind: "addComps", count: 1, names: ["Dive"] });
+  expect(plan.take().kind).toBe("addComps");
+  expect(() => plan.take()).toThrow("This import was already applied.");
 });

@@ -63,7 +63,7 @@ export default function App({
 }: {
   readonly data: AppData;
 }): React.JSX.Element {
-  const { workspace, autosave, comps, compStart } = data;
+  const { workspace, autosave, comps, compStart, backup } = data;
   const [route, setRoute] = useState<Route>(() => {
     const initial = routeFromPath();
     canonicalizePath(initial);
@@ -167,7 +167,7 @@ export default function App({
       </div>
       {board.overlays}
       {backupOpen ? (
-        <BackupDialog onClose={() => setBackupOpen(false)} />
+        <BackupDialog backup={backup} onClose={() => setBackupOpen(false)} />
       ) : null}
       <StorageNotice autosave={autosave} />
     </div>

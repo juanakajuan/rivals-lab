@@ -1,19 +1,16 @@
-import {
-  applyImport,
-  exportBackup,
-  openAppData,
-  readImportFile,
-  type ImportOutcome,
-  type ImportPlan,
-  type ImportPreview,
-} from "../../src/appData.ts";
+import { openAppData, type AppData } from "../../src/appData.ts";
+import type {
+  ImportOutcome,
+  ImportPlan,
+  ImportPreview,
+} from "../../src/backup.ts";
 import { uploadBoardMap, type CustomBoardMap } from "../../src/boardMaps.ts";
 import { prependCompCopies } from "../../src/savedComps.ts";
 
 interface AppDataHarness {
   readonly openAppData: typeof openAppData;
   readonly prependCompCopies: typeof prependCompCopies;
-  readonly exportBackup: typeof exportBackup;
+  exportBackup(): Promise<void>;
   readImport(text: string, size?: number): Promise<ImportPreview>;
   applyImport(): Promise<ImportOutcome>;
   createMap(
@@ -80,19 +77,28 @@ function withStore(
   });
 }
 
+let opened: AppData | null = null;
 let plan: ImportPlan | null = null;
 
+function openedData(): AppData {
+  if (!opened) throw new Error("Rivals Lab data is not open yet.");
+  return opened;
+}
+
 window.appDataHarness = {
-  openAppData,
+  openAppData: async () => (opened = await openAppData()),
   prependCompCopies,
-  exportBackup,
+  exportBackup: () => openedData().backup.exportBackup(),
   readImport: async (text, size = new Blob([text]).size) => {
-    plan = await readImportFile({ size, text: () => Promise.resolve(text) });
+    plan = await openedData().backup.readImportFile({
+      size,
+      text: () => Promise.resolve(text),
+    });
     return plan.preview;
   },
   applyImport: () => {
     if (!plan) throw new Error("No import plan was read.");
-    return applyImport(plan);
+    return openedData().backup.applyImport(plan);
   },
   createMap,
   storedRecord: (store, key) =>

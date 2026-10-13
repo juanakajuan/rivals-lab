@@ -1,63 +1,30 @@
 import {
-  MAX_DRAWINGS_PER_MAP,
-  decodeDrawing,
-  drawingLimitMessage,
-  type BoardDrawing,
-} from "./boardDrawings";
-import {
-  decodeCustomMap,
-  resolveBoardMap,
-  verifyCustomMapImages,
-  type BoardMapId,
-  type CustomBoardMap,
-  type SelectedBoardMap,
-} from "./boardMaps";
-import { initialBoard, type BoardState } from "./boardSession";
-import {
-  DEFAULT_ICON_SIZE,
-  decodeToken,
-  parseIconSize,
-  type BoardToken,
-  type IconSize,
-} from "./boardTokens";
+  readImportFile,
+  encodeBackup,
+  type ImportOutcome,
+  type ImportPlan,
+  type ImportSource,
+  type StoredState,
+} from "./backup";
 import {
   COMP_STORAGE_KEY,
-  EMPTY_LIBRARY,
-  IMPORT_TOO_LARGE,
-  MAX_IMPORT_BYTES,
-  StoredLibrarySource,
-  decodeCompLibrary,
-  decodeCompLibraryValue,
-  parseCompLibrary,
-  serializeCompLibrary,
   updateLibrarySource,
   type CompLibrary,
 } from "./compLibrary";
-import { sameComp, type SavedComp } from "./comps";
 import { downloadBlob } from "./downloadBlob";
-import { MAPS } from "./maps";
-import { TEAM_SIZE } from "./heroes";
+import { prependCompCopies, type SavedCompSessionStart } from "./savedComps";
 import {
-  decodeOpenCompSnapshot,
-  emptyOpenComp,
-  openCompLink,
-  prependCompCopies,
-  type OpenCompLink,
-  type OpenCompSnapshot,
-  type SavedCompSessionStart,
-} from "./savedComps";
+  EMPTY_STORED_RECORDS,
+  decodeStoredRecords,
+  encodeBoardRecord,
+  type StoredRecords,
+  type Workspace,
+} from "./workspaceRecord";
 
 export interface CompStorage {
   read(): Promise<string | null>;
   update(transform: (library: CompLibrary) => CompLibrary): Promise<void>;
   subscribe(onChange: () => void): () => void;
-}
-
-export interface Workspace {
-  readonly board: BoardState;
-  readonly customMaps: readonly CustomBoardMap[];
-  readonly iconSize: IconSize;
-  readonly openComp: OpenCompSnapshot;
 }
 
 export type AutosaveStatus =
@@ -76,6 +43,13 @@ export interface AppData {
   readonly comps: CompStorage;
   readonly compStart: SavedCompSessionStart;
   readonly autosave: WorkspaceAutosave;
+  readonly backup: BackupStore;
+}
+
+export interface BackupStore {
+  exportBackup(): Promise<void>;
+  readImportFile(file: ImportSource): Promise<ImportPlan>;
+  applyImport(plan: ImportPlan): Promise<ImportOutcome>;
 }
 
 export const REPLACED_ELSEWHERE_MESSAGE =
@@ -89,12 +63,10 @@ const CUSTOM_MAPS = "custom-maps";
 type StoreName = typeof LIBRARY | typeof WORKSPACE | typeof CUSTOM_MAPS;
 type Read = readonly [store: StoreName, key: IDBValidKey | null];
 
-interface BoardRecord {
-  readonly mapId: BoardMapId;
-  readonly tokens: readonly BoardToken[];
-  readonly drawingsByMap: BoardState["drawingsByMap"];
-  readonly iconSize: IconSize;
-}
+// These names are persisted or shared with open tabs, so they keep the legacy localStorage key.
+const LIBRARY_KEY = COMP_STORAGE_KEY;
+const CHANNEL_NAME = COMP_STORAGE_KEY;
+const WORKSPACE_REPLACED = "workspaceReplaced";
 
 class ReplacedElsewhereError extends Error {
   constructor() {
@@ -188,13 +160,6 @@ class Connection {
   }
 }
 
-interface StoredRecords {
-  readonly library: string | null;
-  readonly board: unknown;
-  readonly openComp: unknown;
-  readonly customMaps: readonly unknown[];
-}
-
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise<IDBDatabase>((resolve, reject) => {
     if (typeof indexedDB === "undefined") {
@@ -233,7 +198,7 @@ async function boot(onReplaced: () => void): Promise<{
       [LIBRARY, WORKSPACE, CUSTOM_MAPS],
       "readwrite",
       [
-        [LIBRARY, COMP_STORAGE_KEY],
+        [LIBRARY, LIBRARY_KEY],
         [WORKSPACE, "epoch"],
         [WORKSPACE, "board"],
         [WORKSPACE, "openComp"],
@@ -243,7 +208,7 @@ async function boot(onReplaced: () => void): Promise<{
         let source: string | null;
         if (library === undefined) {
           source = localStorage.getItem(COMP_STORAGE_KEY);
-          active.objectStore(LIBRARY).put(source, COMP_STORAGE_KEY);
+          active.objectStore(LIBRARY).put(source, LIBRARY_KEY);
         } else source = storedSource(library);
         let epoch: string;
         if (typeof storedEpoch === "string") epoch = storedEpoch;
@@ -268,109 +233,6 @@ async function boot(onReplaced: () => void): Promise<{
   }
 }
 
-function decodeBoardRecord(
-  value: unknown,
-  customMaps: readonly CustomBoardMap[],
-  allowLegacyTeams = false,
-): { readonly board: BoardState; readonly iconSize: IconSize } {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new Error("Invalid Position Board.");
-  const record: Partial<Record<string, unknown>> = value;
-  const maps = new Map<string, SelectedBoardMap>([
-    ...MAPS.map(({ id }) => [id, { kind: "builtin", id }] as const),
-    ...customMaps.map((map) => [map.id, map] as const),
-  ]);
-  const map = typeof record.mapId === "string" && maps.get(record.mapId);
-  if (!map) throw new Error("The Position Board map is missing.");
-  if (!Array.isArray(record.tokens) || record.tokens.length > 200)
-    throw new Error("Invalid hero token list.");
-  const tokens = record.tokens.map(decodeToken);
-  if (new Set(tokens.map((token) => token.id)).size !== tokens.length)
-    throw new Error("A hero appears twice on the Position Board.");
-  if (
-    !allowLegacyTeams &&
-    ["ally", "enemy"].some(
-      (team) =>
-        tokens.filter((token) => token.team === team).length > TEAM_SIZE,
-    )
-  )
-    throw new Error(
-      `Position Board teams cannot exceed ${TEAM_SIZE} heroes. Remove extra heroes before importing this backup.`,
-    );
-  const drawings = record.drawingsByMap;
-  if (
-    typeof drawings !== "object" ||
-    drawings === null ||
-    Array.isArray(drawings)
-  )
-    throw new Error("Invalid board drawings.");
-  const drawingsByMap: Partial<Record<BoardMapId, readonly BoardDrawing[]>> =
-    {};
-  for (const [mapId, list] of Object.entries(drawings)) {
-    const owner = maps.get(mapId);
-    if (!owner) throw new Error("Board drawings belong to a missing map.");
-    if (!Array.isArray(list)) throw new Error("Invalid board drawings.");
-    if (list.length > MAX_DRAWINGS_PER_MAP)
-      throw new Error(drawingLimitMessage());
-    const decoded = list.map(decodeDrawing);
-    if (new Set(decoded.map((drawing) => drawing.id)).size !== decoded.length)
-      throw new Error("A drawing ID appears twice on one map.");
-    drawingsByMap[owner.id] = decoded;
-  }
-  return {
-    board: { map, tokens, drawingsByMap },
-    iconSize: parseIconSize(record.iconSize),
-  };
-}
-
-function encodeBoardRecord(board: BoardState, iconSize: IconSize): BoardRecord {
-  return {
-    mapId: board.map.id,
-    tokens: board.tokens,
-    drawingsByMap: board.drawingsByMap,
-    iconSize,
-  };
-}
-
-function lenient<T>(decode: () => T, fallback: () => T): T {
-  try {
-    return decode();
-  } catch {
-    return fallback();
-  }
-}
-
-function decodeStoredRecords(records: StoredRecords): {
-  readonly workspace: Workspace;
-  readonly library: CompLibrary;
-} {
-  const customMaps = records.customMaps.flatMap((value) =>
-    lenient(
-      () => [decodeCustomMap(value)],
-      () => [],
-    ),
-  );
-  const { board, iconSize } = lenient(
-    () => decodeBoardRecord(records.board, customMaps, true),
-    () => ({ board: initialBoard(), iconSize: DEFAULT_ICON_SIZE }),
-  );
-  return {
-    workspace: {
-      board,
-      customMaps,
-      iconSize,
-      openComp: lenient(
-        () => decodeOpenCompSnapshot(records.openComp),
-        emptyOpenComp,
-      ),
-    },
-    library: lenient(
-      () => decodeCompLibrary(records.library ?? serializeCompLibrary([])),
-      () => EMPTY_LIBRARY,
-    ),
-  };
-}
-
 class BrowserCompStorage implements CompStorage {
   private readonly listeners = new Set<() => void>();
   private channel: BroadcastChannel | null = null;
@@ -391,7 +253,7 @@ class BrowserCompStorage implements CompStorage {
       database,
       [LIBRARY],
       "readonly",
-      [[LIBRARY, COMP_STORAGE_KEY]],
+      [[LIBRARY, LIBRARY_KEY]],
       ([value]) => storedSource(value),
     );
   }
@@ -402,13 +264,13 @@ class BrowserCompStorage implements CompStorage {
     const connection = await this.connection;
     await connection.write(
       [LIBRARY],
-      [[LIBRARY, COMP_STORAGE_KEY]],
+      [[LIBRARY, LIBRARY_KEY]],
       ([value], active) => {
         active
           .objectStore(LIBRARY)
           .put(
             updateLibrarySource(storedSource(value), transform).text,
-            COMP_STORAGE_KEY,
+            LIBRARY_KEY,
           );
       },
     );
@@ -420,7 +282,7 @@ class BrowserCompStorage implements CompStorage {
     this.listeners.add(onChange);
     if (this.listeners.size === 1) {
       if (typeof BroadcastChannel !== "undefined") {
-        this.channel = new BroadcastChannel(COMP_STORAGE_KEY);
+        this.channel = new BroadcastChannel(CHANNEL_NAME);
         this.channel.addEventListener("message", this.receive);
       }
       window.addEventListener("focus", this.notify);
@@ -572,87 +434,13 @@ class BrowserAutosave implements WorkspaceAutosave {
   }
 }
 
-interface OpenedData {
-  readonly connection: Promise<Connection>;
-  readonly autosave: BrowserAutosave;
-  readonly comps: BrowserCompStorage;
-  readonly channel: BroadcastChannel | null;
-}
-
-let opened: OpenedData | null = null;
-
-function openedData(): OpenedData {
-  if (!opened) throw new Error("Rivals Lab data is not open yet.");
-  return opened;
-}
-
-const WORKSPACE_REPLACED = "workspaceReplaced";
-
-export async function openAppData(): Promise<AppData> {
-  let autosave: BrowserAutosave | null = null;
-  const replaced = (): void => autosave?.stop({ kind: "replacedElsewhere" });
-  const booting = boot(replaced);
-  const connection = booting.then(({ connection }) => connection);
-  connection.catch(() => {});
-  autosave = new BrowserAutosave(connection);
-  const records = await booting.then(
-    ({ records }) => records,
-    (): StoredRecords => ({
-      library: null,
-      board: undefined,
-      openComp: undefined,
-      customMaps: [],
-    }),
-  );
-  const { workspace, library } = decodeStoredRecords(records);
-  autosave.prime(workspace);
-  const comps = new BrowserCompStorage(connection);
-  const channel =
-    typeof BroadcastChannel === "undefined"
-      ? null
-      : new BroadcastChannel(COMP_STORAGE_KEY);
-  channel?.addEventListener("message", (event: MessageEvent<unknown>) => {
-    if (event.data === WORKSPACE_REPLACED) replaced();
-  });
-  opened?.channel?.close();
-  opened = { connection, autosave, comps, channel };
-  return {
-    workspace,
-    comps,
-    compStart: { openComp: workspace.openComp, library },
-    autosave,
-  };
-}
-
-export const MAX_BACKUP_BYTES = 80 * 1024 * 1024;
-
-const BACKUP_FORMAT = "rivals-lab-backup";
-const BACKUP_TOO_LARGE =
-  "This backup is larger than 80 MiB. A Rivals Lab backup holds up to 50 MiB of map images and 2 MB of saved comps.";
-const NOT_A_BACKUP = "This file is not a Rivals Lab backup or comps file.";
-const ALREADY_APPLIED = "This import was already applied.";
-
-interface BackupFile {
-  readonly format: typeof BACKUP_FORMAT;
-  readonly version: 1;
-  readonly exportedAt: string;
-  readonly library: unknown;
-  readonly board: BoardRecord;
-  readonly customMaps: readonly CustomBoardMap[];
-  readonly openComp: OpenCompSnapshot;
-}
-
-function utf8Length(text: string): number {
-  return new TextEncoder().encode(text).byteLength;
-}
-
 function readStoredRecords(connection: Connection): Promise<StoredRecords> {
   return transaction(
     connection.database,
     [LIBRARY, WORKSPACE, CUSTOM_MAPS],
     "readonly",
     [
-      [LIBRARY, COMP_STORAGE_KEY],
+      [LIBRARY, LIBRARY_KEY],
       [WORKSPACE, "board"],
       [WORKSPACE, "openComp"],
       [CUSTOM_MAPS, null],
@@ -666,251 +454,91 @@ function readStoredRecords(connection: Connection): Promise<StoredRecords> {
   );
 }
 
-async function storedState(): Promise<{
-  readonly records: StoredRecords;
-  readonly workspace: Workspace;
-  readonly library: CompLibrary;
-}> {
-  const { connection, autosave } = openedData();
-  await autosave.flush();
-  const records = await readStoredRecords(await connection);
-  return { records, ...decodeStoredRecords(records) };
-}
+class BrowserBackup implements BackupStore {
+  constructor(
+    private readonly connection: Promise<Connection>,
+    private readonly autosave: BrowserAutosave,
+    private readonly comps: CompStorage,
+    private readonly channel: BroadcastChannel | null,
+  ) {}
 
-function backupDate(date: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+  private async records(): Promise<StoredRecords> {
+    await this.autosave.flush();
+    return readStoredRecords(await this.connection);
+  }
 
-export async function exportBackup(): Promise<void> {
-  const { records, workspace } = await storedState();
-  const exportedAt = new Date();
-  const backup: BackupFile = {
-    format: BACKUP_FORMAT,
-    version: 1,
-    exportedAt: exportedAt.toISOString(),
-    library: JSON.parse(records.library ?? serializeCompLibrary([])),
-    board: encodeBoardRecord(workspace.board, workspace.iconSize),
-    customMaps: workspace.customMaps,
-    openComp: workspace.openComp,
-  };
-  const text = JSON.stringify(backup);
-  if (utf8Length(text) > MAX_BACKUP_BYTES) throw new Error(BACKUP_TOO_LARGE);
-  downloadBlob({
-    blob: new Blob([text], { type: "application/json" }),
-    filename: `rivals-lab-backup-${backupDate(exportedAt)}.json`,
-  });
-}
+  private readonly current = async (): Promise<StoredState> =>
+    decodeStoredRecords(await this.records());
 
-export interface DataSummary {
-  readonly savedComps: number;
-  readonly unavailableComps: number;
-  readonly openComp: {
-    readonly name: string;
-    readonly unsaved: boolean;
-    readonly link: OpenCompLink;
-  } | null;
-  readonly boardMapName: string;
-  readonly heroes: number;
-  readonly drawings: number;
-  readonly mapsWithDrawings: number;
-  readonly customMaps: number;
-  readonly customMapBytes: number;
-  readonly iconSize: IconSize;
-}
+  async exportBackup(): Promise<void> {
+    const records = await this.records();
+    const { workspace } = decodeStoredRecords(records);
+    downloadBlob(encodeBackup(records, workspace, new Date()));
+  }
 
-export type ImportPreview =
-  | {
-      readonly kind: "addComps";
-      readonly count: number;
-      readonly names: readonly string[];
+  readImportFile(file: ImportSource): Promise<ImportPlan> {
+    return readImportFile(file, this.current);
+  }
+
+  async applyImport(plan: ImportPlan): Promise<ImportOutcome> {
+    const payload = plan.take();
+    if (payload.kind === "addComps")
+      return {
+        kind: "added",
+        count: await prependCompCopies(this.comps, payload.comps),
+      };
+    const resume = this.autosave.pause();
+    try {
+      await this.autosave.flush();
+      await (
+        await this.connection
+      ).write([LIBRARY, CUSTOM_MAPS], [], (_, active) => {
+        active.objectStore(LIBRARY).put(payload.library.text, LIBRARY_KEY);
+        const workspace = active.objectStore(WORKSPACE);
+        workspace.put(crypto.randomUUID(), "epoch");
+        workspace.put(payload.board, "board");
+        workspace.put(payload.openComp, "openComp");
+        const maps = active.objectStore(CUSTOM_MAPS);
+        maps.clear();
+        for (const map of payload.customMaps) maps.put(map, map.id);
+      });
+    } catch (error) {
+      resume();
+      throw error;
     }
-  | {
-      readonly kind: "restore";
-      readonly exportedAt: string;
-      readonly file: DataSummary;
-      readonly current: DataSummary;
-    };
-
-export interface ImportSource {
-  readonly size: number;
-  text(): Promise<string>;
+    this.autosave.stop({ kind: "idle" });
+    this.channel?.postMessage(WORKSPACE_REPLACED);
+    window.location.reload();
+    return { kind: "reloading" };
+  }
 }
 
-type ImportPayload =
-  | { readonly kind: "addComps"; readonly comps: readonly SavedComp[] }
-  | {
-      readonly kind: "restore";
-      readonly library: StoredLibrarySource;
-      readonly board: BoardRecord;
-      readonly openComp: OpenCompSnapshot;
-      readonly customMaps: readonly CustomBoardMap[];
-    };
-
-const PLAN = Symbol("ImportPlan");
-
-export interface ImportPlan {
-  readonly preview: ImportPreview;
-  readonly [PLAN]: true;
-}
-
-const payloads = new WeakMap<ImportPlan, ImportPayload>();
-
-function importPlan(
-  preview: ImportPreview,
-  payload: ImportPayload,
-): ImportPlan {
-  const plan: ImportPlan = { preview, [PLAN]: true };
-  payloads.set(plan, payload);
-  return plan;
-}
-
-function summarize(workspace: Workspace, library: CompLibrary): DataSummary {
-  const { board, openComp, customMaps } = workspace;
-  const link = openCompLink(openComp, library.entries);
-  const drawingLists = Object.values(board.drawingsByMap).filter(
-    (list): list is readonly BoardDrawing[] => Boolean(list?.length),
+export async function openAppData(): Promise<AppData> {
+  let autosave: BrowserAutosave | null = null;
+  const replaced = (): void => autosave?.stop({ kind: "replacedElsewhere" });
+  const booting = boot(replaced);
+  const connection = booting.then(({ connection }) => connection);
+  connection.catch(() => {});
+  autosave = new BrowserAutosave(connection);
+  const records = await booting.then(
+    ({ records }) => records,
+    () => EMPTY_STORED_RECORDS,
   );
+  const { workspace, library } = decodeStoredRecords(records);
+  autosave.prime(workspace);
+  const comps = new BrowserCompStorage(connection);
+  const channel =
+    typeof BroadcastChannel === "undefined"
+      ? null
+      : new BroadcastChannel(CHANNEL_NAME);
+  channel?.addEventListener("message", (event: MessageEvent<unknown>) => {
+    if (event.data === WORKSPACE_REPLACED) replaced();
+  });
   return {
-    savedComps: library.entries.length,
-    unavailableComps: library.unavailable.length,
-    openComp:
-      link === "empty"
-        ? null
-        : {
-            name: openComp.comp.name,
-            unsaved: !sameComp(openComp.comp, openComp.baseline),
-            link,
-          },
-    boardMapName: resolveBoardMap(board.map).name,
-    heroes: board.tokens.length,
-    drawings: drawingLists.reduce((total, list) => total + list.length, 0),
-    mapsWithDrawings: drawingLists.length,
-    customMaps: customMaps.length,
-    customMapBytes: customMaps.reduce(
-      (total, map) => total + map.sourceBytes,
-      0,
-    ),
-    iconSize: workspace.iconSize,
+    workspace,
+    comps,
+    compStart: { openComp: workspace.openComp, library },
+    autosave,
+    backup: new BrowserBackup(connection, autosave, comps, channel),
   };
-}
-
-async function restorePlan(
-  file: Partial<Record<string, unknown>>,
-): Promise<ImportPlan> {
-  const { exportedAt } = file;
-  if (
-    typeof exportedAt !== "string" ||
-    !Number.isFinite(Date.parse(exportedAt))
-  )
-    throw new Error("The backup date is invalid.");
-  if (!Array.isArray(file.customMaps))
-    throw new Error("The backup has no custom map list.");
-  const customMaps = file.customMaps.map(decodeCustomMap);
-  if (new Set(customMaps.map((map) => map.id)).size !== customMaps.length)
-    throw new Error("A custom map appears twice in this backup.");
-  const { board, iconSize } = decodeBoardRecord(file.board, customMaps);
-  const openComp = decodeOpenCompSnapshot(file.openComp);
-  if (typeof file.library !== "object" || file.library === null)
-    throw new Error("The backup has no saved comp library.");
-  const library = decodeCompLibraryValue(file.library);
-  const source = StoredLibrarySource.encode(library);
-  await verifyCustomMapImages(customMaps);
-  const current = await storedState();
-  return importPlan(
-    {
-      kind: "restore",
-      exportedAt,
-      file: summarize({ board, customMaps, iconSize, openComp }, library),
-      current: summarize(current.workspace, current.library),
-    },
-    {
-      kind: "restore",
-      library: source,
-      board: encodeBoardRecord(board, iconSize),
-      openComp,
-      customMaps,
-    },
-  );
-}
-
-function compsPlan(source: string): ImportPlan {
-  if (utf8Length(source) > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
-  const comps = parseCompLibrary(source);
-  if (!comps.length) throw new Error("This file has no saved comps.");
-  return importPlan(
-    {
-      kind: "addComps",
-      count: comps.length,
-      names: comps.map((entry) => entry.comp.name),
-    },
-    { kind: "addComps", comps },
-  );
-}
-
-export async function readImportFile(file: ImportSource): Promise<ImportPlan> {
-  if (file.size > MAX_BACKUP_BYTES) throw new Error(BACKUP_TOO_LARGE);
-  const text = await file.text();
-  if (utf8Length(text) > MAX_BACKUP_BYTES) throw new Error(BACKUP_TOO_LARGE);
-  let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error("This file is damaged or is not JSON.");
-  }
-  if (typeof data !== "object" || data === null || Array.isArray(data))
-    throw new Error(NOT_A_BACKUP);
-  const fields: Partial<Record<string, unknown>> = data;
-  if ("format" in fields) {
-    if (fields.format !== BACKUP_FORMAT) throw new Error(NOT_A_BACKUP);
-    if (fields.version !== 1)
-      throw new Error(
-        "This backup was made by a newer version of Rivals Lab. Update and try again.",
-      );
-    return restorePlan(fields);
-  }
-  if (fields.version === 1 && Array.isArray(fields.comps)) {
-    if (file.size > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
-    return compsPlan(text);
-  }
-  throw new Error(NOT_A_BACKUP);
-}
-
-export type ImportOutcome =
-  | { readonly kind: "added"; readonly count: number }
-  | { readonly kind: "reloading" };
-
-export async function applyImport(plan: ImportPlan): Promise<ImportOutcome> {
-  const payload = payloads.get(plan);
-  if (!payload) throw new Error(ALREADY_APPLIED);
-  payloads.delete(plan);
-  const { connection, autosave, comps, channel } = openedData();
-  if (payload.kind === "addComps")
-    return {
-      kind: "added",
-      count: await prependCompCopies(comps, payload.comps),
-    };
-  const resume = autosave.pause();
-  try {
-    await autosave.flush();
-    await (
-      await connection
-    ).write([LIBRARY, CUSTOM_MAPS], [], (_, active) => {
-      active.objectStore(LIBRARY).put(payload.library.text, COMP_STORAGE_KEY);
-      const workspace = active.objectStore(WORKSPACE);
-      workspace.put(crypto.randomUUID(), "epoch");
-      workspace.put(payload.board, "board");
-      workspace.put(payload.openComp, "openComp");
-      const maps = active.objectStore(CUSTOM_MAPS);
-      maps.clear();
-      for (const map of payload.customMaps) maps.put(map, map.id);
-    });
-  } catch (error) {
-    resume();
-    throw error;
-  }
-  autosave.stop({ kind: "idle" });
-  channel?.postMessage(WORKSPACE_REPLACED);
-  window.location.reload();
-  return { kind: "reloading" };
 }
