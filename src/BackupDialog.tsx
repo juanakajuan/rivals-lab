@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { DatabaseBackup, Download, Upload } from "lucide-react";
 import {
-  applyImport,
-  exportBackup,
-  readImportFile,
   REPLACED_ELSEWHERE_MESSAGE,
   type AutosaveStatus,
-  type DataSummary,
-  type ImportPlan,
+  type BackupStore,
   type WorkspaceAutosave,
 } from "./appData";
+import type { DataSummary, ImportPlan } from "./backup";
 import { Dialog } from "./ui/Dialog";
 import { FilePickerButton } from "./ui/FilePickerButton";
 
@@ -145,8 +142,10 @@ export function BackupButton({
 }
 
 export function BackupDialog({
+  backup,
   onClose,
 }: {
+  readonly backup: BackupStore;
   readonly onClose: () => void;
 }): React.JSX.Element {
   const [step, setStep] = useState<BackupStep>({
@@ -157,7 +156,7 @@ export function BackupDialog({
 
   async function download(): Promise<boolean> {
     try {
-      await exportBackup();
+      await backup.exportBackup();
       return true;
     } catch (error) {
       setStep({
@@ -174,7 +173,7 @@ export function BackupDialog({
   async function choose(file: File): Promise<void> {
     setStep({ kind: "busy", label: `Checking ${file.name}…` });
     try {
-      setStep({ kind: "preview", plan: await readImportFile(file) });
+      setStep({ kind: "preview", plan: await backup.readImportFile(file) });
     } catch (error) {
       setStep({
         kind: "choose",
@@ -195,7 +194,7 @@ export function BackupDialog({
           : "Adding comps…",
     });
     try {
-      const outcome = await applyImport(plan);
+      const outcome = await backup.applyImport(plan);
       if (outcome.kind === "added")
         setStep({
           kind: "choose",

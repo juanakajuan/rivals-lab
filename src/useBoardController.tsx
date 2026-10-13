@@ -33,7 +33,7 @@ import {
   type HeroPlacement,
 } from "./boardSession";
 import type { BoardToken, IconSize } from "./boardTokens";
-import type { Workspace } from "./appData";
+import type { Workspace } from "./workspaceRecord";
 import { normalizeSearch } from "./searchText";
 import { getMap, isMapId, type MapId } from "./maps";
 
