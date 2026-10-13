@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { exportCompLibrary, readStoredCompLibrary } from "./compLibrary";
+import { emptyComp } from "../src/comps";
 import {
   COMP_STORAGE_KEY,
   MAX_IMPORT_BYTES,
-  emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
-} from "../src/comps";
+} from "../src/compLibrary";
 
 async function saveAt(page: Page, timestamp: number): Promise<void> {
   await page.evaluate(

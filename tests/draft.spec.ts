@@ -10,13 +10,12 @@ import {
   draftProgress,
   type LegacyDraftState as DraftState,
 } from "../src/draft";
+import { emptyComp, type SavedComp } from "../src/comps";
 import {
   decodeCompLibrary,
-  emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
-  type SavedComp,
-} from "../src/comps";
+} from "../src/compLibrary";
 import { compStatus } from "../src/compEdits";
 import { DEADPOOL_ROLES } from "../src/heroes";
 

@@ -19,10 +19,11 @@ import {
   type IconSize,
 } from "./boardTokens";
 import {
+  EMPTY_LIBRARY,
   decodeCompLibrary,
   serializeCompLibrary,
   type CompLibrary,
-} from "./comps";
+} from "./compLibrary";
 import { TEAM_SIZE } from "./heroes";
 import { MAPS } from "./maps";
 import {
@@ -60,13 +61,6 @@ export const EMPTY_STORED_RECORDS: StoredRecords = {
 };
 
 const MAX_BOARD_TOKENS = 200;
-
-const EMPTY_LIBRARY: CompLibrary = {
-  entries: [],
-  unavailable: [],
-  errors: [],
-  envelope: { version: 1, comps: [] },
-};
 
 export function decodeBoardRecord(
   value: unknown,

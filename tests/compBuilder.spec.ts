@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { emptyComp, parseCompLibrary } from "../src/comps";
+import { emptyComp } from "../src/comps";
+import { parseCompLibrary } from "../src/compLibrary";
 import { emptyDraft } from "../src/draft";
 import {
   addCompCopies,

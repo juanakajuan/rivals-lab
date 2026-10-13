@@ -6,7 +6,11 @@ import {
   type ImportSource,
   type StoredState,
 } from "./backup";
-import { COMP_STORAGE_KEY, StoredLibrarySource } from "./comps";
+import {
+  COMP_STORAGE_KEY,
+  updateLibrarySource,
+  type CompLibrary,
+} from "./compLibrary";
 import { downloadBlob } from "./downloadBlob";
 import { prependCompCopies, type SavedCompSessionStart } from "./savedComps";
 import {
@@ -19,9 +23,7 @@ import {
 
 export interface CompStorage {
   read(): Promise<string | null>;
-  update(
-    transform: (source: string | null) => StoredLibrarySource,
-  ): Promise<void>;
+  update(transform: (library: CompLibrary) => CompLibrary): Promise<void>;
   subscribe(onChange: () => void): () => void;
 }
 
@@ -257,7 +259,7 @@ class BrowserCompStorage implements CompStorage {
   }
 
   async update(
-    transform: (source: string | null) => StoredLibrarySource,
+    transform: (library: CompLibrary) => CompLibrary,
   ): Promise<void> {
     const connection = await this.connection;
     await connection.write(
@@ -266,7 +268,10 @@ class BrowserCompStorage implements CompStorage {
       ([value], active) => {
         active
           .objectStore(LIBRARY)
-          .put(transform(storedSource(value)).text, LIBRARY_KEY);
+          .put(
+            updateLibrarySource(storedSource(value), transform).text,
+            LIBRARY_KEY,
+          );
       },
     );
     this.channel?.postMessage("libraryChanged");

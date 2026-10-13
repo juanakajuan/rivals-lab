@@ -7,15 +7,15 @@ import {
 } from "./boardMaps";
 import type { IconSize } from "./boardTokens";
 import {
+  IMPORT_TOO_LARGE,
   MAX_IMPORT_BYTES,
-  decodeCompLibrary,
-  parseCompLibrary,
-  sameComp,
-  serializeCompLibrary,
   StoredLibrarySource,
+  decodeCompLibraryValue,
+  parseCompLibrary,
+  serializeCompLibrary,
   type CompLibrary,
-  type SavedComp,
-} from "./comps";
+} from "./compLibrary";
+import { sameComp, type SavedComp } from "./comps";
 import {
   decodeOpenCompSnapshot,
   openCompLink,
@@ -201,7 +201,7 @@ async function restorePlan(
   const openComp = decodeOpenCompSnapshot(file.openComp);
   if (typeof file.library !== "object" || file.library === null)
     throw new Error("The backup has no saved comp library.");
-  const library = decodeCompLibrary(JSON.stringify(file.library));
+  const library = decodeCompLibraryValue(file.library);
   const source = StoredLibrarySource.encode(library);
   await verifyCustomMapImages(customMaps);
   return new ImportPlan(
@@ -225,8 +225,7 @@ async function restorePlan(
 }
 
 function compsPlan(source: string): ImportPlan {
-  if (utf8Length(source) > MAX_IMPORT_BYTES)
-    throw new Error("The file must be smaller than 2 MB.");
+  if (utf8Length(source) > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
   const comps = parseCompLibrary(source);
   if (!comps.length) throw new Error("This file has no saved comps.");
   return new ImportPlan(
@@ -264,8 +263,7 @@ export async function readImportFile(
     return restorePlan(fields, current);
   }
   if (fields.version === 1 && Array.isArray(fields.comps)) {
-    if (file.size > MAX_IMPORT_BYTES)
-      throw new Error("The file must be smaller than 2 MB.");
+    if (file.size > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
     return compsPlan(text);
   }
   throw new Error(NOT_A_BACKUP);
