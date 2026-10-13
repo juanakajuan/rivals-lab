@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { emptyComp, type SavedComp } from "../src/comps";
 import {
   MAX_IMPORT_BYTES,
   MAX_SAVED_COMPS,
   decodeCompLibrary,
-  emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
-  type SavedComp,
-  type StoredLibrarySource,
-} from "../src/comps";
+  updateLibrarySource,
+  type CompLibrary,
+} from "../src/compLibrary";
 import { SavedCompSession, SavedCompWriteError } from "../src/savedComps";
 
 import type { CompStorage } from "../src/appData";
@@ -28,9 +28,9 @@ class MemoryStorage implements CompStorage {
   }
 
   async update(
-    transform: (source: string | null) => StoredLibrarySource,
+    transform: (library: CompLibrary) => CompLibrary,
   ): Promise<void> {
-    const next = transform(this.source).text;
+    const next = updateLibrarySource(this.source, transform).text;
     await this.beforeCommit?.();
     if (this.failWrites) throw new Error("Storage is full.");
     this.source = next;

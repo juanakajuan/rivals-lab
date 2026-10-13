@@ -1,10 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { addCompCopies, exportCompLibrary } from "./compLibrary";
-import {
-  emptyComp,
-  parseCompLibrary,
-  serializeCompLibrary,
-} from "../src/comps";
+import { emptyComp } from "../src/comps";
+import { parseCompLibrary, serializeCompLibrary } from "../src/compLibrary";
 import { MAPS } from "../src/maps";
 
 function picker(page: Page): Locator {

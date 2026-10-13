@@ -2,15 +2,15 @@ import { expect, test } from "@playwright/test";
 import { decodeDrawing } from "../src/boardDrawings";
 import { customMapBudgetError, decodeCustomMap } from "../src/boardMaps";
 import { decodeToken, parseIconSize } from "../src/boardTokens";
+import { decodeOpenComp, emptyComp, type SavedComp } from "../src/comps";
 import {
+  StoredLibrarySource,
   decodeCompLibrary,
-  decodeOpenComp,
-  emptyComp,
   parseCompLibrary,
   serializeCompLibrary,
-  StoredLibrarySource,
-  type SavedComp,
-} from "../src/comps";
+  updateLibrarySource,
+  type CompLibrary,
+} from "../src/compLibrary";
 import type { CompStorage } from "../src/appData";
 import { prependCompCopies } from "../src/savedComps";
 
@@ -21,8 +21,8 @@ class MemoryStorage implements CompStorage {
   read(): Promise<string | null> {
     return Promise.resolve(this.source);
   }
-  update(transform: (source: string | null) => StoredLibrarySource) {
-    this.source = transform(this.source).text;
+  update(transform: (library: CompLibrary) => CompLibrary) {
+    this.source = updateLibrarySource(this.source, transform).text;
     return Promise.resolve();
   }
   subscribe(): () => void {

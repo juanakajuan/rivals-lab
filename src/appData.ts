@@ -22,15 +22,18 @@ import {
 } from "./boardTokens";
 import {
   COMP_STORAGE_KEY,
+  EMPTY_LIBRARY,
+  IMPORT_TOO_LARGE,
   MAX_IMPORT_BYTES,
-  decodeCompLibrary,
-  sameComp,
   StoredLibrarySource,
+  decodeCompLibrary,
+  decodeCompLibraryValue,
   parseCompLibrary,
   serializeCompLibrary,
+  updateLibrarySource,
   type CompLibrary,
-  type SavedComp,
-} from "./comps";
+} from "./compLibrary";
+import { sameComp, type SavedComp } from "./comps";
 import { downloadBlob } from "./downloadBlob";
 import { MAPS } from "./maps";
 import { TEAM_SIZE } from "./heroes";
@@ -46,9 +49,7 @@ import {
 
 export interface CompStorage {
   read(): Promise<string | null>;
-  update(
-    transform: (source: string | null) => StoredLibrarySource,
-  ): Promise<void>;
+  update(transform: (library: CompLibrary) => CompLibrary): Promise<void>;
   subscribe(onChange: () => void): () => void;
 }
 
@@ -94,13 +95,6 @@ interface BoardRecord {
   readonly drawingsByMap: BoardState["drawingsByMap"];
   readonly iconSize: IconSize;
 }
-
-const EMPTY_LIBRARY: CompLibrary = {
-  entries: [],
-  unavailable: [],
-  errors: [],
-  envelope: { version: 1, comps: [] },
-};
 
 class ReplacedElsewhereError extends Error {
   constructor() {
@@ -403,7 +397,7 @@ class BrowserCompStorage implements CompStorage {
   }
 
   async update(
-    transform: (source: string | null) => StoredLibrarySource,
+    transform: (library: CompLibrary) => CompLibrary,
   ): Promise<void> {
     const connection = await this.connection;
     await connection.write(
@@ -412,7 +406,10 @@ class BrowserCompStorage implements CompStorage {
       ([value], active) => {
         active
           .objectStore(LIBRARY)
-          .put(transform(storedSource(value)).text, COMP_STORAGE_KEY);
+          .put(
+            updateLibrarySource(storedSource(value), transform).text,
+            COMP_STORAGE_KEY,
+          );
       },
     );
     this.channel?.postMessage("libraryChanged");
@@ -816,7 +813,7 @@ async function restorePlan(
   const openComp = decodeOpenCompSnapshot(file.openComp);
   if (typeof file.library !== "object" || file.library === null)
     throw new Error("The backup has no saved comp library.");
-  const library = decodeCompLibrary(JSON.stringify(file.library));
+  const library = decodeCompLibraryValue(file.library);
   const source = StoredLibrarySource.encode(library);
   await verifyCustomMapImages(customMaps);
   const current = await storedState();
@@ -838,8 +835,7 @@ async function restorePlan(
 }
 
 function compsPlan(source: string): ImportPlan {
-  if (utf8Length(source) > MAX_IMPORT_BYTES)
-    throw new Error("The file must be smaller than 2 MB.");
+  if (utf8Length(source) > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
   const comps = parseCompLibrary(source);
   if (!comps.length) throw new Error("This file has no saved comps.");
   return importPlan(
@@ -874,8 +870,7 @@ export async function readImportFile(file: ImportSource): Promise<ImportPlan> {
     return restorePlan(fields);
   }
   if (fields.version === 1 && Array.isArray(fields.comps)) {
-    if (file.size > MAX_IMPORT_BYTES)
-      throw new Error("The file must be smaller than 2 MB.");
+    if (file.size > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
     return compsPlan(text);
   }
   throw new Error(NOT_A_BACKUP);

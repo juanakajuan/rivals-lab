@@ -1,14 +1,16 @@
 import {
+  EMPTY_LIBRARY,
   decodeCompLibrary,
+  libraryErrorSummary,
+  savedCompRevision,
+  serializeCompLibrary,
+  type CompLibrary,
+} from "./compLibrary";
+import {
   decodeOpenComp,
   emptyComp,
   sameComp,
-  StoredLibrarySource,
-  libraryErrorSummary,
-  parseCompLibrary,
-  serializeCompLibrary,
   type Comp,
-  type CompLibrary,
   type SavedComp,
 } from "./comps";
 import { applyCompEdit, type CompEdit } from "./compEdits";
@@ -115,11 +117,6 @@ function libraryView(library: CompLibrary): SavedCompLibraryView {
   };
 }
 
-// Stored bytes, not comp equality. A newer library write changes this text.
-function savedCompRevision(entry: SavedComp): string {
-  return serializeCompLibrary(parseCompLibrary(serializeCompLibrary([entry])));
-}
-
 function savedLink(entry: SavedComp): EditorLink {
   return {
     kind: "saved",
@@ -143,7 +140,7 @@ export class SavedCompSession {
     private readonly storage: CompStorage,
     start: SavedCompSessionStart = {
       openComp: emptyOpenComp(),
-      library: { entries: [], unavailable: [], errors: [], envelope: {} },
+      library: EMPTY_LIBRARY,
     },
   ) {
     const { openComp, library } = start;
@@ -368,13 +365,10 @@ function updateLibrary(
   storage: CompStorage,
   update: (current: readonly SavedComp[]) => readonly SavedComp[],
 ): Promise<void> {
-  return storage.update((stored) => {
-    const current = decodeCompLibrary(stored ?? serializeCompLibrary([]));
-    return StoredLibrarySource.encode({
-      ...current,
-      entries: update(current.entries),
-    });
-  });
+  return storage.update((library) => ({
+    ...library,
+    entries: update(library.entries),
+  }));
 }
 
 export async function prependCompCopies(
