@@ -86,6 +86,8 @@ test("downloads and copies the same full PNG without changing saved data", async
   page,
   context,
 }, testInfo) => {
+  // Encodes and compares several full-size PNGs, which takes over 30 s on CI runners.
+  test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const empty = emptyComp();
   const comp: Comp = {
