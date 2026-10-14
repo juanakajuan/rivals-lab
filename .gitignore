@@ -24,3 +24,5 @@ pnpm-debug.log*
 /artifacts/verify/
 
 /docs/screenshots/
+
+/.claude/worktrees/

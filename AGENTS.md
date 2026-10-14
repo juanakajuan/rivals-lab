@@ -1,5 +1,14 @@
 # Agent instructions
 
+## Worktrees
+
+- Make all changes in a git worktree on its own branch. Do not edit files in the main checkout.
+- If your session is not already in a worktree, run `git fetch origin`, then create one with `git worktree add -b <branch> .claude/worktrees/<task-slug> origin/main`. Work only in that path.
+- Use one worktree for each task. Do not share a worktree with another agent.
+- Run `npm install` in a new worktree before you build or test.
+- After the PR merges, remove your worktree with `git worktree remove <path>` and delete its branch with `git branch -D <branch>`. Do not remove a worktree that has uncommitted changes.
+- To remove all stale worktrees, run `npm run worktrees:clean -- --dry-run`, examine the list, then run `npm run worktrees:clean`. A worktree is stale if it is clean and its PR is merged or closed, or its branch has no commits beyond `origin/main`.
+
 ## Release notes
 
 - For each user-visible change, add a short note to `releases/pending.json` before opening the PR.
