@@ -140,10 +140,10 @@ async function readPending(root: string): Promise<ReleaseNote[]> {
 export async function readReleaseNotes(
   root: string,
 ): Promise<{ published: Release[]; pending: ReleaseNote[] }> {
+  const pending = await readPending(root);
   const published = parseReleases(
     await readJson(join(root, "releases", "published.json")),
   );
-  const pending = await readPending(root);
   const shipped = new Set(
     published.flatMap((release) => release.notes.map((note) => note.id)),
   );
