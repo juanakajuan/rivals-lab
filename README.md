@@ -146,20 +146,25 @@ If migration cannot preserve meaning, keep the raw entry unavailable for recover
 
 The public [Changelog](https://rivalslab.dev/changelog) shows the release notes
 bundled with the deployed app. `releases/published.json` stores published history.
-`releases/pending.json` stores reviewed notes with stable IDs. Add a concise note
-for each user-visible change. Keep a pending note's ID when you edit its text.
-Use a new ID for a later change to an already published feature.
-Start each note's text with `Feature: ` for new capabilities or `Bug fix: ` for
-corrections to existing behavior.
+`releases/pending/` stores reviewed notes, one file per note. The file name is
+the note's stable ID: `releases/pending/<id>.json`, with lowercase letters,
+digits, and single hyphens. The file contains only `{ "text": "..." }`. Add a
+concise note for each user-visible change. Keep a pending note's file name when
+you edit its text. Use a new ID for a later change to an already published
+feature. Start each note's text with `Feature: ` for new capabilities or
+`Bug fix: ` for corrections to existing behavior. Branches that add different
+note files merge without conflicts.
 
 `npm run deploy` builds one production candidate and publishes that exact output
 with `cf deploy --prebuilt --mode production`. It then checks the unique build ID
 and complete feed at the Worker's public `release-manifest.json`. Only a successful
 command and matching live manifest promote the candidate to published history.
-The command consumes only pending notes with matching IDs and text. It then
-commits the two JSON files on the current branch. If the commit fails, it warns
-and you commit them by hand. Notes whose IDs are already published do not create
-another entry. Deployment with no new notes keeps the current history.
+The release lists the pending notes in file name order. The command deletes only
+the note files whose text did not change during the deploy. It then commits
+`releases/published.json` and the deleted note files on the current branch.
+If the commit fails, it warns and you commit them by hand. The command refuses
+to start when a pending note has no prefix or uses an ID that is already
+published. Deployment with no new notes keeps the current history.
 Ordinary development and builds include published history only.
 Direct `cf deploy` also includes only recorded history. Use `npm run deploy`
 to publish new notes.
@@ -195,3 +200,5 @@ deploy. Discard only removes local evidence. It does not roll back Cloudflare.
 Do not delete a receipt before you check the live deployment.
 
 `npm run test:releases` tests publication and failure without contacting Cloudflare.
+It also fails when a file in `releases/pending/` has no `Feature: ` or `Bug fix: `
+prefix or reuses a published ID.

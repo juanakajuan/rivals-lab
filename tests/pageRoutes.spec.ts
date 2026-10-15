@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-import { parsePending, parseReleases } from "../scripts/releases";
+import { parseReleases, readReleaseNotes } from "../scripts/releases";
 
 for (const path of ["/", "/board"]) {
   test(`${path} opens the board and keeps it after refresh`, async ({
@@ -123,24 +123,14 @@ test("changelog direct load, refresh, and history preserve editor changes", asyn
   await expect(
     page.locator('[data-release-id="snapshot-2026-10-01"] time'),
   ).toHaveAttribute("datetime", "2026-10-01");
-  const published = parseReleases(
-    JSON.parse(await readFile("releases/published.json", "utf8")),
-  );
-  const pending = parsePending(
-    JSON.parse(await readFile("releases/pending.json", "utf8")),
-  );
-  const publishedIds = new Set(
-    published.flatMap((release) => release.notes.map((note) => note.id)),
-  );
+  const { pending } = await readReleaseNotes(".");
   const renderedIds = await page
     .locator("[data-note-id]")
     .evaluateAll((notes) =>
       notes.map((note) => note.getAttribute("data-note-id")),
     );
   expect(renderedIds).toContain("snapshot-board");
-  for (const note of pending) {
-    if (!publishedIds.has(note.id)) expect(renderedIds).not.toContain(note.id);
-  }
+  for (const note of pending) expect(renderedIds).not.toContain(note.id);
   await page.reload();
   await expect(link).toHaveAttribute("aria-current", "page");
   await page

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,19 +17,28 @@ import {
   deployRelease,
   lockBuildOutput,
   parseReleases,
+  readReleaseNotes,
   recoverRelease,
   type CommandRunner,
 } from "../scripts/releases.ts";
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "rivals-release-"));
-  await mkdir(join(root, "releases"));
+  await mkdir(join(root, "releases", "pending"), { recursive: true });
   await writeFile(join(root, "releases", "published.json"), "[]\n");
-  await writeFile(
-    join(root, "releases", "pending.json"),
-    '[{"id":"new-map","text":"Choose the new map."}]\n',
-  );
+  await addNote(root, "new-map", "Feature: Choose the new map.");
   return root;
+}
+
+async function addNote(root: string, id: string, text: string): Promise<void> {
+  await writeFile(
+    join(root, "releases", "pending", `${id}.json`),
+    `${JSON.stringify({ text })}\n`,
+  );
+}
+
+async function pendingFiles(root: string): Promise<string[]> {
+  return (await readdir(join(root, "releases", "pending"))).sort();
 }
 
 async function build(root: string): Promise<void> {
@@ -38,6 +54,79 @@ async function ledger(root: string): Promise<unknown> {
     await readFile(join(root, "releases", "published.json"), "utf8"),
   );
   return value;
+}
+
+await test("every note in releases/pending is unpublished and starts with Feature: or Bug fix:", async () => {
+  const { pending } = await readReleaseNotes(join(import.meta.dirname, ".."));
+  for (const note of pending) assert.match(note.text, /^(Feature|Bug fix): /);
+});
+
+const shippedRelease = JSON.stringify([
+  {
+    id: "shipped",
+    date: "2026-10-01",
+    notes: [{ id: "new-map", text: "Feature: Choose the new map." }],
+  },
+]);
+
+const invalidNotes: readonly {
+  readonly name: string;
+  readonly change: (root: string) => Promise<void>;
+  readonly error: string;
+}[] = [
+  {
+    name: "a pending ID that is already published",
+    change: (root) =>
+      writeFile(join(root, "releases", "published.json"), shippedRelease),
+    error:
+      "releases/pending/new-map.json: this ID is already in releases/published.json. Delete the file, or use a new ID for a later change.",
+  },
+  {
+    name: "note text without a release prefix",
+    change: (root) => addNote(root, "plain", "Choose a map."),
+    error:
+      'releases/pending/plain.json: start the note text with "Feature: " or "Bug fix: ".',
+  },
+  {
+    name: "an ID inside the note file",
+    change: (root) =>
+      writeFile(
+        join(root, "releases", "pending", "with-id.json"),
+        '{"id":"with-id","text":"Feature: Two IDs."}',
+      ),
+    error:
+      'releases/pending/with-id.json: the file must contain only {"text": "..."}. The file name is the note ID.',
+  },
+  {
+    name: "a file name that is not a note ID",
+    change: (root) => addNote(root, "New_Map", "Feature: A map."),
+    error:
+      "releases/pending/New_Map.json: name each note file <id>.json, with an ID of lowercase letters, digits, and single hyphens.",
+  },
+];
+
+for (const invalid of invalidNotes) {
+  await test(`release notes and deploy reject ${invalid.name}`, async () => {
+    const root = await fixture();
+    try {
+      await invalid.change(root);
+      await assert.rejects(readReleaseNotes(root), { message: invalid.error });
+      const commands: string[] = [];
+      await assert.rejects(
+        deployRelease({
+          root,
+          run: (command) => {
+            commands.push(command.executable);
+            return Promise.resolve();
+          },
+        }),
+        { message: invalid.error },
+      );
+      assert.deepEqual(commands, []);
+    } finally {
+      await rm(root, { recursive: true });
+    }
+  });
 }
 
 await test("repeated build cleanup preserves the next build's exclusive lock", async () => {
@@ -73,7 +162,7 @@ await test("production publication builds candidate once, verifies live identity
         assert.ok(release);
         candidateId = release.id;
         assert.deepEqual(release.notes, [
-          { id: "new-map", text: "Choose the new map." },
+          { id: "new-map", text: "Feature: Choose the new map." },
         ]);
         assert.equal(release.date, "2026-10-02");
         assert.deepEqual(await ledger(root), []);
@@ -86,10 +175,7 @@ await test("production publication builds candidate once, verifies live identity
           ),
           "exact candidate bundle",
         );
-        await writeFile(
-          join(root, "releases", "pending.json"),
-          '[{"id":"new-map","text":"Choose the new map."},{"id":"next","text":"Next update."}]',
-        );
+        await addNote(root, "next", "Bug fix: Next update.");
       }
     };
     await deployRelease({
@@ -110,13 +196,10 @@ await test("production publication builds candidate once, verifies live identity
       {
         id: candidateId,
         date: "2026-10-02",
-        notes: [{ id: "new-map", text: "Choose the new map." }],
+        notes: [{ id: "new-map", text: "Feature: Choose the new map." }],
       },
     ]);
-    assert.equal(
-      await readFile(join(root, "releases", "pending.json"), "utf8"),
-      '[\n  {\n    "id": "next",\n    "text": "Next update."\n  }\n]\n',
-    );
+    assert.deepEqual(await pendingFiles(root), ["next.json"]);
   } finally {
     await rm(root, { recursive: true });
   }
@@ -151,7 +234,7 @@ for (const partiallyPromoted of [false, true]) {
         {
           id: receipt.id,
           date: "2026-10-02",
-          notes: [{ id: "new-map", text: "Choose the new map." }],
+          notes: [{ id: "new-map", text: "Feature: Choose the new map." }],
         },
       ];
       if (partiallyPromoted) {
@@ -171,17 +254,11 @@ for (const partiallyPromoted of [false, true]) {
       );
       await assert.rejects(recoverRelease(root, "confirm"), /does not match/);
       assert.deepEqual(await ledger(root), partiallyPromoted ? expected : []);
-      assert.equal(
-        await readFile(join(root, "releases", "pending.json"), "utf8"),
-        '[{"id":"new-map","text":"Choose the new map."}]\n',
-      );
+      assert.deepEqual(await pendingFiles(root), ["new-map.json"]);
       candidateIsLive = true;
       await recoverRelease(root, "confirm");
       assert.deepEqual(await ledger(root), expected);
-      assert.equal(
-        await readFile(join(root, "releases", "pending.json"), "utf8"),
-        "[]\n",
-      );
+      assert.deepEqual(await pendingFiles(root), []);
       await assert.rejects(readFile(join(root, ".release", "receipt.json")), {
         code: "ENOENT",
       });
@@ -213,10 +290,7 @@ for (const failure of ["build", "deploy", "verification"]) {
         await readFile(join(root, "releases", "published.json"), "utf8"),
         "[]\n",
       );
-      assert.equal(
-        await readFile(join(root, "releases", "pending.json"), "utf8"),
-        '[{"id":"new-map","text":"Choose the new map."}]\n',
-      );
+      assert.deepEqual(await pendingFiles(root), ["new-map.json"]);
       if (failure !== "build") {
         const value: unknown = JSON.parse(
           await readFile(join(root, ".release", "receipt.json"), "utf8"),
@@ -226,7 +300,7 @@ for (const failure of ["build", "deploy", "verification"]) {
         );
         assert.equal(
           parseReleases(value.releases)[0]?.notes[0].text,
-          "Choose the new map.",
+          "Feature: Choose the new map.",
         );
         await assert.rejects(
           deployRelease({ root, run }),
@@ -243,7 +317,7 @@ await test("a history edit during deployment stays intact and retains recovery e
   const root = await fixture();
   try {
     const edited =
-      '[{"id":"other-release","date":"2026-10-01","notes":[{"id":"other-note","text":"An existing update."}]}]\n';
+      '[{"id":"other-release","date":"2026-10-01","notes":[{"id":"other-note","text":"Feature: An existing update."}]}]\n';
     const run: CommandRunner = async (command) => {
       if (command.executable === "npm") await build(root);
       else await writeFile(join(root, "releases", "published.json"), edited);
@@ -268,7 +342,7 @@ await test("a history edit during deployment stays intact and retains recovery e
     assert.deepEqual(value.previous, []);
     assert.equal(
       parseReleases(value.releases)[0]?.notes[0].text,
-      "Choose the new map.",
+      "Feature: Choose the new map.",
     );
   } finally {
     await rm(root, { recursive: true });
@@ -293,10 +367,7 @@ await test("deploy commits release files only after a successful promote", async
       verify: () => Promise.resolve(),
       commit: async (committed) => {
         calls.push(committed);
-        assert.equal(
-          await readFile(join(root, "releases", "pending.json"), "utf8"),
-          "[]\n",
-        );
+        assert.deepEqual(await pendingFiles(root), []);
       },
     });
     assert.deepEqual(calls, [root]);
@@ -346,10 +417,7 @@ await test("a failing committer only warns and the deploy still succeeds", async
     });
     assert.equal(warn.mock.callCount(), 1);
     assert.match(String(warn.mock.calls[0]?.arguments[0]), /git exploded/);
-    assert.equal(
-      await readFile(join(root, "releases", "pending.json"), "utf8"),
-      "[]\n",
-    );
+    assert.deepEqual(await pendingFiles(root), []);
     await assert.rejects(readFile(join(root, ".release", "receipt.json")), {
       code: "ENOENT",
     });
@@ -398,17 +466,14 @@ for (const action of ["confirm", "discard"] as const) {
   });
 }
 
-await test("commitReleaseFiles commits only changed release files and leaves staged changes out", async () => {
-  const root = await mkdtemp(join(tmpdir(), "rivals-git-"));
+await test("commitReleaseFiles commits only changed tracked release files and leaves other changes out", async () => {
+  const root = await fixture();
   try {
     const run = (...args: string[]) => git("git", args, { cwd: root });
     await run("init", "-q");
     await run("config", "user.name", "Test");
     await run("config", "user.email", "test@example.com");
     await run("config", "commit.gpgsign", "false");
-    await mkdir(join(root, "releases"));
-    await writeFile(join(root, "releases", "pending.json"), "[]\n");
-    await writeFile(join(root, "releases", "published.json"), "[]\n");
     await writeFile(join(root, "other.txt"), "one\n");
     await run("add", "-A");
     await run("commit", "-q", "-m", "init");
@@ -418,18 +483,22 @@ await test("commitReleaseFiles commits only changed release files and leaves sta
     await commitReleaseFiles(root);
     assert.equal(await count(), "1");
 
-    await writeFile(join(root, "releases", "pending.json"), "[1]\n");
+    await rm(join(root, "releases", "pending", "new-map.json"));
+    await writeFile(join(root, "releases", "published.json"), "[1]\n");
+    await addNote(root, "draft", "Feature: Not reviewed yet.");
     await writeFile(join(root, "other.txt"), "two\n");
     await run("add", "other.txt");
     await commitReleaseFiles(root);
     assert.equal(await count(), "2");
     assert.equal(
-      (await run("show", "--name-only", "--format=%s", "HEAD")).stdout.trim(),
-      "chore(releases): publish release notes\n\nreleases/pending.json",
+      (await run("show", "--name-status", "--format=%s", "HEAD")).stdout.trim(),
+      "chore(releases): publish release notes\n\nD\treleases/pending/new-map.json\nM\treleases/published.json",
     );
     assert.equal(
-      (await run("status", "--porcelain")).stdout.trim(),
-      "M  other.txt",
+      (
+        await run("status", "--porcelain", "--untracked-files=all")
+      ).stdout.trim(),
+      "M  other.txt\n?? releases/pending/draft.json",
     );
   } finally {
     await rm(root, { recursive: true });

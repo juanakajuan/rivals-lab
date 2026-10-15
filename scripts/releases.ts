@@ -1,16 +1,43 @@
 import { randomUUID } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
-import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import type { PendingNote, Release } from "../src/releases.ts";
+
+export type NoteText = `Feature: ${string}` | `Bug fix: ${string}`;
+
+export interface ReleaseNote extends PendingNote {
+  readonly text: NoteText;
+}
 
 function text(value: unknown): string {
   if (typeof value !== "string" || value.trim() !== value || !value) {
     throw new Error("Release values must be nonempty, trimmed strings.");
   }
   return value;
+}
+
+function isNoteText(value: string): value is NoteText {
+  return value.startsWith("Feature: ") || value.startsWith("Bug fix: ");
+}
+
+function noteText(value: unknown, source: string): NoteText {
+  const note = text(value);
+  if (!isNoteText(note))
+    throw new Error(
+      `${source}: start the note text with "Feature: " or "Bug fix: ".`,
+    );
+  return note;
 }
 
 function unique(ids: readonly string[]): void {
@@ -37,7 +64,7 @@ export function parseReleases(value: unknown): Release[] {
     ) {
       throw new Error("Invalid UTC release date.");
     }
-    const [first, ...rest] = parsePending(item.notes);
+    const [first, ...rest] = parseNotes(item.notes);
     if (first === undefined)
       throw new Error("Each release needs at least one note.");
     return { id: text(item.id), date, notes: [first, ...rest] };
@@ -53,17 +80,18 @@ export function parseReleases(value: unknown): Release[] {
   return releases;
 }
 
-export function parsePending(value: unknown): PendingNote[] {
-  if (!Array.isArray(value)) throw new Error("Expected a pending note array.");
-  const notes = value.map((item: unknown): PendingNote => {
+function parseNotes(value: unknown): ReleaseNote[] {
+  if (!Array.isArray(value)) throw new Error("Expected a release note array.");
+  const notes = value.map((item: unknown): ReleaseNote => {
     if (
       typeof item !== "object" ||
       item === null ||
       !("id" in item) ||
       !("text" in item)
     )
-      throw new Error("Invalid pending note.");
-    return { id: text(item.id), text: text(item.text) };
+      throw new Error("Invalid release note.");
+    const id = text(item.id);
+    return { id, text: noteText(item.text, `Note "${id}"`) };
   });
   unique(notes.map((note) => note.id));
   return notes;
@@ -72,6 +100,64 @@ export function parsePending(value: unknown): PendingNote[] {
 async function readJson(path: string): Promise<unknown> {
   const value: unknown = JSON.parse(await readFile(path, "utf8"));
   return value;
+}
+
+const PENDING = join("releases", "pending");
+const NOTE_FILE = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/;
+
+async function readPending(root: string): Promise<ReleaseNote[]> {
+  let names: string[];
+  try {
+    names = await readdir(join(root, PENDING));
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return [];
+    throw error;
+  }
+  return Promise.all(
+    names.sort().map(async (name): Promise<ReleaseNote> => {
+      const source = `releases/pending/${name}`;
+      const id = NOTE_FILE.exec(name)?.[1];
+      if (id === undefined)
+        throw new Error(
+          `${source}: name each note file <id>.json, with an ID of lowercase letters, digits, and single hyphens.`,
+        );
+      const value = await readJson(join(root, PENDING, name));
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        !("text" in value) ||
+        Object.keys(value).length !== 1
+      )
+        throw new Error(
+          `${source}: the file must contain only {"text": "..."}. The file name is the note ID.`,
+        );
+      return { id, text: noteText(value.text, source) };
+    }),
+  );
+}
+
+export async function readReleaseNotes(
+  root: string,
+): Promise<{ published: Release[]; pending: ReleaseNote[] }> {
+  const published = parseReleases(
+    await readJson(join(root, "releases", "published.json")),
+  );
+  const pending = await readPending(root);
+  const shipped = new Set(
+    published.flatMap((release) => release.notes.map((note) => note.id)),
+  );
+  const reused = pending.filter((note) => shipped.has(note.id));
+  if (reused.length)
+    throw new Error(
+      reused
+        .map(
+          (note) =>
+            `releases/pending/${note.id}.json: this ID is already in releases/published.json. Delete the file, or use a new ID for a later change.`,
+        )
+        .join("\n"),
+    );
+  return { published, pending };
 }
 
 async function saveJson(path: string, value: unknown): Promise<void> {
@@ -133,18 +219,29 @@ const runCommand: CommandRunner = (command) =>
   });
 
 const git = promisify(execFile);
-const RELEASE_FILES = ["releases/pending.json", "releases/published.json"];
+const RELEASE_FILES = ["releases/pending", "releases/published.json"];
 
 export type ReleaseCommitter = (root: string) => Promise<void>;
 
 export const commitReleaseFiles: ReleaseCommitter = async (root) => {
   const { stdout } = await git(
     "git",
-    ["status", "--porcelain", "--", ...RELEASE_FILES],
+    [
+      "status",
+      "--porcelain",
+      "-z",
+      "--untracked-files=no",
+      "--",
+      ...RELEASE_FILES,
+    ],
     { cwd: root },
   );
-  if (stdout.trim() === "") return;
-  await git("git", ["add", "--", ...RELEASE_FILES], { cwd: root });
+  const changed = stdout
+    .split("\0")
+    .filter(Boolean)
+    .map((entry) => entry.slice(3));
+  if (!changed.length) return;
+  await git("git", ["add", "--", ...changed], { cwd: root });
   await git(
     "git",
     [
@@ -152,7 +249,7 @@ export const commitReleaseFiles: ReleaseCommitter = async (root) => {
       "-m",
       "chore(releases): publish release notes",
       "--",
-      ...RELEASE_FILES,
+      ...changed,
     ],
     { cwd: root },
   );
@@ -229,17 +326,8 @@ export async function deployRelease({
       ))
         throw error;
     }
-    const published = parseReleases(
-      await readJson(join(root, "releases", "published.json")),
-    );
-    const pending = parsePending(
-      await readJson(join(root, "releases", "pending.json")),
-    );
-    const known = new Set(
-      published.flatMap((release) => release.notes.map((note) => note.id)),
-    );
-    const fresh = pending.filter((note) => !known.has(note.id));
-    const [first, ...rest] = fresh;
+    const { published, pending } = await readReleaseNotes(root);
+    const [first, ...rest] = pending;
     const id = randomUUID();
     const date = now.toISOString().slice(0, 10);
     if (published.some((release) => release.date > date))
@@ -294,7 +382,7 @@ async function promote(
   root: string,
   releases: readonly Release[],
   previous: readonly Release[],
-  pending: readonly PendingNote[],
+  pending: readonly ReleaseNote[],
 ): Promise<void> {
   const publishedPath = join(root, "releases", "published.json");
   const published = parseReleases(await readJson(publishedPath));
@@ -305,17 +393,16 @@ async function promote(
     throw new Error(
       "Published history changed during deployment. Restore or reconcile it before confirming the receipt.",
     );
-  const pendingPath = join(root, "releases", "pending.json");
-  const current = parsePending(await readJson(pendingPath));
+  const current = await readPending(root);
   await saveJson(publishedPath, releases);
-  await saveJson(
-    pendingPath,
-    current.filter(
-      (note) =>
-        !pending.some(
+  await Promise.all(
+    current
+      .filter((note) =>
+        pending.some(
           (included) => included.id === note.id && included.text === note.text,
         ),
-    ),
+      )
+      .map((note) => rm(join(root, PENDING, `${note.id}.json`))),
   );
 }
 
@@ -342,7 +429,7 @@ export async function recoverRelease(
     const id = text(value.id);
     if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid receipt ID.");
     const releases = parseReleases(value.releases);
-    const pending = parsePending(value.pending);
+    const pending = parseNotes(value.pending);
     const previous = parseReleases(value.previous);
     if (action === "confirm") {
       await verifyLive(releases, id);
