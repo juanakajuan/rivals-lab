@@ -1,9 +1,9 @@
-import type { MapId, MapDefinition } from "./maps";
+import type { GameMode, MapId } from "./maps";
 
 interface CompMap {
   readonly id: string;
   readonly name: string;
-  readonly mode: MapDefinition["mode"];
+  readonly mode: GameMode;
   readonly previewImagePath: string;
   readonly previewImageSize: readonly [width: number, height: number];
   readonly selectedCardPosition: `${number}% ${number}%`;
@@ -167,21 +167,38 @@ export const COMP_MAPS: readonly CompMap[] = [
   },
 ];
 
-export interface CompMapSelection {
-  readonly mapIds: readonly string[];
-  readonly gameMode: MapDefinition["mode"] | null;
-}
+export type CompMapSelection =
+  | { readonly mapIds: readonly string[]; readonly gameMode: null }
+  | { readonly mapIds: readonly never[]; readonly gameMode: GameMode };
+
+export type CompMapChoice =
+  | { readonly kind: "any" }
+  | { readonly kind: "maps"; readonly maps: readonly [CompMap, ...CompMap[]] }
+  | { readonly kind: "mode"; readonly mode: GameMode };
 
 export function selectedCompMaps(
   selection: CompMapSelection,
 ): readonly CompMap[] {
-  return COMP_MAPS.filter((map) => selection.mapIds.includes(map.id));
+  const mapIds: readonly string[] = selection.mapIds;
+  return COMP_MAPS.filter((map) => mapIds.includes(map.id));
+}
+
+export function compMapChoice(selection: CompMapSelection): CompMapChoice {
+  if (selection.gameMode !== null)
+    return { kind: "mode", mode: selection.gameMode };
+  const [first, ...rest] = selectedCompMaps(selection);
+  return first ? { kind: "maps", maps: [first, ...rest] } : { kind: "any" };
 }
 
 /** Short text for lists and captions. */
 export function compMapLabel(selection: CompMapSelection): string {
-  if (selection.gameMode) return `${selection.gameMode} · Any map in mode`;
-  const maps = selectedCompMaps(selection);
-  if (maps.length === 0) return "Any map";
-  return maps.map((map) => map.name).join(", ");
+  const choice = compMapChoice(selection);
+  switch (choice.kind) {
+    case "any":
+      return "Any map";
+    case "maps":
+      return choice.maps.map((map) => map.name).join(", ");
+    case "mode":
+      return `${choice.mode} · Any map in mode`;
+  }
 }

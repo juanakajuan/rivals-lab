@@ -157,6 +157,7 @@ export class BoardSession {
   private board: BoardState;
   private iconSize: IconSize;
   private current: BoardSessionState;
+  private boardRevision = 0;
 
   constructor(
     private readonly measureNote: MeasureBoardNote,
@@ -175,6 +176,10 @@ export class BoardSession {
 
   get state(): BoardSessionState {
     return this.current;
+  }
+
+  get revision(): number {
+    return this.boardRevision;
   }
 
   /** Stored points stay put. Callers paint this list for the current icon size. */
@@ -486,6 +491,7 @@ export class BoardSession {
 
   private restore(board: BoardState): BoardSessionState {
     this.board = board;
+    this.boardRevision += 1;
     this.current = {
       ...board,
       iconSize: this.iconSize,

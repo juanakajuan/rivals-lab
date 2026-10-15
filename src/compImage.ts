@@ -1,7 +1,12 @@
 import { downloadBlob } from "./downloadBlob";
-import { COMP_MAPS } from "./compMaps";
-import { type Comp } from "./comps";
-import { draftEffects, draftSlots, type DraftActionKind } from "./draft";
+import { compMapChoice } from "./compMaps";
+import { type Comp, type CompSlot } from "./comps";
+import {
+  draftEffects,
+  draftSlots,
+  type DraftActionKind,
+  type DraftFormat,
+} from "./draft";
 import {
   HERO_BY_ID,
   heroImagePath,
@@ -26,6 +31,11 @@ const COLORS = {
   ban: "#e28a78",
   save: "#5e6ad2",
 };
+
+interface Recorded<T> {
+  readonly draws: readonly (() => void)[];
+  readonly result: T;
+}
 
 interface DraftCard {
   readonly team: Team;
@@ -81,15 +91,19 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     comp.teams[team].some((slot) => slot.heroId || slot.notes.trim()),
   );
   const cards = draftCards(comp).filter((card) => card.heroId);
-  const maps = COMP_MAPS.filter((entry) => comp.mapIds.includes(entry.id));
-  const map = maps.length === 1 ? maps[0] : undefined;
-  const mapLabel = comp.gameMode
-    ? `Game mode: ${comp.gameMode}`
-    : map
-      ? `Map: ${map.name} · ${map.mode}`
-      : maps.length
-        ? `Maps: ${maps.map((entry) => entry.name).join(", ")}`
-        : null;
+  const choice = compMapChoice(comp);
+  const map =
+    choice.kind === "maps" && choice.maps.length === 1
+      ? choice.maps[0]
+      : undefined;
+  const mapLabel =
+    choice.kind === "mode"
+      ? `Game mode: ${choice.mode}`
+      : map
+        ? `Map: ${map.name} · ${map.mode}`
+        : choice.kind === "maps"
+          ? `Maps: ${choice.maps.map((entry) => entry.name).join(", ")}`
+          : null;
   if (
     !comp.name.trim() &&
     !mapLabel &&
@@ -144,7 +158,20 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     }),
   );
 
-  const commands: (() => void)[] = [];
+  let commands: (() => void)[] = [];
+  function record<T>(draw: () => T): Recorded<T> {
+    const outer = commands;
+    const draws: (() => void)[] = [];
+    commands = draws;
+    try {
+      return { draws, result: draw() };
+    } finally {
+      commands = outer;
+    }
+  }
+  function replay(recorded: Recorded<unknown>): void {
+    commands.push(...recorded.draws);
+  }
   const font = (size: number): string =>
     `${size >= 20 ? "600" : "400"} ${size}px system-ui, sans-serif`;
   function text(
@@ -178,9 +205,8 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     width: number,
     height: number,
     surface = false,
-    before = commands.length,
   ): void {
-    commands.splice(before, 0, () => {
+    commands.push(() => {
       context.fillStyle = surface ? COLORS.surface : COLORS.panel;
       context.strokeStyle = COLORS.border;
       context.beginPath();
@@ -295,11 +321,18 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     teams.length === 1 ? WIDTH - PADDING * 2 : (WIDTH - PADDING * 2 - GAP) / 2;
   const effects = draftEffects(comp.draft);
   const teamTop = y;
-  const teamPanels: { readonly x: number; readonly before: number }[] = [];
-  let teamHeight = 0;
-  teams.forEach((team, teamIndex) => {
+  const teamBlocks = teams.map((team, teamIndex) => {
     const x = PADDING + teamIndex * (teamWidth + GAP);
-    teamPanels.push({ x, before: commands.length });
+    return { x, ...record(() => drawTeam(team, x)) };
+  });
+  const teamHeight = Math.max(0, ...teamBlocks.map((block) => block.result));
+  for (const block of teamBlocks) {
+    panel(block.x, teamTop, teamWidth, teamHeight);
+    replay(block);
+  }
+  if (teams.length) y += teamHeight + GAP;
+
+  function drawTeam(team: Team, x: number): number {
     text(
       `${teamLabel(team)}  ·  ${comp.teams[team].filter((slot) => slot.heroId).length} / 6`,
       x,
@@ -316,67 +349,74 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     const cardWidth = (teamWidth - 40 - GAP * (columns - 1)) / columns;
     let rowTop = teamTop + 62;
     for (let row = 0; row < Math.ceil(slots.length / columns); row++) {
-      let rowHeight = 140;
-      const rowPanels: { readonly x: number; readonly before: number }[] = [];
-      slots
+      const rowCards = slots
         .slice(row * columns, (row + 1) * columns)
-        .forEach(({ slot, index }, column) => {
+        .map(({ slot, index }, column) => {
           const left = x + 20 + column * (cardWidth + GAP);
-          rowPanels.push({ x: left, before: commands.length });
-          portrait(slot.heroId, left + (cardWidth - 48) / 2, rowTop + 10, 48);
-          const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
-          let bottom = rowTop + 65;
-          bottom += text(
-            `${index + 1}. ${hero?.name ?? "Empty slot"}`,
-            left + 8,
-            bottom,
-            cardWidth - 16,
-            18,
-            COLORS.text,
-            true,
-          );
-          const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
-          if (role)
-            bottom +=
-              text(
-                role,
-                left + 8,
-                bottom + 4,
-                cardWidth - 16,
-                16,
-                COLORS.muted,
-                true,
-              ) + 4;
-          if (slot.heroId && effects.banned[team].has(slot.heroId))
-            bottom += text(
-              "Banned for this team",
-              left + 8,
-              bottom,
-              cardWidth - 16,
-              14,
-              COLORS.enemy,
-              true,
-            );
-          if (slot.notes.trim())
-            bottom +=
-              12 + text(slot.notes, left + 12, bottom + 12, cardWidth - 24, 16);
-          rowHeight = Math.max(rowHeight, bottom - rowTop + 14);
+          return { left, ...record(() => drawSlot(slot, index, left)) };
         });
-      for (const card of rowPanels.reverse())
-        panel(card.x, rowTop, cardWidth, rowHeight, true, card.before);
+      const rowHeight = Math.max(140, ...rowCards.map((card) => card.result));
+      for (const card of rowCards) {
+        panel(card.left, rowTop, cardWidth, rowHeight, true);
+        replay(card);
+      }
       rowTop += rowHeight + 12;
     }
-    teamHeight = Math.max(teamHeight, rowTop - teamTop + 12);
-  });
-  for (const team of teamPanels.reverse())
-    panel(team.x, teamTop, teamWidth, teamHeight, false, team.before);
-  if (teams.length) y += teamHeight + GAP;
+    return rowTop - teamTop + 12;
+
+    function drawSlot(slot: CompSlot, index: number, left: number): number {
+      portrait(slot.heroId, left + (cardWidth - 48) / 2, rowTop + 10, 48);
+      const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
+      let bottom = rowTop + 65;
+      bottom += text(
+        `${index + 1}. ${hero?.name ?? "Empty slot"}`,
+        left + 8,
+        bottom,
+        cardWidth - 16,
+        18,
+        COLORS.text,
+        true,
+      );
+      const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
+      if (role)
+        bottom +=
+          text(
+            role,
+            left + 8,
+            bottom + 4,
+            cardWidth - 16,
+            16,
+            COLORS.muted,
+            true,
+          ) + 4;
+      if (slot.heroId && effects.banned[team].has(slot.heroId))
+        bottom += text(
+          "Banned for this team",
+          left + 8,
+          bottom,
+          cardWidth - 16,
+          14,
+          COLORS.enemy,
+          true,
+        );
+      if (slot.notes.trim())
+        bottom +=
+          12 + text(slot.notes, left + 12, bottom + 12, cardWidth - 24, 16);
+      return bottom - rowTop + 14;
+    }
+  }
 
   if (cards.length && comp.draft) {
+    const { format } = comp.draft;
     const draftTop = y;
-    const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT`;
-    // Draw this panel before its content once its measured height is known.
-    const panelIndex = commands.length;
+    const content = record(() => drawDraft(format));
+    panel(PADDING, draftTop, WIDTH - PADDING * 2, y - draftTop);
+    replay(content);
+    y += GAP;
+  }
+
+  function drawDraft(format: DraftFormat): void {
+    const draftHeader = `${format.toUpperCase()} DRAFT`;
     y += 20;
     y +=
       text(
@@ -390,7 +430,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       ) + 8;
     y +=
       text(
-        comp.draft.format === "mrc"
+        format === "mrc"
           ? "Bans and saves apply to both teams."
           : "Ban for the opponent. Save for your team.",
         PADDING,
@@ -438,15 +478,6 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       });
       y += rowHeight + 18;
     }
-    panel(
-      PADDING,
-      draftTop,
-      WIDTH - PADDING * 2,
-      y - draftTop,
-      false,
-      panelIndex,
-    );
-    y += GAP;
   }
   let compPages = 1;
   if (comp.notes.trim()) {

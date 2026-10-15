@@ -34,6 +34,7 @@ const board = createBoardCanvas(host, {
     harness.moves.push({ x, y });
     harness.snapshot = {
       ...harness.snapshot,
+      boardRevision: harness.snapshot.boardRevision + 1,
       tokens: harness.snapshot.tokens.map((current) =>
         current.id === token.id ? { ...current, x, y } : current,
       ),
@@ -46,6 +47,7 @@ window.boardHarness = {
   board,
   snapshot: {
     map: getMap(DEFAULT_MAP_ID),
+    boardRevision: 0,
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 200, y: 200 },
     ],
