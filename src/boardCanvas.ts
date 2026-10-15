@@ -31,6 +31,7 @@ import {
 
 export interface BoardSnapshot {
   readonly map: BoardMapDefinition;
+  readonly boardRevision: number;
   readonly tokens: readonly BoardToken[];
   readonly selectedTokenId: string | null;
   readonly iconSize: number;
@@ -38,6 +39,13 @@ export interface BoardSnapshot {
   readonly tool?: BoardTool;
   readonly drawingColor?: string;
   readonly selectedDrawingId?: string | null;
+}
+
+function boardEdited(
+  previous: BoardSnapshot | null,
+  current: BoardSnapshot,
+): boolean {
+  return previous?.boardRevision !== current.boardRevision;
 }
 
 export interface BoardEvents {
@@ -740,10 +748,8 @@ export function createBoardCanvas(
     update(current) {
       if (destroyed) return;
       const mapChanged = snapshot?.map !== current.map;
-      if (
-        snapshot?.tokens !== current.tokens ||
-        snapshot?.iconSize !== current.iconSize
-      ) {
+      const edited = boardEdited(snapshot, current);
+      if (edited || snapshot?.iconSize !== current.iconSize) {
         for (const [id, drawing] of drawings) {
           if (!drawing.dragging) continue;
           drawing.group.off();
@@ -753,9 +759,8 @@ export function createBoardCanvas(
         }
       }
       if (
-        snapshot?.map !== current.map ||
-        snapshot?.tokens !== current.tokens ||
-        snapshot?.drawings !== current.drawings ||
+        edited ||
+        mapChanged ||
         snapshot?.tool !== current.tool ||
         snapshot?.drawingColor !== current.drawingColor
       ) {

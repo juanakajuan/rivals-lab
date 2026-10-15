@@ -442,6 +442,7 @@ for (const width of [320, 390]) {
                   ...emptyComp(),
                   name: "Cold map",
                   mapIds: ["lower-manhattan"],
+                  gameMode: null,
                 },
               },
             ]),

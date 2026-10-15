@@ -91,7 +91,7 @@ export function CompSettingsPanel({
         </div>
       </div>
       <figure className="selected-map-preview">
-        <MapPicker<string | null>
+        <MapPicker<string, null>
           options={COMP_MAP_OPTIONS}
           selectedValue={
             gameMode
@@ -102,8 +102,7 @@ export function CompSettingsPanel({
           }
           multiple={{
             selectedValues: comp.mapIds,
-            onApply: (ids) =>
-              onMapsChange(ids.filter((id): id is string => id !== null)),
+            onApply: onMapsChange,
           }}
           modes={{ selected: gameMode, onChoose: onGameModeChange }}
           triggerLabel="Comp map"

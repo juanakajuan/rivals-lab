@@ -29,8 +29,10 @@ export const BOARD_MAP_PICKER_OPTIONS: readonly MapPickerEntry<MapId>[] =
 export const BOARD_MAP_OPTIONS: readonly MapPickerOption<MapId>[] =
   BOARD_MAP_PICKER_OPTIONS.filter(isMapChoice);
 
-export const COMP_MAP_OPTIONS: readonly MapPickerOption<string | null>[] = [
+export const COMP_MAP_OPTIONS: readonly MapPickerEntry<string, null>[] = [
   {
+    single: true,
+    id: "any-map",
     value: null,
     name: "Any map",
     detail: "No map restriction",

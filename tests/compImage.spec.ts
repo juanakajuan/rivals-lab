@@ -92,6 +92,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     ...empty,
     name: "Saved build",
     mapIds: ["god-quarry"],
+    gameMode: null,
     teams: {
       ally: [
         {
@@ -695,7 +696,12 @@ test("map image failure reports the map and permits retry without changing saved
     {
       id: "map-error",
       updatedAt: "2026-09-28T00:00:00Z",
-      comp: { ...emptyComp(), name: "Map plan", mapIds: ["midtown"] },
+      comp: {
+        ...emptyComp(),
+        name: "Map plan",
+        mapIds: ["midtown"],
+        gameMode: null,
+      },
     },
   ]);
   await page.addInitScript((source) => {

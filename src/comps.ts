@@ -1,5 +1,5 @@
-import { COMP_MAPS } from "./compMaps";
-import { isGameMode, type GameMode } from "./maps";
+import { COMP_MAPS, type CompMapSelection } from "./compMaps";
+import { isGameMode } from "./maps";
 import {
   chooseLegacyDraftHero,
   emptyDraft,
@@ -23,14 +23,14 @@ export interface CompSlot {
   readonly deadpoolRole?: DeadpoolRole;
 }
 
-export interface Comp {
+interface CompContent {
   readonly name: string;
   readonly notes: string;
-  readonly mapIds: readonly string[];
-  readonly gameMode: GameMode | null;
   readonly teams: Readonly<Record<Team, readonly CompSlot[]>>;
   readonly draft: DraftState | null;
 }
+
+export type Comp = CompContent & CompMapSelection;
 
 export interface SavedComp {
   readonly id: string;
@@ -55,14 +55,19 @@ export function sameComp(left: Comp, right: Comp): boolean {
   );
 }
 
+function mapSelection(selection: CompMapSelection): CompMapSelection {
+  return selection.gameMode === null
+    ? { mapIds: selection.mapIds, gameMode: null }
+    : { mapIds: [], gameMode: selection.gameMode };
+}
+
 function canonicalComp(comp: Comp): Comp {
   const slots = (list: readonly CompSlot[]) =>
     list.map((slot) => compSlot(slot.heroId, slot.notes, slot.deadpoolRole));
   return {
     name: comp.name,
     notes: comp.notes,
-    mapIds: comp.mapIds,
-    gameMode: comp.gameMode,
+    ...mapSelection(comp),
     teams: { ally: slots(comp.teams.ally), enemy: slots(comp.teams.enemy) },
     draft: comp.draft,
   };
@@ -165,10 +170,9 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
-function decodeMapSelectionOrLegacyMapId(comp: Record<string, unknown>): {
-  readonly mapIds: readonly string[];
-  readonly gameMode: GameMode | null;
-} {
+function decodeMapSelectionOrLegacyMapId(
+  comp: Record<string, unknown>,
+): CompMapSelection {
   let mapIds: readonly string[];
   if (comp.mapIds !== undefined)
     mapIds = items(comp.mapIds, MAX_COMP_MAPS).map((id) => text(id, 100));
@@ -180,11 +184,11 @@ function decodeMapSelectionOrLegacyMapId(comp: Record<string, unknown>): {
   if (new Set(mapIds).size !== mapIds.length)
     throw new Error("A map appears twice in one comp.");
   const gameMode = comp.gameMode ?? null;
-  if (gameMode !== null && !isGameMode(gameMode))
-    throw new Error("Unknown game mode.");
-  if (gameMode !== null && mapIds.length)
+  if (gameMode === null) return { mapIds, gameMode };
+  if (!isGameMode(gameMode)) throw new Error("Unknown game mode.");
+  if (mapIds.length)
     throw new Error("A comp cannot use a game mode and specific maps.");
-  return { mapIds, gameMode };
+  return { mapIds: [], gameMode };
 }
 
 function decodeCompWithName(
@@ -193,12 +197,10 @@ function decodeCompWithName(
 ): Comp {
   const comp = record(value);
   const teams = record(comp.teams);
-  const { mapIds, gameMode } = decodeMapSelectionOrLegacyMapId(comp);
   return {
     name: decodeName(comp.name),
     notes: text(comp.notes, 10_000),
-    mapIds,
-    gameMode,
+    ...decodeMapSelectionOrLegacyMapId(comp),
     teams: { ally: decodeSlots(teams.ally), enemy: decodeSlots(teams.enemy) },
     draft: decodeDraft(comp.draft),
   };

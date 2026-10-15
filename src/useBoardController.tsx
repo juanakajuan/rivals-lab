@@ -112,6 +112,7 @@ export function useBoardController({
     null,
   );
   const { map: selectedBoardMap, iconSize } = boardState;
+  const boardRevision = session.revision;
   const tokens = session.visibleTokens();
   const selectedMapId = selectedBoardMap.id;
   const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
@@ -239,6 +240,7 @@ export function useBoardController({
   useEffect(() => {
     boardRef.current?.update({
       map: selectedMap,
+      boardRevision,
       tokens,
       selectedTokenId,
       iconSize,
@@ -249,6 +251,7 @@ export function useBoardController({
     });
   }, [
     selectedMap,
+    boardRevision,
     tokens,
     selectedTokenId,
     iconSize,

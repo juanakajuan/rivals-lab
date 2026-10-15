@@ -6,12 +6,21 @@ import { flushSync } from "react-dom";
 import { GameModeIcon } from "./GameModeIcon";
 import { GAME_MODES, type GameMode } from "./maps";
 
-export interface MapPickerOption<Value extends string | null> {
-  readonly value: Value;
+interface MapPickerCard {
   readonly name: string;
   readonly detail: string;
   readonly imagePath: string | null;
   readonly imageSize?: readonly [width: number, height: number];
+}
+
+export interface MapPickerOption<Value extends string> extends MapPickerCard {
+  readonly value: Value;
+}
+
+export interface MapPickerSingleOption<Single> extends MapPickerCard {
+  readonly single: true;
+  readonly id: string;
+  readonly value: Single;
 }
 
 export interface MapPickerPlaceholder {
@@ -21,22 +30,31 @@ export interface MapPickerPlaceholder {
   readonly detail: string;
 }
 
-export type MapPickerEntry<Value extends string | null> =
-  MapPickerOption<Value> | MapPickerPlaceholder;
+export type MapPickerEntry<Value extends string, Single = never> =
+  MapPickerOption<Value> | MapPickerSingleOption<Single> | MapPickerPlaceholder;
 
-export function isMapPlaceholder<Value extends string | null>(
-  option: MapPickerEntry<Value>,
+type MapPickerChoice<Value extends string, Single> =
+  MapPickerOption<Value> | MapPickerSingleOption<Single>;
+
+export function isMapPlaceholder<Value extends string, Single>(
+  option: MapPickerEntry<Value, Single>,
 ): option is MapPickerPlaceholder {
   return "placeholder" in option;
 }
 
-export function isMapChoice<Value extends string | null>(
-  option: MapPickerEntry<Value>,
-): option is MapPickerOption<Value> {
+export function isMapChoice<Value extends string, Single>(
+  option: MapPickerEntry<Value, Single>,
+): option is MapPickerChoice<Value, Single> {
   return !isMapPlaceholder(option);
 }
 
-interface MapPickerMultiple<Value extends string | null> {
+function isSingleOption<Value extends string, Single>(
+  option: MapPickerChoice<Value, Single>,
+): option is MapPickerSingleOption<Single> {
+  return "single" in option;
+}
+
+interface MapPickerMultiple<Value extends string> {
   readonly selectedValues: readonly Value[];
   readonly onApply: (values: readonly NoInfer<Value>[]) => void;
 }
@@ -46,23 +64,23 @@ interface MapPickerModes {
   readonly onChoose: (mode: GameMode) => void;
 }
 
-interface MapPickerProps<Value extends string | null> {
-  readonly options: readonly MapPickerEntry<Value>[];
-  readonly selectedValue: NoInfer<Value> | undefined;
+interface MapPickerProps<Value extends string, Single> {
+  readonly options: readonly MapPickerEntry<Value, Single>[];
+  readonly selectedValue: NoInfer<Value | Single> | undefined;
   readonly triggerLabel: string;
   readonly triggerContent?: ReactNode;
   readonly triggerClassName?: string;
   readonly disabled?: boolean;
   readonly title: string;
   readonly description?: string;
-  readonly onChoose: (value: NoInfer<Value>) => void;
+  readonly onChoose: (value: NoInfer<Value | Single>) => void;
   readonly multiple?: MapPickerMultiple<Value>;
   readonly modes?: MapPickerModes;
   readonly renderActions?: (close: () => void) => ReactNode;
   readonly onClose?: () => void;
 }
 
-export function MapPicker<Value extends string | null>({
+export function MapPicker<Value extends string, Single = never>({
   options,
   selectedValue,
   triggerLabel,
@@ -76,7 +94,7 @@ export function MapPicker<Value extends string | null>({
   modes,
   renderActions,
   onClose,
-}: MapPickerProps<Value>): React.JSX.Element {
+}: MapPickerProps<Value, Single>): React.JSX.Element {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
@@ -108,11 +126,13 @@ export function MapPicker<Value extends string | null>({
     selectedCardRef.current?.focus();
   }
 
-  function isSelected(value: Value): boolean {
-    if (selecting) return draft.includes(value);
+  function isSelected(option: MapPickerChoice<Value, Single>): boolean {
+    if (isSingleOption(option))
+      return !selecting && option.value === selectedValue;
+    if (selecting) return draft.includes(option.value);
     return (
-      value === selectedValue ||
-      (multiple?.selectedValues.includes(value) ?? false)
+      option.value === selectedValue ||
+      (multiple?.selectedValues.includes(option.value) ?? false)
     );
   }
 
@@ -254,12 +274,16 @@ export function MapPicker<Value extends string | null>({
               <button
                 type="button"
                 className="map-picker-card"
-                key={option.value === null ? "any-map" : `map:${option.value}`}
+                key={
+                  isSingleOption(option)
+                    ? `single:${option.id}`
+                    : `map:${option.value}`
+                }
                 ref={option.value === initialValue ? selectedCardRef : null}
                 aria-label={option.name}
-                aria-pressed={isSelected(option.value)}
+                aria-pressed={isSelected(option)}
                 onClick={() => {
-                  if (selecting && option.value !== null) {
+                  if (selecting && !isSingleOption(option)) {
                     toggleDraft(option.value);
                     return;
                   }
@@ -284,7 +308,7 @@ export function MapPicker<Value extends string | null>({
                 <span className="map-picker-card-details">
                   <span className="map-picker-card-name">{option.name}</span>
                   <span className="map-picker-card-mode">{option.detail}</span>
-                  {isSelected(option.value) ? (
+                  {isSelected(option) ? (
                     <span className="map-picker-selected">Selected</span>
                   ) : null}
                 </span>

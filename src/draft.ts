@@ -14,6 +14,17 @@ export interface LegacyDraftState {
   readonly choices: readonly string[];
 }
 
+interface LegacyDraftPhase {
+  readonly index: number;
+  readonly slots: readonly DraftSlot[];
+  readonly heroIds: readonly string[];
+}
+
+interface LegacyDraftPhases {
+  readonly complete: readonly LegacyDraftPhase[];
+  readonly pending: LegacyDraftPhase | undefined;
+}
+
 export interface DraftProgress {
   readonly phaseIndex: number;
   readonly phase: readonly DraftAction[];
@@ -72,26 +83,35 @@ export function draftPhases(
       ];
 }
 
-export function draftProgress(draft: LegacyDraftState): DraftProgress {
-  const phases = draftPhases(draft);
+function legacyDraftPhases(draft: LegacyDraftState): LegacyDraftPhases {
+  const slots = orderedDraftSlots(draft);
+  const complete: LegacyDraftPhase[] = [];
   let offset = 0;
-  for (const [phaseIndex, phase] of phases.entries()) {
-    if (draft.choices.length < offset + phase.length) {
-      const pendingChoices = draft.choices.slice(offset);
-      return {
-        phaseIndex,
-        phase,
-        pendingChoices,
-        action: phase[pendingChoices.length],
-      };
-    }
+  for (const [index, phase] of draftPhases(draft).entries()) {
+    const phaseSlots = slots.slice(offset, offset + phase.length);
+    const heroIds = draft.choices.slice(offset, offset + phase.length);
     offset += phase.length;
+    const current = { index, slots: phaseSlots, heroIds };
+    if (heroIds.length < phase.length) return { complete, pending: current };
+    complete.push(current);
   }
+  return { complete, pending: undefined };
+}
+
+export function draftProgress(draft: LegacyDraftState): DraftProgress {
+  const { pending } = legacyDraftPhases(draft);
+  if (!pending)
+    return {
+      phaseIndex: draftPhases(draft).length,
+      phase: [],
+      pendingChoices: [],
+      action: undefined,
+    };
   return {
-    phaseIndex: phases.length,
-    phase: [],
-    pendingChoices: [],
-    action: undefined,
+    phaseIndex: pending.index,
+    phase: pending.slots,
+    pendingChoices: pending.heroIds,
+    action: pending.slots[pending.heroIds.length],
   };
 }
 
@@ -107,11 +127,9 @@ export function legacyDraftEffects(
     enemy: new Set(),
   };
   if (!draft) return { banned, saved };
-  let offset = 0;
-  for (const phase of draftPhases(draft)) {
-    if (offset + phase.length > draft.choices.length) break;
-    for (const [index, action] of phase.entries()) {
-      const heroId = draft.choices[offset + index];
+  for (const phase of legacyDraftPhases(draft).complete)
+    for (const [index, action] of phase.slots.entries()) {
+      const heroId = phase.heroIds[index];
       if (!heroId) continue;
       const targets: readonly Team[] =
         draft.format === "mrc"
@@ -121,8 +139,6 @@ export function legacyDraftEffects(
         (action.kind === "ban" ? banned : saved)[target].add(heroId);
       }
     }
-    offset += phase.length;
-  }
   return { banned, saved };
 }
 
@@ -286,11 +302,12 @@ export function setDraftHero(
 }
 
 export function migrateLegacyDraft(draft: LegacyDraftState): DraftState {
+  const { complete, pending } = legacyDraftPhases(draft);
   let result = emptyDraft(draft.format);
-  for (const [index, slot] of orderedDraftSlots(draft).entries()) {
-    const heroId = draft.choices[index];
-    if (!heroId) break;
-    result = setDraftHero(result, slot, heroId);
-  }
+  for (const phase of pending ? [...complete, pending] : complete)
+    for (const [index, heroId] of phase.heroIds.entries()) {
+      const slot = phase.slots[index];
+      if (slot) result = setDraftHero(result, slot, heroId);
+    }
   return result;
 }
