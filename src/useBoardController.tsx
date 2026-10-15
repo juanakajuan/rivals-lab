@@ -21,6 +21,7 @@ import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
 import {
   HERO_BY_ID,
   HEROES,
+  TEAMS,
   TEAM_SIZE,
   isTeam,
   teamLabel,
@@ -82,7 +83,7 @@ export function useBoardController({
 }): BoardController {
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<Team>("ally");
+  const [selectedTeam, setSelectedTeam] = useState<Team>(TEAMS[0]);
   const [session] = useState(
     () =>
       new BoardSession(measureBoardNote, workspace.board, workspace.iconSize),
@@ -150,8 +151,6 @@ export function useBoardController({
   const contextHero = contextToken
     ? HERO_BY_ID.get(contextToken.heroId)
     : undefined;
-  const allyCount = tokens.filter((token) => token.team === "ally").length;
-  const enemyCount = tokens.filter((token) => token.team === "enemy").length;
   const normalizedHeroSearch = normalizeSearch(heroSearch);
   const visibleHeroes = HEROES.filter(
     (hero) =>
@@ -621,8 +620,6 @@ export function useBoardController({
         <HeroPanel
           selectedTeam={selectedTeam}
           notice={legacyBoardNotice}
-          allyCount={allyCount}
-          enemyCount={enemyCount}
           heroSearch={heroSearch}
           visibleHeroes={visibleHeroes}
           tokens={tokens}

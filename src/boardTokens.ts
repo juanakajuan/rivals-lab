@@ -1,6 +1,7 @@
 import {
   HERO_BY_ID,
   isDeadpoolRole,
+  isTeam,
   type HeroSelection,
   type Team,
 } from "./heroes";
@@ -44,8 +45,7 @@ export function decodeToken(value: unknown): BoardToken {
   const { id, heroId, team, deadpoolRole } = token;
   if (typeof heroId !== "string" || !HERO_BY_ID.has(heroId))
     throw new Error(`Unknown hero: ${String(heroId)}.`);
-  if (team !== "ally" && team !== "enemy")
-    throw new Error("Invalid hero team.");
+  if (!isTeam(team)) throw new Error("Invalid hero team.");
   if (id !== boardTokenId(team, heroId))
     throw new Error("Invalid hero token ID.");
   if (
