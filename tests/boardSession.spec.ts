@@ -35,31 +35,37 @@ test("map changes and position bounds form one reversible edit", () => {
     },
     150,
   );
-  const original = session.state;
-  expect(original.tokens[0]?.y).toBe(640);
+  const original = session.getSnapshot();
+  expect(original.board.tokens[0]?.y).toBe(640);
   const changed = session.changeMap({
     kind: "builtin",
     id: "birnin-tchalla-domination",
   });
-  expect(changed).toEqual({
-    map: { kind: "builtin", id: "birnin-tchalla-domination" },
-    tokens: [
-      { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 618 },
-    ],
-    drawingsByMap: {},
+  expect(changed).toMatchObject({
+    board: {
+      map: { kind: "builtin", id: "birnin-tchalla-domination" },
+      tokens: [
+        { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 618 },
+      ],
+      drawingsByMap: {},
+    },
     iconSize: 150,
     canUndo: true,
     canRedo: false,
   });
-  expect(session.clear().tokens).toEqual([]);
-  expect(session.undo()).toEqual({ ...changed, canRedo: true });
-  expect(session.undo()).toEqual({ ...original, canRedo: true });
-  const atStart = session.state;
+  expect(session.clear().board.tokens).toEqual([]);
+  expect(session.undo()).toMatchObject({ board: changed.board, canRedo: true });
+  expect(session.undo()).toMatchObject({
+    board: original.board,
+    canUndo: false,
+    canRedo: true,
+  });
+  const atStart = session.getSnapshot();
   expect(session.undo()).toBe(atStart);
-  expect(session.redo()).toEqual({ ...changed, canRedo: true });
-  expect(session.redo().tokens).toEqual([]);
-  expect(session.state.canRedo).toBe(false);
-  const atEnd = session.state;
+  expect(session.redo()).toMatchObject({ board: changed.board, canRedo: true });
+  expect(session.redo().board.tokens).toEqual([]);
+  expect(session.getSnapshot().canRedo).toBe(false);
+  const atEnd = session.getSnapshot();
   expect(session.redo()).toBe(atEnd);
 });
 
@@ -90,15 +96,15 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
     team: "ally",
     point: { x: 270, y: 435 },
   });
-  expect(session.state).toBe(restored);
+  expect(session.getSnapshot()).toBe(restored);
   session.removeToken("ally-strange");
-  const edited = session.state;
+  const edited = session.getSnapshot();
   expect(edited.canRedo).toBe(false);
   expect(session.clear()).toBe(edited);
   expect(session.redo()).toBe(edited);
-  expect(session.undo().tokens).toEqual(initial.tokens);
+  expect(session.undo().board.tokens).toEqual(initial.tokens);
   const defaults = new BoardSession(measureNote);
-  const unchanged = defaults.state;
+  const unchanged = defaults.getSnapshot();
   expect(defaults.reset()).toBe(unchanged);
 });
 
@@ -108,23 +114,23 @@ test("history retains the last 100 edits in order and supports branching", () =>
     session.moveToken({ id: "ally-strange", point: { x, y: 435 } });
   }
   for (let x = 403; x >= 304; x--) {
-    expect(session.undo().tokens[0]?.x).toBe(x);
+    expect(session.undo().board.tokens[0]?.x).toBe(x);
   }
-  expect(session.state.canUndo).toBe(false);
-  const oldest = session.state;
+  expect(session.getSnapshot().canUndo).toBe(false);
+  const oldest = session.getSnapshot();
   expect(session.undo()).toBe(oldest);
   expect(
     session.moveToken({ id: "ally-strange", point: { x: 304, y: 435 } }),
   ).toBe(oldest);
   for (let x = 305; x <= 404; x++) {
-    expect(session.redo().tokens[0]?.x).toBe(x);
+    expect(session.redo().board.tokens[0]?.x).toBe(x);
   }
-  expect(session.state.canRedo).toBe(false);
+  expect(session.getSnapshot().canRedo).toBe(false);
   session.undo();
   session.removeToken("ally-strange");
-  expect(session.state.canRedo).toBe(false);
-  expect(session.redo().tokens).toEqual([]);
-  expect(session.undo().tokens[0]?.x).toBe(403);
+  expect(session.getSnapshot().canRedo).toBe(false);
+  expect(session.redo().board.tokens).toEqual([]);
+  expect(session.undo().board.tokens[0]?.x).toBe(403);
 });
 
 test("placement bounds, team identity, and free positions use the current icon size", () => {
@@ -182,8 +188,8 @@ test("placement bounds, team identity, and free positions use the current icon s
       y: 24,
     },
   });
-  expect(session.state.tokens).toHaveLength(3);
-  expect(session.undo().tokens[0]).toEqual({
+  expect(session.getSnapshot().board.tokens).toHaveLength(3);
+  expect(session.undo().board.tokens[0]).toEqual({
     id: "ally-angela",
     heroId: "angela",
     team: "ally",
@@ -214,22 +220,22 @@ test("teams cap additions without blocking moves or changing history on rejectio
     for (const hero of HEROES.slice(0, TEAM_SIZE)) {
       expect(session.addHero({ heroId: hero.id, team }).kind).toBe("added");
     }
-    const full = session.state;
+    const full = session.getSnapshot();
     expect(session.addHero({ heroId: "luna", team })).toEqual({
       kind: "team-full",
     });
     expect(
       session.placeHero({ heroId: "luna", team, point: { x: 200, y: 200 } }),
     ).toEqual({ kind: "team-full" });
-    expect(session.state).toBe(full);
+    expect(session.getSnapshot()).toBe(full);
     expect(
       session.placeHero({ heroId: "angela", team, point: { x: 200, y: 200 } })
         .kind,
     ).toBe("moved");
     session.undo();
-    const withRedo = session.state;
+    const withRedo = session.getSnapshot();
     session.addHero({ heroId: "luna", team });
-    expect(session.state).toBe(withRedo);
+    expect(session.getSnapshot()).toBe(withRedo);
     session.removeToken(`${team}-angela`);
     expect(session.addHero({ heroId: "luna", team }).kind).toBe("added");
   }
@@ -246,9 +252,11 @@ test("legacy boards keep the first six placements independently per team", () =>
     })),
   );
   const session = new BoardSession(measureNote, { ...initial, tokens });
-  expect(session.state.tokens).toEqual(tokens.slice(0, TEAM_SIZE * 2));
+  expect(session.getSnapshot().board.tokens).toEqual(
+    tokens.slice(0, TEAM_SIZE * 2),
+  );
   session.clear();
-  expect(session.undo().tokens).toEqual(tokens.slice(0, TEAM_SIZE * 2));
+  expect(session.undo().board.tokens).toEqual(tokens.slice(0, TEAM_SIZE * 2));
 });
 
 test("drawings remain isolated by map through edit, clear, reset, and history", () => {
@@ -263,12 +271,12 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     width: 180,
   };
   session.editDrawing(note);
-  const withNote = session.state;
+  const withNote = session.getSnapshot();
   expect(session.editDrawing({ ...note })).toBe(withNote);
   expect(
     session.moveDrawing({ id: "note", delta: { x: -10, y: 9999 } }),
   ).toEqual({ ...note, x: 20, y: 618 });
-  expect(session.undo().drawingsByMap[DEFAULT_MAP_ID]).toEqual([note]);
+  expect(session.undo().board.drawingsByMap[DEFAULT_MAP_ID]).toEqual([note]);
   session.changeMap({ kind: "builtin", id: "hells-heaven-domination" });
   const arrow = session.addDrawing({ kind: "arrow", color: "#ff6268" });
   if (!arrow) throw new Error("Expected an arrow.");
@@ -280,25 +288,27 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     dy: 80,
     color: "#ff6268",
   });
-  expect(session.clear().drawingsByMap).toEqual({
+  expect(session.clear().board.drawingsByMap).toEqual({
     [DEFAULT_MAP_ID]: [note],
     "hells-heaven-domination": [],
   });
-  expect(session.undo().drawingsByMap["hells-heaven-domination"]).toEqual([
-    arrow,
-  ]);
-  expect(session.reset().drawingsByMap).toEqual({
+  expect(session.undo().board.drawingsByMap["hells-heaven-domination"]).toEqual(
+    [arrow],
+  );
+  expect(session.reset().board.drawingsByMap).toEqual({
     [DEFAULT_MAP_ID]: [note],
     "hells-heaven-domination": [],
   });
-  expect(session.undo().drawingsByMap["hells-heaven-domination"]).toEqual([
-    arrow,
-  ]);
+  expect(session.undo().board.drawingsByMap["hells-heaven-domination"]).toEqual(
+    [arrow],
+  );
   session.removeDrawing(arrow.id);
-  expect(session.state.drawingsByMap["hells-heaven-domination"]).toEqual([]);
-  expect(session.undo().drawingsByMap["hells-heaven-domination"]).toEqual([
-    arrow,
-  ]);
+  expect(
+    session.getSnapshot().board.drawingsByMap["hells-heaven-domination"],
+  ).toEqual([]);
+  expect(session.undo().board.drawingsByMap["hells-heaven-domination"]).toEqual(
+    [arrow],
+  );
 });
 
 test("comp transfer preserves drawings and roles and restores map and formation together", () => {
@@ -330,7 +340,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
     comp,
     mapId: "museum-of-contemplation-convoy",
   });
-  expect(transferred.tokens).toEqual([
+  expect(transferred.board.tokens).toEqual([
     {
       id: "ally-deadpool",
       heroId: "deadpool",
@@ -342,14 +352,13 @@ test("comp transfer preserves drawings and roles and restores map and formation 
     { id: "ally-luna", heroId: "luna", team: "ally", x: 268, y: 277 },
     { id: "enemy-magneto", heroId: "magneto", team: "enemy", x: 868, y: 197 },
   ]);
-  expect(transferred.drawingsByMap).toEqual({ [DEFAULT_MAP_ID]: [note] });
+  expect(transferred.board.drawingsByMap).toEqual({ [DEFAULT_MAP_ID]: [note] });
   expect(session.undo()).toMatchObject({
-    ...initial,
-    drawingsByMap: { [DEFAULT_MAP_ID]: [note] },
+    board: { ...initial, drawingsByMap: { [DEFAULT_MAP_ID]: [note] } },
     canUndo: false,
     canRedo: true,
   });
-  expect(session.redo()).toEqual(transferred);
+  expect(session.redo().board).toEqual(transferred.board);
   const changed = session.openComp({
     comp: {
       ...comp,
@@ -360,9 +369,12 @@ test("comp transfer preserves drawings and roles and restores map and formation 
     },
     mapId: "museum-of-contemplation-convoy",
   });
-  expect(changed.tokens[0]?.deadpoolRole).toBe("Strategist");
-  expect(session.undo()).toEqual({ ...transferred, canRedo: true });
-  expect(session.redo()).toEqual(changed);
+  expect(changed.board.tokens[0]?.deadpoolRole).toBe("Strategist");
+  expect(session.undo()).toMatchObject({
+    board: transferred.board,
+    canRedo: true,
+  });
+  expect(session.redo().board).toEqual(changed.board);
 });
 
 test("icon size changes visible bounds without a history edit", () => {
@@ -378,11 +390,11 @@ test("icon size changes visible bounds without a history edit", () => {
   );
   const larger = session.setIconSize(150);
   expect(larger.canUndo).toBe(false);
-  expect(larger.tokens[0]).toMatchObject({ x: 12, y: 12 });
-  expect(session.visibleTokens()[0]).toMatchObject({ x: 36, y: 36 });
+  expect(larger.board.tokens[0]).toMatchObject({ x: 12, y: 12 });
+  expect(larger.tokens[0]).toMatchObject({ x: 36, y: 36 });
   const smaller = session.setIconSize(50);
+  expect(smaller.board.tokens[0]).toMatchObject({ x: 12, y: 12 });
   expect(smaller.tokens[0]).toMatchObject({ x: 12, y: 12 });
-  expect(session.visibleTokens()[0]).toMatchObject({ x: 12, y: 12 });
   expect(session.undo()).toBe(smaller);
 });
 
@@ -403,14 +415,64 @@ test("a map refuses drawings past the stored limit", () => {
     ...initial,
     drawingsByMap: { [DEFAULT_MAP_ID]: drawings },
   });
-  const full = session.state;
+  const full = session.getSnapshot();
   expect(session.addDrawing({ kind: "zone", color: "#ffffff" })).toBeNull();
-  expect(session.state).toBe(full);
+  expect(session.getSnapshot()).toBe(full);
   const first = drawings[0];
   if (!first) throw new Error("Expected a drawing.");
   const edited = session.editDrawing({ ...first, color: "#000000" });
-  expect(edited.drawingsByMap[DEFAULT_MAP_ID]).toHaveLength(
+  expect(edited.board.drawingsByMap[DEFAULT_MAP_ID]).toHaveLength(
     MAX_DRAWINGS_PER_MAP,
   );
-  expect(edited.drawingsByMap[DEFAULT_MAP_ID]?.[0]?.color).toBe("#000000");
+  expect(edited.board.drawingsByMap[DEFAULT_MAP_ID]?.[0]?.color).toBe(
+    "#000000",
+  );
+});
+
+test("getSnapshot returns the same object until a change, then a new object", () => {
+  const session = new BoardSession(
+    measureNote,
+    {
+      ...initial,
+      tokens: [
+        { id: "ally-strange", heroId: "strange", team: "ally", x: 0, y: 0 },
+      ],
+    },
+    150,
+  );
+  let notified = 0;
+  const unsubscribe = session.subscribe(() => {
+    notified += 1;
+  });
+  const first = session.getSnapshot();
+  expect(session.getSnapshot()).toBe(first);
+  expect(first.tokens).toEqual([
+    { id: "ally-strange", heroId: "strange", team: "ally", x: 36, y: 36 },
+  ]);
+  session.removeToken("missing");
+  session.setIconSize(150);
+  session.undo();
+  expect(session.getSnapshot()).toBe(first);
+  expect(notified).toBe(0);
+
+  session.moveToken({ id: "ally-strange", point: { x: 300, y: 400 } });
+  const moved = session.getSnapshot();
+  expect(moved).not.toBe(first);
+  expect(session.getSnapshot()).toBe(moved);
+  expect(moved.tokens).toEqual([
+    { id: "ally-strange", heroId: "strange", team: "ally", x: 300, y: 400 },
+  ]);
+  expect(notified).toBe(1);
+
+  session.setIconSize(50);
+  expect(session.getSnapshot()).not.toBe(moved);
+  expect(session.getSnapshot().boardRevision).toBe(moved.boardRevision);
+  expect(notified).toBe(2);
+
+  unsubscribe();
+  session.undo();
+  expect(session.getSnapshot().board.tokens).toEqual([
+    { id: "ally-strange", heroId: "strange", team: "ally", x: 0, y: 0 },
+  ]);
+  expect(notified).toBe(2);
 });

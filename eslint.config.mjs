@@ -4,6 +4,35 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
+const ownedImports = [
+  {
+    owner: "src/useBoardController.tsx",
+    regex: "(^|/)boardSession(\\.ts)?$",
+    importNames: ["BoardSession"],
+    message:
+      "src/useBoardController.tsx owns BoardSession. Read board state from the BoardController that useBoardController() returns.",
+  },
+];
+
+/**
+ * @param {string} [owner]
+ * @returns {import("eslint").Linter.RuleEntry}
+ */
+function restrictedImports(owner) {
+  return [
+    "error",
+    {
+      patterns: ownedImports
+        .filter((entry) => entry.owner !== owner)
+        .map(({ regex, importNames, message }) => ({
+          regex,
+          importNames,
+          message,
+        })),
+    },
+  ];
+}
+
 export default defineConfig(
   globalIgnores([
     ".agents/",
@@ -62,9 +91,20 @@ export default defineConfig(
           message:
             "src/heroes.ts owns the team names. Use TEAMS, type Team, isTeam(), otherTeam(), teamCounts(), or a Record<Team, …> lookup.",
         },
+        {
+          selector:
+            "CallExpression[callee.name='useState'] > :matches(CallExpression, ArrowFunctionExpression > CallExpression)[callee.property.name='getSnapshot']",
+          message:
+            "Do not copy a store snapshot into React state. Read it with useSyncExternalStore(store.subscribe, store.getSnapshot).",
+        },
       ],
+      "no-restricted-imports": restrictedImports(),
     },
   },
+  ...ownedImports.map(({ owner }) => ({
+    files: [owner],
+    rules: { "no-restricted-imports": restrictedImports(owner) },
+  })),
   {
     files: ["src/**/*.tsx"],
     plugins: {

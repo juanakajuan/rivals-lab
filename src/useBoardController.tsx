@@ -1,9 +1,9 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { Redo2, Undo2 } from "lucide-react";
@@ -30,10 +30,10 @@ import {
 } from "./heroes";
 import {
   BoardSession,
-  type BoardState,
+  type BoardSnapshot,
   type HeroPlacement,
 } from "./boardSession";
-import type { BoardToken, IconSize } from "./boardTokens";
+import type { BoardToken } from "./boardTokens";
 import type { Workspace } from "./workspaceRecord";
 import { normalizeSearch } from "./searchText";
 import { getMap, isMapId, type MapId } from "./maps";
@@ -42,7 +42,6 @@ import {
   resolveBoardMap,
   uploadBoardMap,
   type BoardMapId,
-  type CustomBoardMap,
   type SelectedBoardMap,
 } from "./boardMaps";
 
@@ -67,11 +66,7 @@ export interface BoardController {
   readonly overlays: ReactNode;
   readonly openComp: (comp: Comp, mapId: MapId) => boolean;
   readonly dismissMenu: () => void;
-  readonly document: {
-    readonly board: BoardState;
-    readonly iconSize: IconSize;
-    readonly customMaps: readonly CustomBoardMap[];
-  };
+  readonly document: Pick<BoardSnapshot, "board" | "iconSize" | "customMaps">;
 }
 
 export function useBoardController({
@@ -86,16 +81,18 @@ export function useBoardController({
   const [selectedTeam, setSelectedTeam] = useState<Team>(TEAMS[0]);
   const [session] = useState(
     () =>
-      new BoardSession(measureBoardNote, workspace.board, workspace.iconSize),
+      new BoardSession(
+        measureBoardNote,
+        workspace.board,
+        workspace.iconSize,
+        workspace.customMaps,
+      ),
   );
-  const [boardState, setBoardState] = useState(session.state);
+  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [legacyBoardNotice] = useState(
-    session.state.tokens.length < workspace.board.tokens.length
+    snapshot.board.tokens.length < workspace.board.tokens.length
       ? `Saved board limited to the first ${TEAM_SIZE} heroes per team. Extra placements were removed.`
       : null,
-  );
-  const [customMaps, setCustomMaps] = useState<readonly CustomBoardMap[]>(
-    workspace.customMaps,
   );
   const [uploadState, setUploadState] = useState<BoardUploadState>({
     kind: "idle",
@@ -112,23 +109,14 @@ export function useBoardController({
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
-  const { map: selectedBoardMap, iconSize } = boardState;
-  const boardRevision = session.revision;
-  const tokens = session.visibleTokens();
-  const selectedMapId = selectedBoardMap.id;
-  const mapDrawings = boardState.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
+  const { tokens, boardRevision, iconSize, customMaps } = snapshot;
+  const selectedMapId = snapshot.board.map.id;
+  const mapDrawings =
+    snapshot.board.drawingsByMap[selectedMapId] ?? EMPTY_DRAWINGS;
   const selectedDrawing = mapDrawings.find(
     (drawing) => drawing.id === selectedDrawingId,
   );
-  const selectedMap = resolveBoardMap(selectedBoardMap);
-  const document = useMemo(
-    () => ({
-      board: boardState,
-      iconSize,
-      customMaps,
-    }),
-    [boardState, customMaps, iconSize],
-  );
+  const selectedMap = resolveBoardMap(snapshot.board.map);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [heroSearch, setHeroSearch] = useState("");
   const [isHeroDragging, setIsHeroDragging] = useState(false);
@@ -158,23 +146,19 @@ export function useBoardController({
       normalizeSearch(hero.role).includes(normalizedHeroSearch),
   );
 
-  const showDrawingEdit = useCallback(
-    (drawing: BoardDrawing): void => {
-      setBoardState(session.state);
-      setSelectedDrawingId(drawing.id);
-      setSelectedTokenId(null);
-      setAnnouncement(`${drawing.kind} updated.`);
-    },
-    [session],
-  );
+  const showDrawingEdit = useCallback((drawing: BoardDrawing): void => {
+    setSelectedDrawingId(drawing.id);
+    setSelectedTokenId(null);
+    setAnnouncement(`${drawing.kind} updated.`);
+  }, []);
 
   const editDrawing = useCallback(
     (drawing: BoardDrawing): void => {
-      const before = session.state;
+      const before = session.getSnapshot();
       const next = session.editDrawing(drawing);
-      const exists = (before.drawingsByMap[before.map.id] ?? []).some(
-        (item) => item.id === drawing.id,
-      );
+      const exists = (
+        before.board.drawingsByMap[before.board.map.id] ?? []
+      ).some((item) => item.id === drawing.id);
       if (next === before && !exists) {
         setAnnouncement(drawingLimitMessage());
         return;
@@ -211,7 +195,7 @@ export function useBoardController({
         );
       },
       onMove: (token, x, y) => {
-        setBoardState(session.moveToken({ id: token.id, point: { x, y } }));
+        session.moveToken({ id: token.id, point: { x, y } });
         setAnnouncement(
           `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} moved to ${x}, ${y}.`,
         );
@@ -347,7 +331,6 @@ export function useBoardController({
     hero: HeroDefinition,
     result: HeroPlacement,
   ): void {
-    setBoardState(session.state);
     setTool("move");
     setSelectedDrawingId(null);
     setSelectedTokenId(result.token.id);
@@ -427,7 +410,7 @@ export function useBoardController({
 
   function removeToken(token: BoardToken): void {
     const heroName = HERO_BY_ID.get(token.heroId)?.name ?? "Hero";
-    setBoardState(session.removeToken(token.id));
+    session.removeToken(token.id);
     setSelectedTokenId((currentId) =>
       currentId === token.id ? null : currentId,
     );
@@ -467,7 +450,7 @@ export function useBoardController({
   }
 
   function removeDrawing(drawing: BoardDrawing): void {
-    setBoardState(session.removeDrawing(drawing.id));
+    session.removeDrawing(drawing.id);
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement("Drawing removed.");
@@ -506,13 +489,13 @@ export function useBoardController({
   }
 
   function resetBoard(): void {
-    setBoardState(session.reset());
+    session.reset();
     setSelectedTokenId(null);
     setAnnouncement("The example formation is restored.");
   }
 
   function clearBoard(): void {
-    setBoardState(session.clear());
+    session.clear();
     setSelectedTokenId(null);
     setAnnouncement("The board is clear.");
   }
@@ -531,9 +514,9 @@ export function useBoardController({
       setUploadState(result);
       return false;
     }
-    setCustomMaps((maps) => [...maps, result.map]);
+    session.addCustomMap(result.map);
     setUploadState({ kind: "idle" });
-    setBoardState(session.changeMap(result.map));
+    session.changeMap(result.map);
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${result.map.name} selected.`);
@@ -547,7 +530,7 @@ export function useBoardController({
       : customMaps.find((map) => map.id === mapId);
     if (!selected) return;
     const map = resolveBoardMap(selected);
-    setBoardState(session.changeMap(selected));
+    session.changeMap(selected);
     setSelectedDrawingId(null);
     setContextMenu(null);
     setAnnouncement(`${map.name} selected.`);
@@ -563,7 +546,7 @@ export function useBoardController({
     )
       return false;
     const map = getMap(mapId);
-    setBoardState(session.openComp({ comp, mapId }));
+    session.openComp({ comp, mapId });
     setSelectedTokenId(null);
     setContextMenu(null);
     setAnnouncement(`${comp.name || "Comp"} opened on ${map.name}.`);
@@ -572,8 +555,9 @@ export function useBoardController({
 
   function restoreBoard(type: "undo" | "redo"): void {
     cancelUpload();
-    if (type === "undo" ? !boardState.canUndo : !boardState.canRedo) return;
-    setBoardState(type === "undo" ? session.undo() : session.redo());
+    if (type === "undo" ? !snapshot.canUndo : !snapshot.canRedo) return;
+    if (type === "undo") session.undo();
+    else session.redo();
     setContextMenu(null);
     setAnnouncement(
       type === "undo" ? "Board edit undone." : "Board edit restored.",
@@ -588,7 +572,7 @@ export function useBoardController({
         <button
           className="secondary-button history-button"
           type="button"
-          disabled={!boardState.canUndo}
+          disabled={!snapshot.canUndo}
           onClick={() => restoreBoard("undo")}
           title="Undo (Ctrl/Cmd+Z)"
           aria-label="Undo"
@@ -599,7 +583,7 @@ export function useBoardController({
         <button
           className="secondary-button history-button"
           type="button"
-          disabled={!boardState.canRedo}
+          disabled={!snapshot.canRedo}
           onClick={() => restoreBoard("redo")}
           title="Redo (Ctrl/Cmd+Shift+Z)"
           aria-label="Redo"
@@ -664,7 +648,7 @@ export function useBoardController({
           selectedToken={selectedToken}
           selectedHero={selectedHero}
           iconSize={iconSize}
-          onIconSizeChange={(size) => setBoardState(session.setIconSize(size))}
+          onIconSizeChange={(size) => session.setIconSize(size)}
           onMapChange={changeMap}
           onDrop={handleBoardDrop}
           onKeyDown={handleBoardKeyDown}
@@ -712,6 +696,6 @@ export function useBoardController({
     ),
     openComp,
     dismissMenu,
-    document,
+    document: snapshot,
   };
 }
