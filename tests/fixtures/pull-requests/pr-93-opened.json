@@ -1,0 +1,5 @@
+{
+  "title": "fix(import): show each distinct error message once (#81)",
+  "body": "Fixes #81. Duplicate import errors are now de-duplicated before joining. No visible UI layout change; the alert text shows each message once.",
+  "files": ["releases/pending.json", "src/comps.ts", "src/savedComps.ts"]
+}

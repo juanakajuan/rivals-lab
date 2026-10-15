@@ -59,6 +59,14 @@ the production browser flows for pull requests and pushes to `main`. Check both
 jobs on the pull request before merge or release. Failed browser runs include
 reports, traces, and downloaded images in the `browser-results` Actions artifact.
 
+## Pull request rules
+
+The PR rules workflow runs `scripts/check-pr.ts` on each pull request and on
+each edit of its title or body. The rules are in
+[AGENTS.md](AGENTS.md#issues-and-pull-requests). Run
+`npm run check:pr -- <PR number>` to check an open PR, and
+`npm run test:check-pr` to test the rules.
+
 ## Browser support
 
 The app supports current desktop Chrome, Edge, and Firefox. Release checks use
