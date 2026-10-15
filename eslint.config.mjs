@@ -93,7 +93,7 @@ export default defineConfig(
         },
         {
           selector:
-            "CallExpression[callee.name='useState'] > :matches(CallExpression, ArrowFunctionExpression > CallExpression)[callee.property.name='getSnapshot']",
+            "CallExpression[callee.name='useState'] > CallExpression[callee.property.name='getSnapshot'], CallExpression[callee.name='useState'] > ArrowFunctionExpression > CallExpression[callee.property.name='getSnapshot']",
           message:
             "Do not copy a store snapshot into React state. Read it with useSyncExternalStore(store.subscribe, store.getSnapshot).",
         },
