@@ -115,6 +115,26 @@ test("resizing and history restoration keep edge tokens inside the map", async (
   await expect(page.locator(".selection-summary")).toHaveCount(0);
 });
 
+test("a token stored outside the current icon bounds can be dragged", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const slider = page.getByRole("slider", { name: "Hero icon size" });
+  await slider.press("Home");
+  await dropHero(page, "ally", 0, 0);
+  await expect(page.locator(".coordinates")).toHaveText("x 12, y 12");
+  await slider.press("End");
+  await expect(page.locator(".coordinates")).toHaveText("x 36, y 36");
+  await frame(page);
+  const start = await boardPoint(page, 36, 36);
+  const end = await boardPoint(page, 500, 300);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator(".coordinates")).toHaveText("x 500, y 300");
+});
+
 test("existing and new portraits and rings scale together after delayed image loading", async ({
   page,
 }) => {
