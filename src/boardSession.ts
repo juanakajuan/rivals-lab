@@ -16,7 +16,7 @@ import {
   type IconSize,
 } from "./boardTokens";
 import type { Comp } from "./comps";
-import { TEAM_SIZE, type Team } from "./heroes";
+import { TEAMS, TEAM_SIZE, type Team } from "./heroes";
 import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
 
 import {
@@ -58,51 +58,33 @@ function keepEarliestTeamPlacements(board: BoardState): BoardState {
 
 const HISTORY_LIMIT = 100;
 
+const INITIAL_PLACEMENTS: Readonly<
+  Record<Team, readonly Pick<BoardToken, "heroId" | "x" | "y">[]>
+> = {
+  ally: [
+    { heroId: "strange", x: 270, y: 435 },
+    { heroId: "psylocke", x: 380, y: 350 },
+    { heroId: "luna", x: 230, y: 520 },
+  ],
+  enemy: [
+    { heroId: "magneto", x: 865, y: 310 },
+    { heroId: "magik", x: 960, y: 410 },
+    { heroId: "rocket", x: 910, y: 515 },
+  ],
+};
+
+const TEAM_HALF_START: Readonly<Record<Team, number>> = { ally: 0, enemy: 0.5 };
+
 function initialTokens(): BoardToken[] {
-  return [
-    {
-      id: boardTokenId("ally", "strange"),
-      heroId: "strange",
-      team: "ally",
-      x: 270,
-      y: 435,
-    },
-    {
-      id: boardTokenId("ally", "psylocke"),
-      heroId: "psylocke",
-      team: "ally",
-      x: 380,
-      y: 350,
-    },
-    {
-      id: boardTokenId("ally", "luna"),
-      heroId: "luna",
-      team: "ally",
-      x: 230,
-      y: 520,
-    },
-    {
-      id: boardTokenId("enemy", "magneto"),
-      heroId: "magneto",
-      team: "enemy",
-      x: 865,
-      y: 310,
-    },
-    {
-      id: boardTokenId("enemy", "magik"),
-      heroId: "magik",
-      team: "enemy",
-      x: 960,
-      y: 410,
-    },
-    {
-      id: boardTokenId("enemy", "rocket"),
-      heroId: "rocket",
-      team: "enemy",
-      x: 910,
-      y: 515,
-    },
-  ];
+  return TEAMS.flatMap((team) =>
+    INITIAL_PLACEMENTS[team].map(({ heroId, x, y }) => ({
+      id: boardTokenId(team, heroId),
+      heroId,
+      team,
+      x,
+      y,
+    })),
+  );
 }
 
 export function initialBoard(): BoardState {
@@ -228,7 +210,7 @@ export class BoardSession {
     const boundary = tokenBoundary(this.iconSize);
     const spacing = boundary * 2 + 4;
     const halfWidth = Math.floor(map.width / 2);
-    const preferredStart = team === "ally" ? 0 : halfWidth;
+    const preferredStart = Math.floor(map.width * TEAM_HALF_START[team]);
     const tokens = this.board.tokens.map((token) => ({
       x: clampToBoard(token.x, map.width, this.iconSize),
       y: clampToBoard(token.y, map.height, this.iconSize),
@@ -413,8 +395,7 @@ export class BoardSession {
   }): BoardSessionState {
     const map = getMap(mapId);
     const tokens: BoardToken[] = [];
-    const teams: readonly Team[] = ["ally", "enemy"];
-    for (const team of teams) {
+    for (const team of TEAMS) {
       comp.teams[team].forEach((slot, index) => {
         if (!slot.heroId) return;
         tokens.push({
@@ -424,7 +405,7 @@ export class BoardSession {
           ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),
           x: clampToBoard(
             Math.round(
-              map.width * (team === "ally" ? 0.25 : 0.75) +
+              map.width * (TEAM_HALF_START[team] + 0.25) +
                 (index % 2) * 65 -
                 32,
             ),

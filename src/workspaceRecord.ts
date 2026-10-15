@@ -24,7 +24,7 @@ import {
   serializeCompLibrary,
   type CompLibrary,
 } from "./compLibrary";
-import { TEAM_SIZE } from "./heroes";
+import { TEAMS, TEAM_SIZE } from "./heroes";
 import { MAPS } from "./maps";
 import {
   decodeOpenCompSnapshot,
@@ -83,7 +83,7 @@ export function decodeBoardRecord(
     throw new Error("A hero appears twice on the Position Board.");
   if (
     !allowLegacyTeams &&
-    ["ally", "enemy"].some(
+    TEAMS.some(
       (team) =>
         tokens.filter((token) => token.team === team).length > TEAM_SIZE,
     )

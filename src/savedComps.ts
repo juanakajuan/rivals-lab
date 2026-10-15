@@ -14,6 +14,7 @@ import {
   type SavedComp,
 } from "./comps";
 import { applyCompEdit, type CompEdit } from "./compEdits";
+import { RULES } from "./heroes";
 import type { CompStorage } from "./appData";
 
 export interface SavedCompLibraryView {
@@ -62,7 +63,11 @@ function decodeSavedLink(value: unknown): OpenCompSnapshot["saved"] {
   if (typeof value !== "object" || value === undefined || Array.isArray(value))
     throw new Error("Invalid open comp link.");
   const link: Partial<Record<string, unknown>> = value;
-  if (typeof link.id !== "string" || !link.id || link.id.length > 100)
+  if (
+    typeof link.id !== "string" ||
+    !link.id ||
+    link.id.length > RULES.idLength
+  )
     throw new Error("Invalid open comp link.");
   return { id: link.id, baseline: decodeOpenComp(link.baseline) };
 }

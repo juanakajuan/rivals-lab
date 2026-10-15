@@ -52,6 +52,20 @@ export default defineConfig(
     },
   },
   {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/heroes.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/^(ally|enemy)$/]",
+          message:
+            "src/heroes.ts owns the team names. Use TEAMS, type Team, isTeam(), otherTeam(), teamCounts(), or a Record<Team, …> lookup.",
+        },
+      ],
+    },
+  },
+  {
     files: ["src/**/*.tsx"],
     plugins: {
       "react-hooks": { meta: reactHooks.meta, rules: reactHooks.rules },
