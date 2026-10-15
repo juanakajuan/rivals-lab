@@ -185,7 +185,6 @@ for (const modifier of ["Control", "Meta"]) {
     await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
       "Allies 4",
     );
-    // History shortcuts must remain uncancelled in text-editing surfaces.
     const prevented = await page.evaluate((key) => {
       const input = document.querySelector("input");
       if (!input) throw new Error("Missing search");

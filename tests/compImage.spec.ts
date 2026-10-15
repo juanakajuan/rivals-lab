@@ -38,7 +38,6 @@ interface PngPixels {
   readonly hasContent: boolean;
 }
 
-/** Decode exported pixels without using the worker and bitmap APIs under test. */
 async function inspectPngs(
   sources: readonly (readonly number[])[],
 ): Promise<readonly PngPixels[]> {
@@ -86,7 +85,6 @@ test("downloads and copies the same full PNG without changing saved data", async
   page,
   context,
 }, testInfo) => {
-  // Encodes and compares several full-size PNGs, which takes over 30 s on CI runners.
   test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const empty = emptyComp();
@@ -144,18 +142,28 @@ test("downloads and copies the same full PNG without changing saved data", async
   await page.addInitScript((source) => {
     localStorage.setItem("rivals-lab.comps.v1", source);
     window.imageCopyTest = { text: [], writes: 0, positions: [] };
+    const wrap = <T extends object, K extends keyof T>(
+      target: T,
+      key: K,
+      replace: (original: T[K]) => T[K],
+    ): void => {
+      target[key] = replace(target[key]);
+    };
     for (const prototype of [
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
     ]) {
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
-      const fillText = prototype.fillText;
-      prototype.fillText = function (text, x, y, maxWidth) {
-        window.imageCopyTest.text.push(text);
-        window.imageCopyTest.positions?.push({ text, x, y });
-        if (maxWidth === undefined) fillText.call(this, text, x, y);
-        else fillText.call(this, text, x, y, maxWidth);
-      };
+      wrap(
+        prototype,
+        "fillText",
+        (fillText) =>
+          function (this: typeof prototype, text, x, y, maxWidth) {
+            window.imageCopyTest.text.push(text);
+            window.imageCopyTest.positions?.push({ text, x, y });
+            if (maxWidth === undefined) fillText.call(this, text, x, y);
+            else fillText.call(this, text, x, y, maxWidth);
+          },
+      );
     }
   }, saved);
   await page.goto("/");
@@ -560,18 +568,31 @@ for (const failure of workerFailures) {
         workerStops: 0,
         localEncodes: 0,
       };
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the bitmap receiver with call.
-      const close = ImageBitmap.prototype.close;
-      ImageBitmap.prototype.close = function () {
-        window.imageFallbackTest.bitmapCloses++;
-        close.call(this);
+      const wrap = <T extends object, K extends keyof T>(
+        target: T,
+        key: K,
+        replace: (original: T[K]) => T[K],
+      ): void => {
+        target[key] = replace(target[key]);
       };
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
-      const convertToBlob = OffscreenCanvas.prototype.convertToBlob;
-      OffscreenCanvas.prototype.convertToBlob = function (options) {
-        window.imageFallbackTest.localEncodes++;
-        return convertToBlob.call(this, options);
-      };
+      wrap(
+        ImageBitmap.prototype,
+        "close",
+        (close) =>
+          function (this: ImageBitmap) {
+            window.imageFallbackTest.bitmapCloses++;
+            close.call(this);
+          },
+      );
+      wrap(
+        OffscreenCanvas.prototype,
+        "convertToBlob",
+        (convertToBlob) =>
+          function (this: OffscreenCanvas, options) {
+            window.imageFallbackTest.localEncodes++;
+            return convertToBlob.call(this, options);
+          },
+      );
       if (failure === "snapshot") {
         window.createImageBitmap = () =>
           Promise.reject(new Error("Cannot copy the canvas"));
@@ -781,23 +802,36 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   await page.addInitScript(() => {
     window.imageCopyTest = { text: [], writes: 0, cardWidths: [] };
     Object.defineProperty(navigator, "clipboard", { value: undefined });
+    const wrap = <T extends object, K extends keyof T>(
+      target: T,
+      key: K,
+      replace: (original: T[K]) => T[K],
+    ): void => {
+      target[key] = replace(target[key]);
+    };
     for (const prototype of [
       CanvasRenderingContext2D.prototype,
       OffscreenCanvasRenderingContext2D.prototype,
     ]) {
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
-      const roundRect = prototype.roundRect;
-      prototype.roundRect = function (x, y, width, height, radii) {
-        window.imageCopyTest.cardWidths?.push(width);
-        roundRect.call(this, x, y, width, height, radii);
-      };
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- The wrapper supplies the canvas receiver with call.
-      const fillText = prototype.fillText;
-      prototype.fillText = function (text, x, y, maxWidth) {
-        window.imageCopyTest.text.push(text);
-        if (maxWidth === undefined) fillText.call(this, text, x, y);
-        else fillText.call(this, text, x, y, maxWidth);
-      };
+      wrap(
+        prototype,
+        "roundRect",
+        (roundRect) =>
+          function (this: typeof prototype, x, y, width, height, radii) {
+            window.imageCopyTest.cardWidths?.push(width);
+            roundRect.call(this, x, y, width, height, radii);
+          },
+      );
+      wrap(
+        prototype,
+        "fillText",
+        (fillText) =>
+          function (this: typeof prototype, text, x, y, maxWidth) {
+            window.imageCopyTest.text.push(text);
+            if (maxWidth === undefined) fillText.call(this, text, x, y);
+            else fillText.call(this, text, x, y, maxWidth);
+          },
+      );
     }
   });
   await page.goto("/");
@@ -881,7 +915,6 @@ test("sparse export omits empty sections and rejects an empty build", async ({
   );
   for (const included of ["Allies", "Deadpool", "Strategist", "Stay close."])
     expect(sparseText).toContain(included);
-  // One hero on a single team keeps the six-column card width (230px).
   const cardWidths = await page.evaluate(
     () => window.imageCopyTest.cardWidths ?? [],
   );

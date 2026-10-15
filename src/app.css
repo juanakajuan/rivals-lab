@@ -995,7 +995,6 @@ button:focus-visible,
   font: inherit;
 }
 
-/* Dynamic drawing controls must not consume map layout space. */
 .drawing-tools {
   position: relative;
 }

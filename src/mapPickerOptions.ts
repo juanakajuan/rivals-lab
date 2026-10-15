@@ -6,7 +6,6 @@ import {
 import { COMP_MAPS } from "./compMaps";
 import { getMap, type MapId } from "./maps";
 
-/** Every planning map, in catalog order. Maps without an overhead image stay visible as placeholders. */
 export const BOARD_MAP_PICKER_OPTIONS: readonly MapPickerEntry<MapId>[] =
   COMP_MAPS.map((map): MapPickerEntry<MapId> => {
     if (map.boardMapId === undefined) {

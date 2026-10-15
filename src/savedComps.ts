@@ -126,7 +126,6 @@ function savedLink(entry: SavedComp): EditorLink {
   };
 }
 
-/** Owns the library and editor save state; display code owns confirmations. */
 export class SavedCompSession {
   private baseline: Comp;
   private link: EditorLink;
@@ -264,13 +263,11 @@ export class SavedCompSession {
             comp: { ...entry.comp, name },
             updatedAt: new Date().toISOString(),
           };
-          // A rename must not make stale editor content safe to overwrite.
-          if (
+          const editorSavedThisRevision =
             link.kind === "saved" &&
             link.id === id &&
-            savedCompRevision(entry) === link.revision
-          )
-            renamedLink = savedLink(nextEntry);
+            savedCompRevision(entry) === link.revision;
+          if (editorSavedThisRevision) renamedLink = savedLink(nextEntry);
           return nextEntry;
         }),
       );
@@ -324,7 +321,6 @@ export class SavedCompSession {
       : ((await this.storage.read()) ?? serializeCompLibrary([]));
   }
 
-  /** A library refresh never replaces local edits or makes a stale save safe. */
   async refresh(): Promise<void> {
     const generation = ++this.refreshGeneration;
     let library: SavedCompLibraryView;

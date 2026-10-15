@@ -137,7 +137,6 @@ function lenient<T>(decode: () => T, fallback: () => T): T {
   }
 }
 
-/** Decode what this browser saved. A damaged record falls back to its empty state. */
 export function decodeStoredRecords(records: StoredRecords): {
   readonly workspace: Workspace;
   readonly library: CompLibrary;

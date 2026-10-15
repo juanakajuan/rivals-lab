@@ -1,4 +1,3 @@
-// PNG encoding runs outside the page's idle-task queue.
 globalThis.onmessage = async (event: MessageEvent<unknown>): Promise<void> => {
   const image = event.data;
   if (!(image instanceof ImageBitmap)) {

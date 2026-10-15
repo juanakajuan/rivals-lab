@@ -63,9 +63,6 @@ const CUSTOM_MAPS = "custom-maps";
 type StoreName = typeof LIBRARY | typeof WORKSPACE | typeof CUSTOM_MAPS;
 type Read = readonly [store: StoreName, key: IDBValidKey | null];
 
-// These names are persisted or shared with open tabs, so they keep the legacy localStorage key.
-const LIBRARY_KEY = COMP_STORAGE_KEY;
-const CHANNEL_NAME = COMP_STORAGE_KEY;
 const WORKSPACE_REPLACED = "workspaceReplaced";
 
 class ReplacedElsewhereError extends Error {
@@ -198,7 +195,7 @@ async function boot(onReplaced: () => void): Promise<{
       [LIBRARY, WORKSPACE, CUSTOM_MAPS],
       "readwrite",
       [
-        [LIBRARY, LIBRARY_KEY],
+        [LIBRARY, COMP_STORAGE_KEY],
         [WORKSPACE, "epoch"],
         [WORKSPACE, "board"],
         [WORKSPACE, "openComp"],
@@ -208,7 +205,7 @@ async function boot(onReplaced: () => void): Promise<{
         let source: string | null;
         if (library === undefined) {
           source = localStorage.getItem(COMP_STORAGE_KEY);
-          active.objectStore(LIBRARY).put(source, LIBRARY_KEY);
+          active.objectStore(LIBRARY).put(source, COMP_STORAGE_KEY);
         } else source = storedSource(library);
         let epoch: string;
         if (typeof storedEpoch === "string") epoch = storedEpoch;
@@ -253,7 +250,7 @@ class BrowserCompStorage implements CompStorage {
       database,
       [LIBRARY],
       "readonly",
-      [[LIBRARY, LIBRARY_KEY]],
+      [[LIBRARY, COMP_STORAGE_KEY]],
       ([value]) => storedSource(value),
     );
   }
@@ -264,13 +261,13 @@ class BrowserCompStorage implements CompStorage {
     const connection = await this.connection;
     await connection.write(
       [LIBRARY],
-      [[LIBRARY, LIBRARY_KEY]],
+      [[LIBRARY, COMP_STORAGE_KEY]],
       ([value], active) => {
         active
           .objectStore(LIBRARY)
           .put(
             updateLibrarySource(storedSource(value), transform).text,
-            LIBRARY_KEY,
+            COMP_STORAGE_KEY,
           );
       },
     );
@@ -282,7 +279,7 @@ class BrowserCompStorage implements CompStorage {
     this.listeners.add(onChange);
     if (this.listeners.size === 1) {
       if (typeof BroadcastChannel !== "undefined") {
-        this.channel = new BroadcastChannel(CHANNEL_NAME);
+        this.channel = new BroadcastChannel(COMP_STORAGE_KEY);
         this.channel.addEventListener("message", this.receive);
       }
       window.addEventListener("focus", this.notify);
@@ -319,8 +316,7 @@ class BrowserAutosave implements WorkspaceAutosave {
 
   constructor(private readonly connection: Promise<Connection>) {}
 
-  /** Remember the booted document so the first sync writes only later edits. */
-  prime(workspace: Workspace): void {
+  markPersisted(workspace: Workspace): void {
     this.confirmedBoard = JSON.stringify(
       encodeBoardRecord(workspace.board, workspace.iconSize),
     );
@@ -440,7 +436,7 @@ function readStoredRecords(connection: Connection): Promise<StoredRecords> {
     [LIBRARY, WORKSPACE, CUSTOM_MAPS],
     "readonly",
     [
-      [LIBRARY, LIBRARY_KEY],
+      [LIBRARY, COMP_STORAGE_KEY],
       [WORKSPACE, "board"],
       [WORKSPACE, "openComp"],
       [CUSTOM_MAPS, null],
@@ -493,7 +489,7 @@ class BrowserBackup implements BackupStore {
       await (
         await this.connection
       ).write([LIBRARY, CUSTOM_MAPS], [], (_, active) => {
-        active.objectStore(LIBRARY).put(payload.library.text, LIBRARY_KEY);
+        active.objectStore(LIBRARY).put(payload.library.text, COMP_STORAGE_KEY);
         const workspace = active.objectStore(WORKSPACE);
         workspace.put(crypto.randomUUID(), "epoch");
         workspace.put(payload.board, "board");
@@ -525,12 +521,12 @@ export async function openAppData(): Promise<AppData> {
     () => EMPTY_STORED_RECORDS,
   );
   const { workspace, library } = decodeStoredRecords(records);
-  autosave.prime(workspace);
+  autosave.markPersisted(workspace);
   const comps = new BrowserCompStorage(connection);
   const channel =
     typeof BroadcastChannel === "undefined"
       ? null
-      : new BroadcastChannel(CHANNEL_NAME);
+      : new BroadcastChannel(COMP_STORAGE_KEY);
   channel?.addEventListener("message", (event: MessageEvent<unknown>) => {
     if (event.data === WORKSPACE_REPLACED) replaced();
   });

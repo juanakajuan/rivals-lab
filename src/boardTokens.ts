@@ -13,6 +13,7 @@ export interface BoardToken extends HeroSelection {
 }
 
 export const TOKEN_RADIUS = 22;
+export const SELECTED_RING_WIDTH = 4;
 
 export const ICON_SIZES = [
   50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150,
@@ -63,8 +64,7 @@ export function decodeToken(value: unknown): BoardToken {
 }
 
 export function tokenBoundary(iconSize: number): number {
-  // Include the selected ring, which is the widest visible token outline.
-  return Math.ceil(((TOKEN_RADIUS + 2) * iconSize) / 100);
+  return Math.ceil(((TOKEN_RADIUS + SELECTED_RING_WIDTH / 2) * iconSize) / 100);
 }
 
 export function clampToBoard(

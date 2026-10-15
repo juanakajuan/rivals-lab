@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Usage: drive.mjs <flow>   flows: builder-save | board-undo | export-png | changelog
-// Drives the running verification server in a real Chromium and writes proof to artifacts/verify/<flow>/.
 import { chromium } from "@playwright/test";
 import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

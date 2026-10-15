@@ -26,9 +26,7 @@ export interface CompSlot {
 export interface Comp {
   readonly name: string;
   readonly notes: string;
-  /** Selected maps. Empty means any map. Empty whenever `gameMode` is set. */
   readonly mapIds: readonly string[];
-  /** A whole game mode in place of specific maps. */
   readonly gameMode: GameMode | null;
   readonly teams: Readonly<Record<Team, readonly CompSlot[]>>;
   readonly draft: DraftState | null;
@@ -51,7 +49,6 @@ export function compSlot(
   return { heroId, notes, deadpoolRole };
 }
 
-/** Slot shape, including omitted Deadpool role, is the equality form. */
 export function sameComp(left: Comp, right: Comp): boolean {
   return (
     JSON.stringify(canonicalComp(left)) === JSON.stringify(canonicalComp(right))
@@ -168,8 +165,7 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
-/** Files saved before multi-map support store one optional `mapId`. */
-function decodeMapSelection(comp: Record<string, unknown>): {
+function decodeMapSelectionOrLegacyMapId(comp: Record<string, unknown>): {
   readonly mapIds: readonly string[];
   readonly gameMode: GameMode | null;
 } {
@@ -197,7 +193,7 @@ function decodeCompWithName(
 ): Comp {
   const comp = record(value);
   const teams = record(comp.teams);
-  const { mapIds, gameMode } = decodeMapSelection(comp);
+  const { mapIds, gameMode } = decodeMapSelectionOrLegacyMapId(comp);
   return {
     name: decodeName(comp.name),
     notes: text(comp.notes, 10_000),
