@@ -46,7 +46,7 @@ function actionTarget(format: DraftFormat, action: DraftAction): Team {
   return otherTeam(action.team);
 }
 
-export function draftPhases(
+function draftPhases(
   draft: Pick<LegacyDraftState, "format" | "firstTeam">,
 ): readonly (readonly DraftAction[])[] {
   const t1 = draft.firstTeam;
@@ -66,7 +66,6 @@ export function draftPhases(
         [save(t1)],
         [ban(t1)],
         [ban(t2)],
-        both,
       ]
     : [
         both,
@@ -181,11 +180,13 @@ export interface DraftSlot extends DraftAction {
 }
 
 export function emptyDraft(format: DraftFormat): DraftState {
-  const slots = (): DraftTeamSlots => ({
-    ban: Array.from({ length: format === "mrc" ? 4 : 5 }, () => null),
-    save: [null, null],
-  });
-  return { format, teams: { ally: slots(), enemy: slots() } };
+  const teams: Record<Team, Record<DraftActionKind, null[]>> = {
+    ally: { ban: [], save: [] },
+    enemy: { ban: [], save: [] },
+  };
+  for (const action of draftPhases({ format, firstTeam: "ally" }).flat())
+    teams[action.team][action.kind].push(null);
+  return { format, teams };
 }
 
 function orderedDraftSlots(

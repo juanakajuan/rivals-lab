@@ -182,7 +182,7 @@ test("map changes preserve the complete draft without confirmation through save 
   await page.getByLabel("Allies slot 1 notes").fill("Hold corner");
   await page.getByLabel("Comp notes", { exact: true }).fill("Keep high ground");
   await page.getByLabel("Draft format").selectOption("mrc");
-  await pickHero(page, "Allies ban 4: Choose hero", "Hulk");
+  await pickHero(page, "Allies ban 3: Choose hero", "Hulk");
   await pickHero(page, "Opponents save 2: Choose hero", "Luna Snow");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const before = parseCompLibraryStrict(await exportCompLibrary(page)).map(
@@ -217,7 +217,7 @@ test("map changes preserve the complete draft without confirmation through save 
       page.getByText("Unsaved changes", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
+      page.getByRole("button", { name: "Allies ban 3: Hulk", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", {
@@ -239,7 +239,7 @@ test("map changes preserve the complete draft without confirmation through save 
       text,
     );
     await expect(
-      page.getByRole("button", { name: "Allies ban 4: Hulk", exact: true }),
+      page.getByRole("button", { name: "Allies ban 3: Hulk", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", {

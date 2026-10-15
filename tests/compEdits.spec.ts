@@ -142,7 +142,7 @@ test("map changes preserve the draft; explicit resets preserve heroes and notes"
   comp = applyCompEdit(comp, { kind: "maps", mapIds: ["midtown"] });
   expect(comp.mapIds).toEqual(["midtown"]);
   expect(comp.draft?.teams.ally).toEqual({
-    ban: [null, null, null, null],
+    ban: [null, null, null],
     save: ["strange", null],
   });
   comp = applyCompEdit(comp, { kind: "maps", mapIds: [] });
@@ -150,8 +150,8 @@ test("map changes preserve the draft; explicit resets preserve heroes and notes"
   expect(comp.draft).toEqual({
     format: "mrc",
     teams: {
-      ally: { ban: [null, null, null, null], save: ["strange", null] },
-      enemy: { ban: [null, null, null, null], save: [null, null] },
+      ally: { ban: [null, null, null], save: ["strange", null] },
+      enemy: { ban: [null, null, null], save: [null, null] },
     },
   });
   comp = applyCompEdit(comp, {

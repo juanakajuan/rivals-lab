@@ -4,6 +4,7 @@ import {
   legacyDraftChoiceError as draftChoiceError,
   legacyDraftEffects as draftEffects,
   draftEffects as slotEffects,
+  draftSlots,
   emptyDraft,
   setDraftHero,
   migrateLegacyDraft,
@@ -19,7 +20,7 @@ import {
 import { compStatus } from "../src/compEdits";
 import { DEADPOOL_ROLES } from "../src/heroes";
 
-test("MRC saves are global and the final duplicate ban takes effect atomically", () => {
+test("MRC bans and saves are global and the draft ends after Ban 3", () => {
   let draft: DraftState = { format: "mrc", firstTeam: "ally", choices: [] };
   for (const hero of [
     "angela",
@@ -38,21 +39,49 @@ test("MRC saves are global and the final duplicate ban takes effect atomically",
   expect(draftEffects(draft).saved.ally).toEqual(
     draftEffects(draft).saved.enemy,
   );
-  expect(draftChoiceError(draft, "strange")).toContain("Protected");
-  expect(draftChoiceError(draft, "hulk")).toContain("Already banned");
-  const pending = chooseDraftHero(draft, "thor");
-  expect(draftProgress(pending).phaseIndex).toBe(10);
-  expect(draftEffects(pending).banned.ally.has("thor")).toBe(false);
-  const complete = chooseDraftHero(pending, "thor");
-  expect(draftProgress(complete).action).toBeUndefined();
-  expect(draftEffects(complete).banned.ally.size).toBe(7);
-  expect(draftEffects(complete).banned.ally).toEqual(
-    draftEffects(complete).banned.enemy,
+  expect(draftProgress(draft).phaseIndex).toBe(10);
+  expect(draftProgress(draft).action).toBeUndefined();
+  expect(draftEffects(draft).banned.ally.size).toBe(6);
+  expect(draftEffects(draft).banned.ally).toEqual(
+    draftEffects(draft).banned.enemy,
   );
-  expect(() => chooseDraftHero(complete, "venom")).toThrow("complete");
-  const undone = { ...complete, choices: complete.choices.slice(0, -1) };
-  expect(draftEffects(undone).banned.enemy.has("thor")).toBe(false);
-  expect(draftProgress(undone).pendingChoices).toEqual(["thor"]);
+  expect(() => chooseDraftHero(draft, "thor")).toThrow(
+    "The draft is complete.",
+  );
+  const undone = { ...draft, choices: draft.choices.slice(0, -1) };
+  expect(draftProgress(undone).action).toEqual({
+    team: "enemy",
+    kind: "ban",
+    index: 2,
+  });
+  expect(draftProgress(undone).pendingChoices).toEqual([]);
+  expect(draftEffects(undone).banned.enemy.has("the-thing")).toBe(false);
+});
+
+test("an empty MRC draft has three bans and two saves and no fourth ban slot", () => {
+  expect(emptyDraft("mrc")).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: [null, null, null], save: [null, null] },
+      enemy: { ban: [null, null, null], save: [null, null] },
+    },
+  });
+  expect(
+    draftSlots(emptyDraft("mrc")).map(
+      ({ team, kind, index }) => `${team} ${kind} ${index}`,
+    ),
+  ).toEqual([
+    "ally ban 0",
+    "enemy ban 0",
+    "enemy save 0",
+    "ally save 0",
+    "ally ban 1",
+    "enemy ban 1",
+    "enemy save 1",
+    "ally save 1",
+    "ally ban 2",
+    "enemy ban 2",
+  ]);
 });
 
 test("Ignite bans target opponents, saves target allies, and first-team reversal preserves scope", () => {
@@ -246,7 +275,7 @@ test("direct slots apply at once and allow replace, clear, and legal cross-team 
     const allyBan = {
       team: "ally",
       kind: "ban",
-      index: format === "mrc" ? 3 : 4,
+      index: format === "mrc" ? 2 : 4,
     } as const;
     const enemyBan = { team: "enemy", kind: "ban", index: 0 } as const;
     let draft = setDraftHero(emptyDraft(format), allyBan, "hulk");
