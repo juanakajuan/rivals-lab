@@ -49,7 +49,6 @@ export function compSlot(
   return { heroId, notes, deadpoolRole };
 }
 
-/** Slot shape, including omitted Deadpool role, is the equality form. */
 export function sameComp(left: Comp, right: Comp): boolean {
   return (
     JSON.stringify(canonicalComp(left)) === JSON.stringify(canonicalComp(right))
@@ -171,8 +170,9 @@ function decodeDraft(value: unknown): DraftState | null {
   return migrateLegacyDraft(result);
 }
 
-/** Files saved before multi-map support store one optional `mapId`. */
-function decodeMapSelection(comp: Record<string, unknown>): CompMapSelection {
+function decodeMapSelectionOrLegacyMapId(
+  comp: Record<string, unknown>,
+): CompMapSelection {
   let mapIds: readonly string[];
   if (comp.mapIds !== undefined)
     mapIds = items(comp.mapIds, MAX_COMP_MAPS).map((id) => text(id, 100));
@@ -200,7 +200,7 @@ function decodeCompWithName(
   return {
     name: decodeName(comp.name),
     notes: text(comp.notes, 10_000),
-    ...decodeMapSelection(comp),
+    ...decodeMapSelectionOrLegacyMapId(comp),
     teams: { ally: decodeSlots(teams.ally), enemy: decodeSlots(teams.enemy) },
     draft: decodeDraft(comp.draft),
   };

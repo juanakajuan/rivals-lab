@@ -48,8 +48,7 @@ export type HeroPlaceResult = HeroPlacement | { readonly kind: "team-full" };
 export type HeroAddResult =
   HeroPlaceResult | { readonly kind: "existing" | "full" };
 
-/** Legacy saved boards retain the earliest placements, independently per team. */
-function limitTeams(board: BoardState): BoardState {
+function keepEarliestTeamPlacements(board: BoardState): BoardState {
   const counts: Record<Team, number> = { ally: 0, enemy: 0 };
   const tokens = board.tokens.filter(
     (token) => ++counts[token.team] <= TEAM_SIZE,
@@ -165,7 +164,7 @@ export class BoardSession {
     iconSize: IconSize = DEFAULT_ICON_SIZE,
   ) {
     this.iconSize = iconSize;
-    this.board = limitTeams(board);
+    this.board = keepEarliestTeamPlacements(board);
     this.current = {
       ...this.board,
       iconSize,
@@ -182,7 +181,6 @@ export class BoardSession {
     return this.boardRevision;
   }
 
-  /** Stored points stay put. Callers paint this list for the current icon size. */
   visibleTokens(): readonly BoardToken[] {
     return clampTokens(this.board, this.iconSize).tokens;
   }
@@ -482,7 +480,7 @@ export class BoardSession {
   }
 
   private commit(board: BoardState): BoardSessionState {
-    board = limitTeams(board);
+    board = keepEarliestTeamPlacements(board);
     if (equalBoards(this.board, board)) return this.current;
     this.past = [...this.past, this.board].slice(-HISTORY_LIMIT);
     this.future = [];

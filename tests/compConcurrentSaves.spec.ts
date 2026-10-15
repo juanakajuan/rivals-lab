@@ -4,7 +4,7 @@ import { emptyComp } from "../src/comps";
 import {
   COMP_STORAGE_KEY,
   MAX_IMPORT_BYTES,
-  parseCompLibrary,
+  parseCompLibraryStrict,
   serializeCompLibrary,
 } from "../src/compLibrary";
 
@@ -115,7 +115,7 @@ test("concurrent saves in two tabs keep both new comps", async ({
   await expect(page.getByRole("status")).toHaveText("Saved First tab.");
   await expect(other.getByRole("status")).toHaveText("Saved Second tab.");
   const stored = await exportCompLibrary(page);
-  const entries = parseCompLibrary(stored);
+  const entries = parseCompLibraryStrict(stored);
   expect(entries).toHaveLength(152);
   expect(entries).toEqual(expect.arrayContaining(existing));
   expect(entries.map((entry) => entry.comp.name)).toEqual(
@@ -128,7 +128,9 @@ test("concurrent saves in two tabs keep both new comps", async ({
   ).toBe(source);
   await page.reload();
   await expect(page.locator(".saved-comp")).toHaveCount(152);
-  expect(parseCompLibrary(await exportCompLibrary(page))).toEqual(entries);
+  expect(parseCompLibraryStrict(await exportCompLibrary(page))).toEqual(
+    entries,
+  );
 });
 
 test("concurrent edits of one saved comp reject one stale save", async ({
@@ -182,9 +184,9 @@ test("concurrent edits of one saved comp reject one stale save", async ({
     .getByLabel("Comp notes", { exact: true })
     .inputValue();
   const stored = await exportCompLibrary(page);
-  expect(parseCompLibrary(stored).map((entry) => entry.comp.notes)).toEqual([
-    winningNotes,
-  ]);
+  expect(
+    parseCompLibraryStrict(stored).map((entry) => entry.comp.notes),
+  ).toEqual([winningNotes]);
   await expect(loser.getByLabel("Comp notes", { exact: true })).toHaveValue(
     loser === page ? "First tab edits" : "Second tab edits",
   );

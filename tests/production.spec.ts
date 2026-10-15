@@ -163,7 +163,6 @@ test("downloads a PNG independently of browser clipboard support", async ({
     contentType: "image/png",
   });
 
-  // Verify the download before checking clipboard success or an expected limit.
   await expect(exportButton).toBeEnabled();
   if (browserName === "chromium") {
     await expect(page.getByRole("status")).toHaveText(
