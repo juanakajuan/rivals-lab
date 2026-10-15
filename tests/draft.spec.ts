@@ -361,6 +361,369 @@ test("legacy partial drafts migrate by team, including reversed first team and s
   }
 });
 
+function loadedDraft(draft: unknown) {
+  const loaded = parseCompLibraryStrict(
+    JSON.stringify({
+      version: 1,
+      comps: [
+        {
+          id: "legacy",
+          updatedAt: "2026-10-15T12:00:00Z",
+          comp: { ...emptyComp(), name: "Legacy", draft },
+        },
+      ],
+    }),
+  )[0]?.comp.draft;
+  if (!loaded) throw new Error("Missing decoded draft.");
+  return loaded;
+}
+
+const legacyMrcChoices = [
+  "angela",
+  "captain-america",
+  "strange",
+  "groot",
+  "hulk",
+  "magneto",
+  "peni-parker",
+  "rogue",
+  "the-hood",
+  "the-thing",
+  "thor",
+  "venom",
+];
+
+const allyFirstMrcTeams = {
+  ally: {
+    ban: ["angela", "hulk", "the-hood"],
+    save: ["groot", "rogue"],
+  },
+  enemy: {
+    ban: ["captain-america", "magneto", "the-thing"],
+    save: ["strange", "peni-parker"],
+  },
+};
+
+test("a stored MRC Ban 4 is dropped and earlier bans and saves stay", () => {
+  expect(
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: {
+          ban: ["hulk", "thor", "venom", "magneto"],
+          save: ["luna", null],
+        },
+        enemy: {
+          ban: [null, "groot", null, "rogue"],
+          save: [null, "strange"],
+        },
+      },
+    }),
+  ).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: ["hulk", "thor", "venom"], save: ["luna", null] },
+      enemy: { ban: [null, "groot", null], save: [null, "strange"] },
+    },
+  });
+});
+
+test("an MRC ally ban list of length 4 and an enemy ban list of length 3 both load as length 3", () => {
+  expect(
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: {
+          ban: ["hulk", "thor", "venom", "magneto"],
+          save: ["luna", null],
+        },
+        enemy: {
+          ban: ["angela", "strange", "groot"],
+          save: [null, "rocket"],
+        },
+      },
+    }),
+  ).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: ["hulk", "thor", "venom"], save: ["luna", null] },
+      enemy: { ban: ["angela", "strange", "groot"], save: [null, "rocket"] },
+    },
+  });
+});
+
+test("an unknown hero only in a retired MRC ban loads, and an unknown kept ban throws", () => {
+  expect(
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: {
+          ban: ["hulk", null, null, "not-a-hero"],
+          save: ["luna", null],
+        },
+        enemy: {
+          ban: [null, "groot", null, null],
+          save: [null, "strange"],
+        },
+      },
+    }),
+  ).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: ["hulk", null, null], save: ["luna", null] },
+      enemy: { ban: [null, "groot", null], save: [null, "strange"] },
+    },
+  });
+  expect(() =>
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: {
+          ban: ["not-a-hero", "thor", "venom", "magneto"],
+          save: [null, null],
+        },
+        enemy: { ban: [null, null, null], save: [null, null] },
+      },
+    }),
+  ).toThrow("Unknown hero.");
+});
+
+test("a payload with teams and choices decodes the team slots", () => {
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "enemy",
+      choices: ["venom", "thor", "the-thing"],
+      teams: {
+        ally: {
+          ban: ["hulk", "thor", "venom", "magneto"],
+          save: ["luna", null],
+        },
+        enemy: {
+          ban: [null, "groot", null, "rogue"],
+          save: [null, "strange"],
+        },
+      },
+    }),
+  ).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: ["hulk", "thor", "venom"], save: ["luna", null] },
+      enemy: { ban: [null, "groot", null], save: [null, "strange"] },
+    },
+  });
+});
+
+test("legacy MRC choice lists drop the retired bans and keep the current order", () => {
+  const allyFirst = {
+    format: "mrc",
+    teams: allyFirstMrcTeams,
+  };
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "ally",
+      choices: legacyMrcChoices,
+    }),
+  ).toEqual(allyFirst);
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "ally",
+      choices: legacyMrcChoices.slice(0, 11),
+    }),
+  ).toEqual(allyFirst);
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "ally",
+      choices: legacyMrcChoices.slice(0, 10),
+    }),
+  ).toEqual(allyFirst);
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "enemy",
+      choices: legacyMrcChoices,
+    }),
+  ).toEqual({
+    format: "mrc",
+    teams: {
+      ally: {
+        ban: ["captain-america", "magneto", "the-thing"],
+        save: ["strange", "peni-parker"],
+      },
+      enemy: {
+        ban: ["angela", "hulk", "the-hood"],
+        save: ["groot", "rogue"],
+      },
+    },
+  });
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "ally",
+      choices: legacyMrcChoices.slice(0, 9),
+    }),
+  ).toEqual({
+    format: "mrc",
+    teams: {
+      ally: {
+        ban: ["angela", "hulk", "the-hood"],
+        save: ["groot", "rogue"],
+      },
+      enemy: {
+        ban: ["captain-america", "magneto", null],
+        save: ["strange", "peni-parker"],
+      },
+    },
+  });
+  expect(
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "ally",
+      choices: [...legacyMrcChoices.slice(0, 10), "not-a-hero", "also-missing"],
+    }),
+  ).toEqual(allyFirst);
+});
+
+test("draft slot and choice lengths outside the live order and one retired MRC ban are rejected", () => {
+  expect(() =>
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: { ban: [null, null], save: [null, null] },
+        enemy: { ban: [null, null], save: [null, null] },
+      },
+    }),
+  ).toThrow("Invalid draft slot count.");
+  expect(() =>
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: { ban: [null, null, null, null, null], save: [null, null] },
+        enemy: { ban: [null, null, null, null, null], save: [null, null] },
+      },
+    }),
+  ).toThrow("Invalid or oversized list in comp data.");
+  expect(() =>
+    loadedDraft({
+      format: "mrc",
+      teams: {
+        ally: { ban: [null, null, null], save: [null] },
+        enemy: { ban: [null, null, null], save: [null, null] },
+      },
+    }),
+  ).toThrow("Invalid draft slot count.");
+  expect(() =>
+    loadedDraft({
+      format: "ignite",
+      teams: {
+        ally: { ban: [null, null, null, null], save: [null, null] },
+        enemy: { ban: [null, null, null, null], save: [null, null] },
+      },
+    }),
+  ).toThrow("Invalid draft slot count.");
+  expect(() =>
+    loadedDraft({
+      format: "ignite",
+      teams: {
+        ally: {
+          ban: [null, null, null, null, null, null],
+          save: [null, null],
+        },
+        enemy: {
+          ban: [null, null, null, null, null, null],
+          save: [null, null],
+        },
+      },
+    }),
+  ).toThrow("Invalid or oversized list in comp data.");
+  expect(() =>
+    loadedDraft({
+      format: "mrc",
+      firstTeam: "ally",
+      choices: [...legacyMrcChoices, "wolverine"],
+    }),
+  ).toThrow("Invalid or oversized list in comp data.");
+});
+
+test("a full legacy Ignite choice list still migrates heroes past choice index 9", () => {
+  expect(
+    loadedDraft({
+      format: "ignite",
+      firstTeam: "ally",
+      choices: [
+        "strange",
+        "hulk",
+        "luna",
+        "rocket",
+        "magneto",
+        "thor",
+        "venom",
+        "groot",
+        "peni-parker",
+        "rogue",
+        "captain-america",
+        "angela",
+        "the-hood",
+        "the-thing",
+      ],
+    }),
+  ).toEqual({
+    format: "ignite",
+    teams: {
+      ally: {
+        ban: ["strange", "thor", "venom", "rogue", "the-hood"],
+        save: ["luna", "captain-america"],
+      },
+      enemy: {
+        ban: ["hulk", "rocket", "groot", "angela", "the-thing"],
+        save: ["magneto", "peni-parker"],
+      },
+    },
+  });
+});
+
+test("a normalized MRC draft parses the same way a second time", () => {
+  const source = JSON.stringify({
+    version: 1,
+    comps: [
+      {
+        id: "legacy",
+        updatedAt: "2026-10-15T12:00:00Z",
+        comp: {
+          ...emptyComp(),
+          name: "Legacy",
+          draft: {
+            format: "mrc",
+            teams: {
+              ally: {
+                ban: ["hulk", "thor", "venom", "magneto"],
+                save: ["luna", null],
+              },
+              enemy: {
+                ban: [null, "groot", null, "rogue"],
+                save: [null, "strange"],
+              },
+            },
+          },
+        },
+      },
+    ],
+  });
+  const first = parseCompLibraryStrict(source);
+  const second = parseCompLibraryStrict(serializeCompLibrary(first));
+  expect(first[0]?.comp.draft).toEqual({
+    format: "mrc",
+    teams: {
+      ally: { ban: ["hulk", "thor", "venom"], save: ["luna", null] },
+      enemy: { ban: [null, "groot", null], save: [null, "strange"] },
+    },
+  });
+  expect(second).toEqual(first);
+});
+
 test("duplicate saved IDs stay unavailable for recovery", () => {
   const saved = {
     id: "reserved",

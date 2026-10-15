@@ -2,6 +2,7 @@ import { COMP_MAPS, type CompMapSelection } from "./compMaps";
 import { isGameMode } from "./maps";
 import {
   chooseLegacyDraftHero,
+  draftSlots,
   emptyDraft,
   migrateLegacyDraft,
   setDraftHero,
@@ -137,6 +138,8 @@ function decodeDraft(value: unknown): DraftState | null {
   const draft = record(value);
   if (draft.format !== "mrc" && draft.format !== "ignite")
     throw new Error("Unknown draft format.");
+  // MRC comps saved before Ban 4 was cut carry one extra ban, and that ban is last.
+  const retiredBans = draft.format === "mrc" ? 1 : 0;
   if (draft.teams !== undefined) {
     const teams = record(draft.teams);
     let result = emptyDraft(draft.format);
@@ -145,10 +148,12 @@ function decodeDraft(value: unknown): DraftState | null {
     for (const team of teamIds) {
       const slots = record(teams[team]);
       for (const kind of kinds) {
-        const heroes = items(slots[kind], result.teams[team][kind].length);
-        if (heroes.length !== result.teams[team][kind].length)
+        const length = result.teams[team][kind].length;
+        const max = kind === "ban" ? length + retiredBans : length;
+        const heroes = items(slots[kind], max);
+        if (heroes.length !== length && heroes.length !== max)
           throw new Error("Invalid draft slot count.");
-        for (const [index, hero] of heroes.entries())
+        for (const [index, hero] of heroes.slice(0, length).entries())
           result = setDraftHero(
             result,
             { team, kind, index },
@@ -165,7 +170,11 @@ function decodeDraft(value: unknown): DraftState | null {
     firstTeam: draft.firstTeam,
     choices: [],
   };
-  for (const hero of items(draft.choices, 14))
+  const actions = draftSlots(emptyDraft(draft.format)).length;
+  for (const hero of items(draft.choices, actions + 2 * retiredBans).slice(
+    0,
+    actions,
+  ))
     result = chooseLegacyDraftHero(result, text(hero, 100));
   return migrateLegacyDraft(result);
 }
