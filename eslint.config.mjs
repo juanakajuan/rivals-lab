@@ -7,6 +7,7 @@ import tseslint from "typescript-eslint";
 export default defineConfig(
   globalIgnores([
     ".agents/",
+    ".claude/worktrees/",
     ".cloudflare/",
     ".release/",
     ".svelte-kit/",
