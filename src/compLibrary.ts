@@ -27,7 +27,6 @@ export const EMPTY_LIBRARY: CompLibrary = {
   envelope: { version: 1, comps: [] },
 };
 
-/** Validate the envelope first, then isolate entries that cannot be loaded. */
 export function decodeCompLibraryValue(data: unknown): CompLibrary {
   const envelope = record(data);
   if (envelope.version !== 1) throw new Error("Unsupported comp file version.");
@@ -63,13 +62,11 @@ export function decodeCompLibrary(source: string): CompLibrary {
   return decodeCompLibraryValue(data);
 }
 
-/** Join load errors, showing each distinct message once. */
 export function libraryErrorSummary(library: CompLibrary): string {
   return [...new Set(library.errors)].join(" ");
 }
 
-/** Imports are atomic: reject files with unavailable entries without changing storage. */
-export function parseCompLibrary(source: string): readonly SavedComp[] {
+export function parseCompLibraryStrict(source: string): readonly SavedComp[] {
   const library = decodeCompLibrary(source);
   if (library.errors.length) throw new Error(libraryErrorSummary(library));
   return library.entries;
@@ -79,12 +76,10 @@ export function serializeCompLibrary(comps: readonly SavedComp[]): string {
   return JSON.stringify({ version: 1, comps }, null, 2);
 }
 
-/** Stored bytes, not comp equality. A newer library write changes this text. */
 export function savedCompRevision(entry: SavedComp): string {
   return serializeCompLibrary([decodeSavedComp(entry)]);
 }
 
-/** Library text that passed the entry, ID and size checks. */
 export class StoredLibrarySource {
   private constructor(readonly text: string) {}
 
@@ -108,7 +103,6 @@ export class StoredLibrarySource {
   }
 }
 
-/** The one place a library edit goes from stored text to stored text. */
 export function updateLibrarySource(
   stored: string | null,
   transform: (library: CompLibrary) => CompLibrary,

@@ -75,7 +75,6 @@ interface MapPickerProps<Value extends string, Single> {
   readonly description?: string;
   readonly onChoose: (value: NoInfer<Value | Single>) => void;
   readonly multiple?: MapPickerMultiple<Value>;
-  /** Lets the user pick a whole game mode instead of maps. */
   readonly modes?: MapPickerModes;
   readonly renderActions?: (close: () => void) => ReactNode;
   readonly onClose?: () => void;

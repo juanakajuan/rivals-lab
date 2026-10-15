@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { emptyComp } from "../src/comps";
-import { parseCompLibrary } from "../src/compLibrary";
+import { parseCompLibraryStrict } from "../src/compLibrary";
 import { emptyDraft } from "../src/draft";
 import {
   addCompCopies,
@@ -571,7 +571,6 @@ test("mixed saved data stays recoverable through valid library changes", async (
     "Still editable",
   );
   const source = await exportCompLibrary(page);
-  // Compare external JSON as unknown; no cast can hide malformed stored data.
   const actual: unknown = JSON.parse(source);
   expect(actual).toMatchObject({
     version: 1,
@@ -596,7 +595,6 @@ for (const renameBeforeSave of [false, true]) {
     page,
     context,
   }) => {
-    // Timestamp equality must not hide a content change.
     const time = new Date("2026-09-30T12:00:00Z");
     await page.clock.setFixedTime(time);
     await page.goto("/builder");
@@ -742,7 +740,7 @@ test("repeated load errors are shown once", async ({ page }) => {
     comps: [bad("a"), bad("b"), bad("c")],
   });
   const message = "Invalid or oversized text in comp data.";
-  expect(() => parseCompLibrary(source)).toThrow(
+  expect(() => parseCompLibraryStrict(source)).toThrow(
     new RegExp(`^${message.replaceAll(".", "\\.")}$`),
   );
 

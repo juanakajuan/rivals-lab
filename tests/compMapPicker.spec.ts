@@ -1,7 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { addCompCopies, exportCompLibrary } from "./compLibrary";
 import { emptyComp } from "../src/comps";
-import { parseCompLibrary, serializeCompLibrary } from "../src/compLibrary";
+import {
+  parseCompLibraryStrict,
+  serializeCompLibrary,
+} from "../src/compLibrary";
 import { MAPS } from "../src/maps";
 
 function picker(page: Page): Locator {
@@ -182,7 +185,7 @@ test("map changes preserve the complete draft without confirmation through save 
   await pickHero(page, "Allies ban 4: Choose hero", "Hulk");
   await pickHero(page, "Opponents save 2: Choose hero", "Luna Snow");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  const before = parseCompLibrary(await exportCompLibrary(page)).map(
+  const before = parseCompLibraryStrict(await exportCompLibrary(page)).map(
     (entry) => entry.comp,
   );
   let confirmations = 0;
@@ -224,7 +227,7 @@ test("map changes preserve the complete draft without confirmation through save 
     ).toBeVisible();
     await page.getByRole("button", { name: "Save", exact: true }).click();
     expect(
-      parseCompLibrary(await exportCompLibrary(page)).map(
+      parseCompLibraryStrict(await exportCompLibrary(page)).map(
         (entry) => entry.comp,
       ),
     ).toEqual(before.map((comp) => ({ ...comp, mapIds })));
@@ -279,7 +282,7 @@ test("map changes preserve the complete draft without confirmation through save 
       importedPage.locator(".selected-map-preview figcaption"),
     ).toHaveText("The God Quarry · Domination");
     expect(
-      parseCompLibrary(await exportCompLibrary(importedPage)).map(
+      parseCompLibraryStrict(await exportCompLibrary(importedPage)).map(
         (entry) => entry.comp,
       ),
     ).toEqual(before.map((comp) => ({ ...comp, mapIds: ["god-quarry"] })));

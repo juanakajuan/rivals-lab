@@ -65,7 +65,6 @@ test("selection and late portraits preserve a drag through board updates", async
   await expect
     .poll(() => page.evaluate(() => window.boardHarness.moves))
     .toEqual([{ x: 300, y: 280 }]);
-  // The update after drag must leave the token at its new position.
   await page.mouse.click(400, 250);
   await page.mouse.click(170, 160);
   await expect
@@ -219,7 +218,6 @@ test("late map images cannot replace the current map or selection", async ({
         throw new Error("Missing canvas");
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Missing context");
-      // At half scale, the selected ring spans x=109..112; sample inside it.
       return [...context.getImageData(110, 100, 1, 1).data];
     });
   expect(ringPixel).toEqual([255, 255, 255, 255]);

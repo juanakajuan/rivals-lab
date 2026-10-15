@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { applyCompEdit } from "../src/compEdits";
 import { emptyComp } from "../src/comps";
-import { parseCompLibrary, serializeCompLibrary } from "../src/compLibrary";
+import {
+  parseCompLibraryStrict,
+  serializeCompLibrary,
+} from "../src/compLibrary";
 
 function libraryWith(comp: unknown): string {
   return JSON.stringify({
@@ -14,12 +17,12 @@ test("a comp with a single legacy map keeps working", () => {
   const rest: Record<string, unknown> = { ...emptyComp() };
   delete rest["mapIds"];
   delete rest["gameMode"];
-  const [entry] = parseCompLibrary(
+  const [entry] = parseCompLibraryStrict(
     libraryWith({ ...rest, name: "Old", mapId: "midtown" }),
   );
   expect(entry?.comp.mapIds).toEqual(["midtown"]);
   expect(entry?.comp.gameMode).toBeNull();
-  const [none] = parseCompLibrary(
+  const [none] = parseCompLibraryStrict(
     libraryWith({ ...rest, name: "Old", mapId: null }),
   );
   expect(none?.comp.mapIds).toEqual([]);
@@ -38,22 +41,24 @@ test("a comp saves several maps or a game mode, never both", () => {
   expect(back).toMatchObject({ mapIds: ["krakoa"], gameMode: null });
   for (const comp of [several, mode])
     expect(
-      parseCompLibrary(
+      parseCompLibraryStrict(
         serializeCompLibrary([
           { id: "a", updatedAt: "2026-10-01T00:00:00Z", comp },
         ]),
       )[0]?.comp,
     ).toEqual(comp);
   expect(() =>
-    parseCompLibrary(
+    parseCompLibraryStrict(
       libraryWith({ ...base, mapIds: ["midtown"], gameMode: "Convoy" }),
     ),
   ).toThrow("game mode and specific maps");
   expect(() =>
-    parseCompLibrary(libraryWith({ ...base, gameMode: "Payload" })),
+    parseCompLibraryStrict(libraryWith({ ...base, gameMode: "Payload" })),
   ).toThrow("Unknown game mode");
   expect(() =>
-    parseCompLibrary(libraryWith({ ...base, mapIds: ["midtown", "midtown"] })),
+    parseCompLibraryStrict(
+      libraryWith({ ...base, mapIds: ["midtown", "midtown"] }),
+    ),
   ).toThrow("twice");
   expect(() =>
     applyCompEdit(base, { kind: "maps", mapIds: ["nowhere"] }),

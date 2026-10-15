@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Usage: server.mjs up | doctor | down
-// Starts a private Vite dev server for verification. State lives in ../.run (gitignored).
 import { spawn } from "node:child_process";
 import {
   mkdirSync,
@@ -95,8 +93,13 @@ if (cmd === "up") {
   if (pid !== null) {
     try {
       process.kill(-pid, "SIGTERM");
-    } catch {
-      // already gone
+    } catch (error) {
+      if (!(
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ESRCH"
+      ))
+        throw error;
     }
   }
   rmSync(pidFile, { force: true });
