@@ -6,6 +6,8 @@ Use Node.js 22.18.0 or later. Install dependencies with `npm ci`.
 
 - `npm run dev`: start the development server.
 - `npm run check`: check TypeScript types.
+- `npm run verify`: run the pull request checks. The `verify` script in
+  `package.json` names each check.
 - `npm run lint`: check code with ESLint.
 - `npm run lint:fix`: fix code issues that ESLint can correct automatically.
 - `npm run build`: create the production build.
@@ -51,9 +53,8 @@ The project uses the default Prettier rules in `.prettierrc.json`.
 Dependencies, build output, coverage, and generated test reports are excluded
 through `.prettierignore`.
 
-Before a pull request, run `npm run format:check`, `npm run lint`,
-`npm run check`, and `npm run build`.
-The Release checks workflow runs these checks, the development regressions, and
+Before a pull request, run `npm run verify` and `npm run build`.
+The Release checks workflow runs the same checks, the development regressions, and
 the production browser flows for pull requests and pushes to `main`. Check both
 jobs on the pull request before merge or release. Failed browser runs include
 reports, traces, and downloaded images in the `browser-results` Actions artifact.

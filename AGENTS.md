@@ -13,6 +13,7 @@
 
 ## Issues and pull requests
 
+- Run `npm run verify` before you push a branch for a PR. It must exit 0.
 - Include screenshots or videos in the description of every new GitHub issue and PR that involves a visible change or bug.
 - Show the before and after state when a PR changes existing UI.
 - Never commit screenshots or videos to the repo. Attach them through GitHub's upload in the description or comment, and keep local captures out of git.
