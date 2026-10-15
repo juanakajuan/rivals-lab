@@ -19,3 +19,7 @@
 - Show the before and after state when a PR changes existing UI.
 - Never commit screenshots or videos to the repo. Attach them through GitHub's upload in the description or comment, and keep local captures out of git.
 - To attach media from the command line, run `npm run media:login` once on each machine, then `npm run media:upload -- <PR or issue URL> <files>`. It prints one link per file. Put the links in the description. The login stays in `~/.cache/gh-upload-profile`.
+- The `check-pr` job fails a PR that breaks one of these rules. Run `npm run check:pr -- <PR number>` to check an open PR.
+  - A change to `src/` code needs a change under `tests/`, or a `no-test: <reason>` line in the PR body.
+  - A `.tsx` or `.css` change needs a media link in the PR body, or a `No visible change` line.
+  - A change to `AGENTS.md`, `CLAUDE.md`, or `.claude/**` needs the scope `agents` in the PR title, for example `docs(agents): <summary>`.

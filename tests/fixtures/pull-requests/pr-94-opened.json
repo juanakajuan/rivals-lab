@@ -1,0 +1,33 @@
+{
+  "title": "feat(maps): multiple maps or a game mode per draft/comp (#92)",
+  "body": "Closes #92\n\n## What changed\n- A draft or comp now has one of: any map, a single map, several maps, or a game mode (Domination, Convoy, Convergence). Maps and a mode cannot be mixed.\n- The map picker has a \"Select several maps\" toggle and game mode buttons. Picking a mode clears maps, and picking maps clears the mode.\n- The selection shows on the comp settings card, in saved lists, and in the comp image.\n- Position Board: several maps show a tab strip above the map image. Each tab keeps its own hero positions. The hero list is shared. A game mode shows the mode name and icon, turns positions off, and shows \"Pick a map to place positions.\"\n- Old data keeps working: saved comps with `mapId` load as one map, and old board records load unchanged. Import/export and backups carry the new selection and per-map positions.\n\n## Tests\n`npm run check`, `npm run lint`, `npm run format:check` pass. Playwright: 207 pass. `boardDrawings.spec.ts:668` (zone drag, 1 px) fails on `main` too and is unrelated.\n\n## Screenshots\nMEDIA\n",
+  "files": [
+    "releases/pending.json",
+    "src/App.tsx",
+    "src/AppPanels.tsx",
+    "src/CompBuilder.tsx",
+    "src/CompSettingsPanel.tsx",
+    "src/GameModeIcon.tsx",
+    "src/MapPicker.tsx",
+    "src/SavedCompCard.tsx",
+    "src/app.css",
+    "src/appData.ts",
+    "src/boardSession.ts",
+    "src/builder.css",
+    "src/compEdits.ts",
+    "src/compImage.ts",
+    "src/compMaps.ts",
+    "src/comps.ts",
+    "src/maps.ts",
+    "src/useBoardController.tsx",
+    "tests/appData.spec.ts",
+    "tests/boardSession.spec.ts",
+    "tests/compBuilder.spec.ts",
+    "tests/compEdits.spec.ts",
+    "tests/compImage.spec.ts",
+    "tests/compMapPicker.spec.ts",
+    "tests/draft.spec.ts",
+    "tests/multiMap.spec.ts",
+    "tests/savedComps.spec.ts"
+  ]
+}

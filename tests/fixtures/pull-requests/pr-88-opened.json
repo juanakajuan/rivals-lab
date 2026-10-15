@@ -1,0 +1,19 @@
+{
+  "title": "fix(ui): minor polish from end-to-end testing",
+  "body": "Closes #84\n\n- Builder heading now reads \"Bans and Saves\".\n- A single-hero team keeps the normal card width in the downloaded comp image.\n- The Changelog merges same-date releases into one entry (merged at render time; published history unchanged).\n- Added a release note to `releases/pending.json`.\n\nNote: the builder editor always shows 6 slots, so I could not reproduce the single-hero stretch there; only the image export needed the fix.\n\nScreenshots: not attached yet. I did not run the app in a browser.",
+  "files": [
+    ".claude/skills/verify/SKILL.md",
+    ".claude/skills/verify/features/README.md",
+    ".claude/skills/verify/features/changelog.md",
+    ".claude/skills/verify/features/choose-map.md",
+    ".claude/skills/verify/features/place-hero.md",
+    ".claude/skills/verify/features/save-comp.md",
+    ".claude/skills/verify/features/undo-board.md",
+    ".claude/skills/verify/scripts/verify.mjs",
+    "AGENTS.md",
+    "releases/pending.json",
+    "src/BuilderPanels.tsx",
+    "src/Changelog.tsx",
+    "src/compImage.ts"
+  ]
+}
