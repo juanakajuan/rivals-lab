@@ -3,7 +3,6 @@ import { compMapChoice } from "./compMaps";
 import { type Comp, type CompSlot } from "./comps";
 import {
   DRAFT_RULES,
-  draftEffects,
   draftSlots,
   type DraftActionKind,
   type DraftFormat,
@@ -18,6 +17,8 @@ import {
   teamLabel,
   type Team,
 } from "./heroes";
+import { errorMessage } from "./errorMessage";
+import { BANNED_FOR_TEAM, bannedHeroConflicts } from "./compEdits";
 
 const WIDTH = 1600;
 const PADDING = 40;
@@ -363,7 +364,6 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
 
   const teamWidth =
     teams.length === 1 ? WIDTH - PADDING * 2 : (WIDTH - PADDING * 2 - GAP) / 2;
-  const effects = draftEffects(comp.draft);
   const teamTop = y;
   const teamBlocks = teams.map((team, teamIndex) => {
     const x = PADDING + teamIndex * (teamWidth + GAP);
@@ -386,6 +386,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       COLORS[team],
       true,
     );
+    const conflicts = bannedHeroConflicts(comp, team);
     const slots = comp.teams[team]
       .map((slot, index) => ({ slot, index }))
       .filter(({ slot }) => slot.heroId || slot.notes.trim());
@@ -433,9 +434,9 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
             COLORS.muted,
             true,
           ) + 4;
-      if (slot.heroId && effects.banned[team].has(slot.heroId))
+      if (conflicts.has(index))
         bottom += text(
-          "Banned for this team",
+          BANNED_FOR_TEAM,
           left + 8,
           bottom,
           cardWidth - 16,
@@ -595,7 +596,7 @@ interface ImageShareResult {
 function imageError(error: unknown): string {
   if (error instanceof DOMException && error.name === "NotAllowedError")
     return "Clipboard access was denied. Allow clipboard access and try again.";
-  return error instanceof Error ? error.message : "The operation failed.";
+  return errorMessage(error);
 }
 
 async function copyImageToClipboard(image: Promise<Blob>): Promise<void> {

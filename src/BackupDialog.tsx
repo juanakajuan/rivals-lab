@@ -9,6 +9,7 @@ import {
 import type { DataSummary, ImportPlan } from "./backup";
 import { Dialog } from "./ui/Dialog";
 import { FilePickerButton } from "./ui/FilePickerButton";
+import { errorMessage } from "./errorMessage";
 
 type BackupStep =
   | {
@@ -20,10 +21,6 @@ type BackupStep =
     }
   | { readonly kind: "busy"; readonly label: string }
   | { readonly kind: "preview"; readonly plan: ImportPlan };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "The operation failed.";
-}
 
 function count(value: number, noun: string, plural = `${noun}s`): string {
   return `${value} ${value === 1 ? noun : plural}`;

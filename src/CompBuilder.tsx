@@ -10,6 +10,7 @@ import { downloadAndCopyCompImage } from "./compImage";
 import { selectedCompMaps } from "./compMaps";
 import type { Comp, SavedComp } from "./comps";
 import {
+  bannedHeroConflicts,
   compChoiceError,
   compStatus,
   hasDraftChoices,
@@ -22,7 +23,7 @@ import {
   type SavedCompSessionStart,
 } from "./savedComps";
 import type { CompStorage } from "./appData";
-import { draftEffects, type DraftFormat } from "./draft";
+import type { DraftFormat } from "./draft";
 import {
   RULES,
   TEAMS,
@@ -34,14 +35,11 @@ import type { GameMode, MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
 import "./builder.css";
+import { errorMessage } from "./errorMessage";
 
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
   | { readonly kind: "rename"; readonly id: string; readonly name: string };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "The operation failed.";
-}
 
 function writeErrorMessage(error: unknown): string {
   return `Could not save changes. ${errorMessage(error)} Existing saved data was kept.`;
@@ -126,7 +124,6 @@ export function CompBuilder({
   const exportingImageRef = useRef(false);
   const [writing, setWriting] = useState(false);
   const writingRef = useRef(false);
-  const effects = draftEffects(comp.draft);
   const status = compStatus(comp);
   const selectedMaps = selectedCompMaps(comp);
   const selectedMap = selectedMaps[0];
@@ -471,7 +468,7 @@ export function CompBuilder({
             key={team}
             team={team}
             slots={comp.teams[team]}
-            banned={effects.banned[team]}
+            conflicts={bannedHeroConflicts(comp, team)}
             onChoose={(index) => setPicker({ kind: "slot", team, index })}
             onEdit={edit}
             onReset={() => resetTeam(team)}

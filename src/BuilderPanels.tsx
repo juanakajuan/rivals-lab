@@ -11,7 +11,7 @@ import {
   type DraftState,
   type DraftSlot,
 } from "./draft";
-import type { CompEdit } from "./compEdits";
+import { BANNED_FOR_TEAM, type CompEdit } from "./compEdits";
 import {
   DEADPOOL_ROLES,
   HEROES,
@@ -281,14 +281,14 @@ export function DraftPanel({
 export function TeamEditor({
   team,
   slots,
-  banned,
+  conflicts,
   onChoose,
   onEdit,
   onReset,
 }: {
   readonly team: Team;
   readonly slots: readonly CompSlot[];
-  readonly banned: ReadonlySet<string>;
+  readonly conflicts: ReadonlySet<number>;
   readonly onChoose: (index: number) => void;
   readonly onEdit: (edit: CompEdit) => void;
   readonly onReset: () => void;
@@ -335,7 +335,7 @@ export function TeamEditor({
       <div className="comp-slots">
         {slots.map((slot, index) => {
           const hero = slot.heroId ? HERO_BY_ID.get(slot.heroId) : undefined;
-          const conflict = Boolean(slot.heroId && banned.has(slot.heroId));
+          const conflict = conflicts.has(index);
           const slotLabel = `${label} slot ${index + 1}`;
           return (
             <div
@@ -405,7 +405,7 @@ export function TeamEditor({
                 </select>
               )}
               {conflict && (
-                <span className="conflict-copy">Banned for this team</span>
+                <span className="conflict-copy">{BANNED_FOR_TEAM}</span>
               )}
               <AutoGrowTextarea
                 aria-label={`${slotLabel} notes`}

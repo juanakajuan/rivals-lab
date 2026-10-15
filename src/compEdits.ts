@@ -12,6 +12,7 @@ import {
 } from "./draft";
 import {
   HERO_BY_ID,
+  TEAMS,
   type DeadpoolRole,
   type HeroSelection,
   type Team,
@@ -48,6 +49,8 @@ export type CompEdit =
   | { readonly kind: "maps"; readonly mapIds: readonly string[] }
   | { readonly kind: "gameMode"; readonly mode: GameMode };
 
+export const BANNED_FOR_TEAM = "Banned for this team";
+
 export function compChoiceError(
   comp: Comp,
   target: CompHeroTarget,
@@ -60,7 +63,7 @@ export function compChoiceError(
   if (!comp.teams[target.team][target.index]) return "Invalid comp slot.";
   if (!HERO_BY_ID.has(heroId)) return "Unknown hero.";
   if (draftEffects(comp.draft).banned[target.team].has(heroId))
-    return "Banned for this team.";
+    return `${BANNED_FOR_TEAM}.`;
   if (
     comp.teams[target.team].some(
       (slot, index) => index !== target.index && slot.heroId === heroId,
@@ -77,16 +80,20 @@ export function hasDraftChoices(comp: Comp): boolean {
   );
 }
 
+export function bannedHeroConflicts(
+  comp: Comp,
+  team: Team,
+): ReadonlySet<number> {
+  const banned = draftEffects(comp.draft).banned[team];
+  return new Set(
+    comp.teams[team].flatMap((slot, index) =>
+      slot.heroId !== null && banned.has(slot.heroId) ? [index] : [],
+    ),
+  );
+}
+
 export function compStatus(comp: Comp): "Conflict" | "Incomplete" | "Ready" {
-  const effects = draftEffects(comp.draft);
-  if (
-    comp.teams.ally.some(
-      (slot) => slot.heroId && effects.banned.ally.has(slot.heroId),
-    ) ||
-    comp.teams.enemy.some(
-      (slot) => slot.heroId && effects.banned.enemy.has(slot.heroId),
-    )
-  )
+  if (TEAMS.some((team) => bannedHeroConflicts(comp, team).size > 0))
     return "Conflict";
   if (
     comp.teams.ally.some((slot) => !slot.heroId) ||
