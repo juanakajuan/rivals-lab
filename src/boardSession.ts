@@ -222,7 +222,6 @@ export class BoardSession {
     const spacing = boundary * 2 + 4;
     const halfWidth = Math.floor(map.width / 2);
     const preferredStart = Math.floor(map.width * TEAM_HALF_START[team]);
-    const tokens = this.current.tokens;
     for (const startX of [preferredStart, halfWidth - preferredStart]) {
       for (let y = spacing; y <= map.height - boundary; y += spacing) {
         for (
@@ -231,7 +230,7 @@ export class BoardSession {
           x += spacing
         ) {
           if (
-            tokens.some(
+            this.current.tokens.some(
               (token) =>
                 Math.abs(token.x - x) < spacing &&
                 Math.abs(token.y - y) < spacing,
