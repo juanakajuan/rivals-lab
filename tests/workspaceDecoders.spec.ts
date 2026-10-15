@@ -6,7 +6,7 @@ import { decodeOpenComp, emptyComp, type SavedComp } from "../src/comps";
 import {
   StoredLibrarySource,
   decodeCompLibrary,
-  parseCompLibrary,
+  parseCompLibraryStrict,
   serializeCompLibrary,
   updateLibrarySource,
   type CompLibrary,
@@ -218,7 +218,7 @@ test("the open comp may be unnamed while saved comps still need names", () => {
   expect(decodeOpenComp(unnamed).name).toBe("  Dive ");
   expect(decodeOpenComp(emptyComp())).toEqual(emptyComp());
   expect(() =>
-    parseCompLibrary(serializeCompLibrary([saved("blank", "")])),
+    parseCompLibraryStrict(serializeCompLibrary([saved("blank", "")])),
   ).toThrow("Each saved comp needs a name.");
 });
 
@@ -261,7 +261,7 @@ test("copies are prepended with new IDs and existing comps stay", async () => {
       saved("poke", "Poke"),
     ]),
   ).toBe(2);
-  const entries = parseCompLibrary(storage.source ?? "");
+  const entries = parseCompLibraryStrict(storage.source ?? "");
   expect(entries.map((entry) => entry.comp.name)).toEqual([
     "Dive",
     "Poke",

@@ -11,7 +11,7 @@ import {
   MAX_IMPORT_BYTES,
   StoredLibrarySource,
   decodeCompLibraryValue,
-  parseCompLibrary,
+  parseCompLibraryStrict,
   serializeCompLibrary,
   type CompLibrary,
 } from "./compLibrary";
@@ -112,7 +112,6 @@ export class ImportPlan {
     this.#payload = payload;
   }
 
-  /** Hand out the payload once, so a double confirm cannot apply it twice. */
   take(): ImportPayload {
     const payload = this.#payload;
     if (!payload) throw new Error(ALREADY_APPLIED);
@@ -226,7 +225,7 @@ async function restorePlan(
 
 function compsPlan(source: string): ImportPlan {
   if (utf8Length(source) > MAX_IMPORT_BYTES) throw new Error(IMPORT_TOO_LARGE);
-  const comps = parseCompLibrary(source);
+  const comps = parseCompLibraryStrict(source);
   if (!comps.length) throw new Error("This file has no saved comps.");
   return new ImportPlan(
     {

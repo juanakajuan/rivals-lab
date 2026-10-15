@@ -22,7 +22,12 @@ import {
   type Team,
 } from "./heroes";
 import type { BoardMapDefinition } from "./boardMaps";
-import { TOKEN_RADIUS, tokenBoundary, type BoardToken } from "./boardTokens";
+import {
+  SELECTED_RING_WIDTH,
+  TOKEN_RADIUS,
+  tokenBoundary,
+  type BoardToken,
+} from "./boardTokens";
 
 export interface BoardSnapshot {
   readonly map: BoardMapDefinition;
@@ -174,7 +179,6 @@ function loadImage(source: string): Promise<HTMLImageElement | null> {
   });
 }
 
-/** Owns the canvas until destroy; updates preserve tokens during selection and image loading. */
 export function createBoardCanvas(
   host: HTMLDivElement,
   events: BoardEvents,
@@ -313,7 +317,7 @@ export function createBoardCanvas(
       }
       const selected = token.id === current.selectedTokenId;
       drawing.ring.stroke(selected ? "#ffffff" : TEAM_COLORS[token.team]);
-      drawing.ring.strokeWidth(selected ? 4 : 3);
+      drawing.ring.strokeWidth(selected ? SELECTED_RING_WIDTH : 3);
     }
     tokenLayer.batchDraw();
   }
@@ -736,8 +740,6 @@ export function createBoardCanvas(
     update(current) {
       if (destroyed) return;
       const mapChanged = snapshot?.map !== current.map;
-      // Committed edits (including history restore) cancel an unfinished gesture.
-      // Selection and image updates keep the same token array and preserve it.
       if (
         snapshot?.tokens !== current.tokens ||
         snapshot?.iconSize !== current.iconSize
@@ -790,7 +792,6 @@ export function createBoardCanvas(
       renderAnnotations(current);
     },
     toBoardPoint(clientX, clientY) {
-      // The canvas is centered inside the host, which can have unused space.
       const bounds = stage.getContent().getBoundingClientRect();
       return {
         x: (clientX - bounds.left) / stage.scaleX(),

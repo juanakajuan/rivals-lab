@@ -10,9 +10,6 @@ interface CompMap {
   readonly boardMapId?: MapId;
 }
 
-/** Planning maps include the 8 September Ignite Stage 2 pool and later additions.
- * This list does not enforce an event's map pool.
- */
 export const COMP_MAPS: readonly CompMap[] = [
   {
     id: "birnin-tchalla",
@@ -178,7 +175,6 @@ export function selectedCompMaps(
   return COMP_MAPS.filter((map) => selection.mapIds.includes(map.id));
 }
 
-/** Short text for lists and captions. */
 export function compMapLabel(selection: CompMapSelection): string {
   if (selection.gameMode) return `${selection.gameMode} · Any map in mode`;
   const maps = selectedCompMaps(selection);

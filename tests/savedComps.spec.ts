@@ -4,7 +4,7 @@ import {
   MAX_IMPORT_BYTES,
   MAX_SAVED_COMPS,
   decodeCompLibrary,
-  parseCompLibrary,
+  parseCompLibraryStrict,
   serializeCompLibrary,
   updateLibrarySource,
   type CompLibrary,
@@ -118,7 +118,7 @@ for (const operation of delayedWrites) {
     }
 
     await committed.promise;
-    const local = parseCompLibrary(await session.exportData());
+    const local = parseCompLibraryStrict(await session.exportData());
     const remote: SavedComp = {
       ...saved,
       id: "remote",
@@ -136,7 +136,7 @@ for (const operation of delayedWrites) {
       expectedNames,
     );
     expect(
-      parseCompLibrary(await session.exportData()).map(
+      parseCompLibraryStrict(await session.exportData()).map(
         (item) => item.comp.name,
       ),
     ).toEqual(expectedNames);
@@ -162,7 +162,7 @@ test("edits during commit stay local and dirty after the submitted snapshot is s
   complete.resolve();
 
   expect(await saving).toEqual({ kind: "newerEdits" });
-  expect(parseCompLibrary(await session.exportData())[0]?.comp).toEqual({
+  expect(parseCompLibraryStrict(await session.exportData())[0]?.comp).toEqual({
     ...saved.comp,
     name: "Plan",
     notes: "Submitted notes",
@@ -342,7 +342,7 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
   await session.save("Plan");
   await session.rename(saved.id, "Renamed");
   const imported = await session.addCopies(
-    parseCompLibrary(await session.exportData(entry(session))),
+    parseCompLibraryStrict(await session.exportData(entry(session))),
   );
   expect(imported.count).toBe(1);
   const copy = session.state.library.entries.find(
@@ -363,9 +363,9 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
     name: "Renamed",
     notes: "Updated notes",
   });
-  expect(parseCompLibrary(await session.exportData(entry(session)))).toEqual([
-    entry(session),
-  ]);
+  expect(
+    parseCompLibraryStrict(await session.exportData(entry(session))),
+  ).toEqual([entry(session)]);
 });
 
 test("invalid library data stays available for export and cannot be overwritten", async () => {

@@ -44,7 +44,6 @@ function draftCards(comp: Comp): readonly DraftCard[] {
   }));
 }
 
-/** Wrap without losing newlines or clipping long words and pasted URLs. */
 function wrapText(
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   value: string,
@@ -75,7 +74,49 @@ function wrapText(
   });
 }
 
-/** Render a read-only snapshot, independent of editor scroll and input sizes. */
+async function encodeInWorker(canvas: OffscreenCanvas): Promise<Blob | null> {
+  let image: ImageBitmap | undefined;
+  let worker: Worker | undefined;
+  try {
+    // Keep the rendered canvas intact if worker startup or encoding fails.
+    const snapshot = await createImageBitmap(canvas);
+    image = snapshot;
+    worker = new Worker(
+      new URL("./compImageEncoder.worker.ts", import.meta.url),
+      { type: "module" },
+    );
+    const encoder = worker;
+    return await new Promise<Blob>((resolve, reject) => {
+      encoder.onmessage = (event: MessageEvent<unknown>) => {
+        if (
+          event.data instanceof Blob &&
+          event.data.type === "image/png" &&
+          event.data.size > 0
+        )
+          resolve(event.data);
+        else
+          reject(
+            new Error(
+              typeof event.data === "string"
+                ? event.data
+                : "The image encoder returned invalid data.",
+            ),
+          );
+      };
+      encoder.onerror = () =>
+        reject(new Error("The image encoder could not start. Try again."));
+      encoder.onmessageerror = () =>
+        reject(new Error("The image encoder returned invalid data."));
+      encoder.postMessage(snapshot, [snapshot]);
+    });
+  } catch {
+    return null;
+  } finally {
+    image?.close();
+    worker?.terminate();
+  }
+}
+
 export async function renderCompImage(comp: Comp): Promise<Blob> {
   const teams = TEAMS.filter((team) =>
     comp.teams[team].some((slot) => slot.heroId || slot.notes.trim()),
@@ -375,7 +416,6 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   if (cards.length && comp.draft) {
     const draftTop = y;
     const draftHeader = `${comp.draft.format.toUpperCase()} DRAFT`;
-    // Draw this panel before its content once its measured height is known.
     const panelIndex = commands.length;
     y += 20;
     y +=
@@ -501,46 +541,8 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   for (const draw of commands) draw();
   // Encoding in a worker avoids the page's idle-task queue for PNG export.
   if ("transferToImageBitmap" in canvas && typeof Worker !== "undefined") {
-    let image: ImageBitmap | undefined;
-    let worker: Worker | undefined;
-    try {
-      // Keep the rendered canvas intact if worker startup or encoding fails.
-      const snapshot = await createImageBitmap(canvas);
-      image = snapshot;
-      worker = new Worker(
-        new URL("./compImageEncoder.worker.ts", import.meta.url),
-        { type: "module" },
-      );
-      const encoder = worker;
-      return await new Promise<Blob>((resolve, reject) => {
-        encoder.onmessage = (event: MessageEvent<unknown>) => {
-          if (
-            event.data instanceof Blob &&
-            event.data.type === "image/png" &&
-            event.data.size > 0
-          )
-            resolve(event.data);
-          else
-            reject(
-              new Error(
-                typeof event.data === "string"
-                  ? event.data
-                  : "The image encoder returned invalid data.",
-              ),
-            );
-        };
-        encoder.onerror = () =>
-          reject(new Error("The image encoder could not start. Try again."));
-        encoder.onmessageerror = () =>
-          reject(new Error("The image encoder returned invalid data."));
-        encoder.postMessage(snapshot, [snapshot]);
-      });
-    } catch {
-      // Use the local encoder below with the original rendered pixels.
-    } finally {
-      image?.close();
-      worker?.terminate();
-    }
+    const encoded = await encodeInWorker(canvas);
+    if (encoded) return encoded;
   }
   if ("convertToBlob" in canvas)
     return canvas.convertToBlob({ type: "image/png" });

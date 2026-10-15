@@ -11,7 +11,6 @@ export interface DraftAction {
 export interface LegacyDraftState {
   readonly format: DraftFormat;
   readonly firstTeam: Team;
-  /** Choices follow phase order. A joint phase takes effect only when complete. */
   readonly choices: readonly string[];
 }
 
@@ -127,7 +126,6 @@ export function legacyDraftEffects(
   return { banned, saved };
 }
 
-/** Returns an explanation for an unavailable choice, or null when legal. */
 export function legacyDraftChoiceError(
   draft: LegacyDraftState,
   heroId: string,
@@ -189,7 +187,6 @@ function orderedDraftSlots(
     }));
 }
 
-/** Display phase positions without requiring users to enter choices in order. */
 export function draftSlots(
   draft: DraftState,
 ): readonly (DraftSlot & { readonly heroId: string | null })[] {

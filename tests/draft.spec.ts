@@ -13,7 +13,7 @@ import {
 import { emptyComp, type SavedComp } from "../src/comps";
 import {
   decodeCompLibrary,
-  parseCompLibrary,
+  parseCompLibraryStrict,
   serializeCompLibrary,
 } from "../src/compLibrary";
 import { compStatus } from "../src/compEdits";
@@ -69,7 +69,6 @@ test("Ignite bans target opponents, saves target allies, and first-team reversal
     for (const hero of ["rocket", "magneto"])
       draft = chooseDraftHero(draft, hero);
     expect(draftChoiceError(draft, "magneto")).toContain("Protected");
-    // A team may ban its own saved hero, because that ban targets the opponent.
     for (const hero of [
       "luna",
       "thor",
@@ -110,7 +109,9 @@ test("saved comps validate external data and preserve partial drafts and conflic
       ),
     },
   };
-  expect(parseCompLibrary(serializeCompLibrary([entry]))).toEqual([entry]);
+  expect(parseCompLibraryStrict(serializeCompLibrary([entry]))).toEqual([
+    entry,
+  ]);
   const invalidValues: readonly unknown[] = [
     { version: 2, comps: [entry] },
     { version: 1, comps: [entry, entry] },
@@ -158,7 +159,7 @@ test("saved comps validate external data and preserve partial drafts and conflic
     },
   ];
   for (const value of invalidValues)
-    expect(() => parseCompLibrary(JSON.stringify(value))).toThrow();
+    expect(() => parseCompLibraryStrict(JSON.stringify(value))).toThrow();
   const conflict = {
     ...entry.comp,
     draft: setDraftHero(
@@ -175,8 +176,9 @@ test("saved comps validate external data and preserve partial drafts and conflic
   };
   expect(compStatus(conflict)).toBe("Conflict");
   expect(
-    parseCompLibrary(serializeCompLibrary([{ ...entry, comp: conflict }]))[0]
-      ?.comp,
+    parseCompLibraryStrict(
+      serializeCompLibrary([{ ...entry, comp: conflict }]),
+    )[0]?.comp,
   ).toEqual(conflict);
 });
 
@@ -196,7 +198,9 @@ test("Deadpool roles round-trip, legacy saves load, and invalid role data is rej
       },
     },
   };
-  expect(parseCompLibrary(serializeCompLibrary([entry]))).toEqual([entry]);
+  expect(parseCompLibraryStrict(serializeCompLibrary([entry]))).toEqual([
+    entry,
+  ]);
   for (const deadpoolRole of DEADPOOL_ROLES) {
     const withRole: SavedComp = {
       ...entry,
@@ -210,7 +214,7 @@ test("Deadpool roles round-trip, legacy saves load, and invalid role data is rej
         },
       },
     };
-    expect(parseCompLibrary(serializeCompLibrary([withRole]))).toEqual([
+    expect(parseCompLibraryStrict(serializeCompLibrary([withRole]))).toEqual([
       withRole,
     ]);
   }
@@ -232,7 +236,7 @@ test("Deadpool roles round-trip, legacy saves load, and invalid role data is rej
       },
     };
     expect(() =>
-      parseCompLibrary(JSON.stringify({ version: 1, comps: [invalid] })),
+      parseCompLibraryStrict(JSON.stringify({ version: 1, comps: [invalid] })),
     ).toThrow("Invalid Deadpool role");
   }
 });
@@ -267,7 +271,9 @@ test("direct slots apply at once and allow replace, clear, and legal cross-team 
     expect(() => setDraftHero(saved, enemyBan, "strange")).toThrow("Protected");
     const comp = { ...emptyComp(), name: "Direct", draft: saved };
     const entry = { id: "direct", updatedAt: "2026-09-29T12:00:00Z", comp };
-    expect(parseCompLibrary(serializeCompLibrary([entry]))).toEqual([entry]);
+    expect(parseCompLibraryStrict(serializeCompLibrary([entry]))).toEqual([
+      entry,
+    ]);
     for (const invalid of [
       {
         ...saved,
@@ -289,7 +295,7 @@ test("direct slots apply at once and allow replace, clear, and legal cross-team 
       },
     ])
       expect(() =>
-        parseCompLibrary(
+        parseCompLibraryStrict(
           JSON.stringify({
             version: 1,
             comps: [{ ...entry, comp: { ...comp, draft: invalid } }],
@@ -311,7 +317,7 @@ test("legacy partial drafts migrate by team, including reversed first team and s
       updatedAt: "2026-09-29T12:00:00Z",
       comp: { ...emptyComp(), name: "Legacy", draft: legacy },
     };
-    const migrated = parseCompLibrary(
+    const migrated = parseCompLibraryStrict(
       JSON.stringify({ version: 1, comps: [entry] }),
     )[0]?.comp.draft;
     expect(migrated).toEqual(migrateLegacyDraft(legacy));
