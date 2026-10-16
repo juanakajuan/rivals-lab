@@ -80,10 +80,10 @@ function ownerRules(owner) {
   const properties = globals.flatMap(({ name, message }) =>
     globalObjects.map((object) => ({ object, property: name, message })),
   );
-  // An entry with no options keeps the options of an earlier block, so an owner turns the rule off.
   const syntax = ownedSyntax
     .filter((entry) => entry.owner !== owner)
     .map(({ selector, message }) => ({ selector, message }));
+  // An entry with no options keeps the options of an earlier block, so an owner turns the rule off.
   return {
     "no-restricted-syntax": ["error", ...restrictedSyntax, ...syntax],
     "no-restricted-imports": restrictedImports(owner),

@@ -10,12 +10,10 @@ function spans(cell: string): string[] {
 }
 
 async function contents(path: string): Promise<string | null> {
-  try {
-    const info = await stat(join(ROOT, path));
-    return info.isFile() ? await readFile(join(ROOT, path), "utf8") : "";
-  } catch {
-    return null;
-  }
+  const file = join(ROOT, path);
+  const info = await stat(file).catch(() => null);
+  if (info === null) return null;
+  return info.isFile() ? readFile(file, "utf8") : "";
 }
 
 async function ruleTableProblems(markdown: string): Promise<string[]> {
