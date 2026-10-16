@@ -363,8 +363,7 @@ export const MAPS = [
   },
 ] as const satisfies readonly MapEntry[];
 
-export type CatalogMap = (typeof MAPS)[number];
-export type MapId = CatalogMap["id"];
+type CatalogMap = (typeof MAPS)[number];
 
 export const BOARD_MAPS = MAPS.filter((map) => "board" in map);
 export type BoardMap = (typeof BOARD_MAPS)[number];
@@ -383,10 +382,4 @@ export function findMap(storedId: string): CatalogMap | undefined {
 export function findBoardMap(storedId: string): BoardMap | undefined {
   const map = findMap(storedId);
   return map && "board" in map ? map : undefined;
-}
-
-export function getBoardMap(id: BuiltinBoardMapId): BoardMap {
-  const map = findBoardMap(id);
-  if (!map) throw new Error(`Unknown map: ${id}`);
-  return map;
 }

@@ -4,8 +4,6 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import { lockBuildOutput, readReleaseFeed } from "./scripts/releases.ts";
 import { MAPS, type MapEntry } from "./src/maps.ts";
 
-const CATALOG: readonly MapEntry[] = MAPS;
-
 export default defineConfig(async ({ command }) => {
   const releases = await readReleaseFeed(import.meta.dirname);
   const feed = JSON.stringify(releases);
@@ -53,7 +51,7 @@ export default defineConfig(async ({ command }) => {
             type: "asset",
             fileName: "map-previews/sources.json",
             source: `${JSON.stringify(
-              CATALOG.flatMap(({ id, preview }) =>
+              MAPS.flatMap(({ id, preview }: MapEntry) =>
                 preview
                   ? [
                       {

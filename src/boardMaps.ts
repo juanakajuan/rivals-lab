@@ -10,7 +10,7 @@ import {
 export type CustomBoardMapId = `custom:${string}`;
 export type BoardMapId = BuiltinBoardMapId | CustomBoardMapId;
 
-export interface BuiltinBoardMap extends BoardImage {
+interface BuiltinBoardMap extends BoardImage {
   readonly id: BuiltinBoardMapId;
   readonly name: string;
   readonly mode: GameMode;

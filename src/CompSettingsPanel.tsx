@@ -8,8 +8,6 @@ import { MapPicker, type MapPickerEntry } from "./MapPicker";
 import { Map } from "lucide-react";
 import { MAPS, type GameMode, type MapEntry } from "./maps";
 
-const CATALOG: readonly MapEntry[] = MAPS;
-
 const COMP_MAP_OPTIONS: readonly MapPickerEntry<string, null>[] = [
   {
     single: true,
@@ -19,7 +17,7 @@ const COMP_MAP_OPTIONS: readonly MapPickerEntry<string, null>[] = [
     detail: "No map restriction",
     imagePath: null,
   },
-  ...CATALOG.map((map) => ({
+  ...MAPS.map((map: MapEntry) => ({
     value: map.id,
     name: map.shortName,
     detail: map.mode,
