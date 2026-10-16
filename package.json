@@ -12,7 +12,7 @@
     "test": "playwright test",
     "test:production": "playwright test --config playwright.production.config.ts",
     "check": "tsc --noEmit",
-    "verify": "npm run format:check && npm run lint && npm run check && npm run test:releases && npm run test:check-pr",
+    "verify": "npm run format:check && npm run lint && npm run check && npm run test:releases && npm run test:check-pr && npm run test:agents",
     "check:pr": "node scripts/check-pr.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
@@ -25,6 +25,7 @@
     "media:upload": "node scripts/github-media.ts upload",
     "test:releases": "node --test tests/releases.test.ts",
     "test:check-pr": "node --test tests/checkPr.test.ts",
+    "test:agents": "node --test tests/agentRules.test.ts",
     "worktrees:clean": "node scripts/worktrees.ts"
   },
   "dependencies": {
