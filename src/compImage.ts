@@ -2,6 +2,7 @@ import { downloadBlob } from "./downloadBlob";
 import { compMapChoice } from "./compMaps";
 import { type Comp, type CompSlot } from "./comps";
 import {
+  DRAFT_RULES,
   draftEffects,
   draftSlots,
   type DraftActionKind,
@@ -10,7 +11,10 @@ import {
 import {
   HERO_BY_ID,
   heroImagePath,
+  TEAMS,
+  TEAM_SIZE,
   selectedHeroRole,
+  teamCountLabel,
   teamLabel,
   type Team,
 } from "./heroes";
@@ -18,7 +22,6 @@ import {
 const WIDTH = 1600;
 const PADDING = 40;
 const GAP = 20;
-const TEAMS: readonly Team[] = ["ally", "enemy"];
 const COLORS = {
   background: "#08090a",
   panel: "#0f1011",
@@ -375,7 +378,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
 
   function drawTeam(team: Team, x: number): number {
     text(
-      `${teamLabel(team)}  ·  ${comp.teams[team].filter((slot) => slot.heroId).length} / 6`,
+      `${teamLabel(team)}  ·  ${teamCountLabel(comp.teams[team])}`,
       x,
       teamTop + 18,
       teamWidth,
@@ -386,7 +389,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     const slots = comp.teams[team]
       .map((slot, index) => ({ slot, index }))
       .filter(({ slot }) => slot.heroId || slot.notes.trim());
-    const columns = teams.length === 1 ? 6 : 3;
+    const columns = TEAM_SIZE / teams.length;
     const cardWidth = (teamWidth - 40 - GAP * (columns - 1)) / columns;
     let rowTop = teamTop + 62;
     for (let row = 0; row < Math.ceil(slots.length / columns); row++) {
@@ -471,9 +474,7 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
       ) + 8;
     y +=
       text(
-        format === "mrc"
-          ? "Bans and saves apply to both teams."
-          : "Ban for the opponent. Save for your team.",
+        DRAFT_RULES[format].scope,
         PADDING,
         y,
         WIDTH - PADDING * 2,

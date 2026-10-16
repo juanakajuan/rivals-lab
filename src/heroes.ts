@@ -1,5 +1,14 @@
-export type Team = "ally" | "enemy";
+export const TEAMS = ["ally", "enemy"] as const;
+export type Team = (typeof TEAMS)[number];
 export const TEAM_SIZE = 6;
+
+export const RULES = {
+  nameLength: 100,
+  notesLength: 10_000,
+  idLength: 100,
+  timestampLength: 40,
+  copySuffix: " (copy)",
+} as const;
 export type HeroRole = "Vanguard" | "Duelist" | "Strategist" | "All Roles";
 export const DEADPOOL_ROLES = ["Vanguard", "Duelist", "Strategist"] as const;
 export type DeadpoolRole = (typeof DEADPOOL_ROLES)[number];
@@ -168,6 +177,24 @@ export function teamLabel(team: Team): string {
   return TEAM_LABELS[team];
 }
 
-export function isTeam(value: string): value is Team {
-  return value === "ally" || value === "enemy";
+export function isTeam(value: unknown): value is Team {
+  return TEAMS.some((team) => team === value);
+}
+
+export function otherTeam(team: Team): Team {
+  return team === "ally" ? "enemy" : "ally";
+}
+
+export function teamCounts(
+  members: readonly { readonly team: Team }[],
+): Record<Team, number> {
+  const counts: Record<Team, number> = { ally: 0, enemy: 0 };
+  for (const member of members) counts[member.team]++;
+  return counts;
+}
+
+export function teamCountLabel(
+  slots: readonly { readonly heroId: string | null }[],
+): `${number} / ${typeof TEAM_SIZE}` {
+  return `${slots.filter((slot) => slot.heroId).length} / ${TEAM_SIZE}`;
 }

@@ -174,6 +174,16 @@ test("downloads and copies the same full PNG without changing saved data", async
   await page
     .getByRole("button", { name: "Load Saved build", exact: true })
     .click();
+  await expect(
+    page.getByRole("region", { name: "Bans and Saves" }).locator(".muted-copy"),
+  ).toContainText(
+    "3 bans + 2 saves per team. Bans and saves apply to both teams.",
+  );
+  const builderCounts = await Promise.all(
+    ["Allies composition", "Opponents composition"].map((name) =>
+      page.getByRole("region", { name }).locator("h2 small").textContent(),
+    ),
+  );
   await page.getByLabel("Comp name", { exact: true }).fill("Unsaved team plan");
   const notes =
     "Keep the high ground.\n".repeat(270) + "FINAL NOTE BELOW THE SCROLL AREA";
@@ -279,6 +289,15 @@ test("downloads and copies the same full PNG without changing saved data", async
     [...downloaded],
   );
   expect(result.pixelHashes[0]).toBe(result.pixelHashes[1]);
+  expect({
+    builder: builderCounts,
+    image: result.text.filter((line) =>
+      /^(Allies|Opponents) {2}· {2}/.test(line),
+    ),
+  }).toEqual({
+    builder: ["3 / 6", "1 / 6"],
+    image: ["Allies  ·  3 / 6", "Opponents  ·  1 / 6"],
+  });
   expect(result.mapHashes).toEqual([
     result.expectedMapHash,
     result.expectedMapHash,
@@ -332,6 +351,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Wolverine",
     "Save 2",
     "Luna Snow",
+    "Bans and saves apply to both teams.",
     "FINAL NOTE BELOW THE SCROLL AREA",
   ])
     expect(text).toContain(expected);

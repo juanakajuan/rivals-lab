@@ -23,7 +23,13 @@ import {
 } from "./savedComps";
 import type { CompStorage } from "./appData";
 import { draftEffects, type DraftFormat } from "./draft";
-import { teamLabel, type HeroSelection, type Team } from "./heroes";
+import {
+  RULES,
+  TEAMS,
+  teamLabel,
+  type HeroSelection,
+  type Team,
+} from "./heroes";
 import type { GameMode, MapId } from "./maps";
 import { MapPicker } from "./MapPicker";
 import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
@@ -32,8 +38,6 @@ import "./builder.css";
 type NameRequest =
   | { readonly kind: "copy"; readonly name: string }
   | { readonly kind: "rename"; readonly id: string; readonly name: string };
-
-const TEAMS: readonly Team[] = ["ally", "enemy"];
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The operation failed.";
@@ -76,7 +80,7 @@ function NameDialog({
           <input
             autoFocus
             required
-            maxLength={100}
+            maxLength={RULES.nameLength}
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
           />
@@ -438,7 +442,9 @@ export function CompBuilder({
           onSaveAs={() =>
             setNameRequest({
               kind: "copy",
-              name: comp.name ? `${comp.name.slice(0, 93)} (copy)` : "",
+              name: comp.name
+                ? `${comp.name.slice(0, RULES.nameLength - RULES.copySuffix.length)}${RULES.copySuffix}`
+                : "",
             })
           }
           onSave={() => void save(comp.name)}
@@ -480,7 +486,7 @@ export function CompBuilder({
             <AutoGrowTextarea
               value={comp.notes}
               rows={5}
-              maxLength={10_000}
+              maxLength={RULES.notesLength}
               aria-label="Comp notes"
               placeholder="What makes this comp work?"
               onChange={(event) =>

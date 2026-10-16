@@ -16,7 +16,9 @@ import {
 } from "./boardTokens";
 import {
   heroImagePath,
+  TEAMS,
   TEAM_SIZE,
+  teamCounts,
   teamLabel,
   type HeroDefinition,
   type Team,
@@ -34,11 +36,14 @@ export type BoardUploadState =
   | { readonly kind: "loading"; readonly filename: string }
   | { readonly kind: "error"; readonly message: string };
 
+const TEAM_COLOR: Readonly<Record<Team, "blue" | "red">> = {
+  ally: "blue",
+  enemy: "red",
+};
+
 interface HeroPanelProps {
   readonly notice: string | null;
   readonly selectedTeam: Team;
-  readonly allyCount: number;
-  readonly enemyCount: number;
   readonly heroSearch: string;
   readonly visibleHeroes: readonly HeroDefinition[];
   readonly tokens: readonly BoardToken[];
@@ -56,8 +61,6 @@ interface HeroPanelProps {
 export function HeroPanel({
   notice,
   selectedTeam,
-  allyCount,
-  enemyCount,
   heroSearch,
   visibleHeroes,
   tokens,
@@ -68,6 +71,7 @@ export function HeroPanel({
   onHeroAdd,
   onHeroRemove,
 }: HeroPanelProps): React.JSX.Element {
+  const counts = teamCounts(tokens);
   return (
     <aside className="hero-panel" aria-labelledby="heroes-heading">
       <div className="hero-panel-header">
@@ -81,22 +85,17 @@ export function HeroPanel({
         </div>
 
         <div className="team-picker" aria-label="Team for new heroes">
-          <button
-            className={`team-option blue${selectedTeam === "ally" ? " active" : ""}`}
-            type="button"
-            aria-pressed={selectedTeam === "ally"}
-            onClick={() => onTeamChange("ally")}
-          >
-            Allies <span>{allyCount}</span>
-          </button>
-          <button
-            className={`team-option red${selectedTeam === "enemy" ? " active" : ""}`}
-            type="button"
-            aria-pressed={selectedTeam === "enemy"}
-            onClick={() => onTeamChange("enemy")}
-          >
-            Opponents <span>{enemyCount}</span>
-          </button>
+          {TEAMS.map((team) => (
+            <button
+              key={team}
+              className={`team-option ${TEAM_COLOR[team]}${selectedTeam === team ? " active" : ""}`}
+              type="button"
+              aria-pressed={selectedTeam === team}
+              onClick={() => onTeamChange(team)}
+            >
+              {teamLabel(team)} <span>{counts[team]}</span>
+            </button>
+          ))}
         </div>
 
         <SearchField
@@ -130,10 +129,7 @@ export function HeroPanel({
                 hero={hero}
                 team={selectedTeam}
                 token={token}
-                teamFull={
-                  (selectedTeam === "ally" ? allyCount : enemyCount) >=
-                  TEAM_SIZE
-                }
+                teamFull={counts[selectedTeam] >= TEAM_SIZE}
                 onDragStart={onHeroDragStart}
                 onDragEnd={onHeroDragEnd}
                 onAdd={onHeroAdd}
@@ -376,7 +372,7 @@ function SelectionSummary({
   token,
   hero,
 }: SelectionSummaryProps): React.JSX.Element {
-  const teamClass = token.team === "ally" ? "blue-team" : "red-team";
+  const teamClass = `${TEAM_COLOR[token.team]}-team`;
 
   return (
     <div className="selection-summary">

@@ -1,6 +1,34 @@
-import { HERO_BY_ID, type Team } from "./heroes";
+import { HERO_BY_ID, TEAMS, otherTeam, type Team } from "./heroes";
 
 export type DraftFormat = "mrc" | "ignite";
+
+export const DRAFT_RULES = {
+  mrc: {
+    label: "MRC",
+    bans: 3,
+    saves: 2,
+    scope: "Bans and saves apply to both teams.",
+  },
+  ignite: {
+    label: "Ignite",
+    bans: 5,
+    saves: 2,
+    scope: "Ban for the opponent. Save for your team.",
+  },
+} as const satisfies Record<
+  DraftFormat,
+  {
+    readonly label: string;
+    readonly bans: number;
+    readonly saves: number;
+    readonly scope: string;
+  }
+>;
+
+export function describeDraftRules(format: DraftFormat): string {
+  const { bans, saves, scope } = DRAFT_RULES[format];
+  return `${bans} bans + ${saves} saves per team. ${scope}`;
+}
 export type DraftActionKind = "ban" | "save";
 
 export interface DraftAction {
@@ -35,10 +63,6 @@ export interface DraftProgress {
 export interface DraftEffects {
   readonly banned: Readonly<Record<Team, ReadonlySet<string>>>;
   readonly saved: Readonly<Record<Team, ReadonlySet<string>>>;
-}
-
-export function otherTeam(team: Team): Team {
-  return team === "ally" ? "enemy" : "ally";
 }
 
 function actionTarget(format: DraftFormat, action: DraftAction): Team {
@@ -131,9 +155,7 @@ export function legacyDraftEffects(
       const heroId = phase.heroIds[index];
       if (!heroId) continue;
       const targets: readonly Team[] =
-        draft.format === "mrc"
-          ? ["ally", "enemy"]
-          : [actionTarget(draft.format, action)];
+        draft.format === "mrc" ? TEAMS : [actionTarget(draft.format, action)];
       for (const target of targets) {
         (action.kind === "ban" ? banned : saved)[target].add(heroId);
       }
@@ -180,13 +202,11 @@ export interface DraftSlot extends DraftAction {
 }
 
 export function emptyDraft(format: DraftFormat): DraftState {
-  const teams: Record<Team, Record<DraftActionKind, null[]>> = {
-    ally: { ban: [], save: [] },
-    enemy: { ban: [], save: [] },
-  };
-  for (const action of draftPhases({ format, firstTeam: "ally" }).flat())
-    teams[action.team][action.kind].push(null);
-  return { format, teams };
+  const slots = (): DraftTeamSlots => ({
+    ban: Array.from({ length: DRAFT_RULES[format].bans }, () => null),
+    save: Array.from({ length: DRAFT_RULES[format].saves }, () => null),
+  });
+  return { format, teams: { ally: slots(), enemy: slots() } };
 }
 
 function orderedDraftSlots(
@@ -207,7 +227,7 @@ function orderedDraftSlots(
 export function draftSlots(
   draft: DraftState,
 ): readonly (DraftSlot & { readonly heroId: string | null })[] {
-  return orderedDraftSlots({ format: draft.format, firstTeam: "ally" }).map(
+  return orderedDraftSlots({ format: draft.format, firstTeam: TEAMS[0] }).map(
     (slot) => ({
       ...slot,
       heroId: draft.teams[slot.team][slot.kind][slot.index] ?? null,
@@ -228,9 +248,7 @@ export function draftEffects(draft: DraftState | null): DraftEffects {
     for (const slot of draftSlots(draft)) {
       if (!slot.heroId) continue;
       const targets: readonly Team[] =
-        draft.format === "mrc"
-          ? ["ally", "enemy"]
-          : [actionTarget(draft.format, slot)];
+        draft.format === "mrc" ? TEAMS : [actionTarget(draft.format, slot)];
       for (const target of targets)
         (slot.kind === "ban" ? banned : saved)[target].add(slot.heroId);
     }

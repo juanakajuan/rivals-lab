@@ -3,6 +3,7 @@ import { emptyDraft, type DraftFormat } from "./draft";
 import { compStatus } from "./compEdits";
 import { compMapLabel, selectedCompMaps } from "./compMaps";
 import { GameModeIcon } from "./GameModeIcon";
+import { RULES } from "./heroes";
 import { COMP_MAP_OPTIONS } from "./mapPickerOptions";
 import { MapPicker } from "./MapPicker";
 import { Map } from "lucide-react";
@@ -49,7 +50,7 @@ export function CompSettingsPanel({
             Comp name
             <input
               value={comp.name}
-              maxLength={100}
+              maxLength={RULES.nameLength}
               placeholder="e.g. Midtown dive"
               onChange={(event) => onNameChange(event.currentTarget.value)}
             />

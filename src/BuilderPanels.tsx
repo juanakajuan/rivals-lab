@@ -4,15 +4,24 @@ import { normalizeSearch } from "./searchText";
 import { SearchField } from "./ui/SearchField";
 import { Ban, Search, ShieldCheck, X } from "lucide-react";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
-import { draftSlots, type DraftState, type DraftSlot } from "./draft";
+import {
+  DRAFT_RULES,
+  describeDraftRules,
+  draftSlots,
+  type DraftState,
+  type DraftSlot,
+} from "./draft";
 import type { CompEdit } from "./compEdits";
 import {
   DEADPOOL_ROLES,
   HEROES,
   HERO_BY_ID,
+  RULES,
+  TEAMS,
   heroImagePath,
   isDeadpoolRole,
   selectedHeroRole,
+  teamCountLabel,
   teamLabel,
   type DeadpoolRole,
   type HeroDefinition,
@@ -21,6 +30,11 @@ import {
   type HeroRole,
 } from "./heroes";
 import type { CompSlot } from "./comps";
+
+const TEAM_ROLE_HINT: Readonly<Record<Team, string>> = {
+  ally: "Any role mix",
+  enemy: "Optional",
+};
 
 interface HeroOption extends HeroDefinition {
   readonly deadpoolRole?: DeadpoolRole;
@@ -131,7 +145,6 @@ export function DraftPanel({
 }): React.JSX.Element {
   const slots = draftSlots(draft);
   const filled = slots.filter((slot) => slot.heroId !== null).length;
-  const teams: readonly Team[] = ["ally", "enemy"];
   return (
     <section
       className="builder-card draft-panel"
@@ -139,9 +152,7 @@ export function DraftPanel({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">
-            {draft.format === "mrc" ? "MRC" : "Ignite"} draft
-          </p>
+          <p className="eyebrow">{DRAFT_RULES[draft.format].label} draft</p>
           <h2 id="draft-heading">Bans and Saves</h2>
         </div>
         <span className="status-tag">
@@ -149,15 +160,11 @@ export function DraftPanel({
         </span>
       </div>
       <p className="muted-copy">
-        {draft.teams.ally.ban.length} bans + {draft.teams.ally.save.length}{" "}
-        saves per team.{" "}
-        {draft.format === "mrc"
-          ? "Bans and saves apply to both teams."
-          : "Ban for the opponent. Save for your team."}{" "}
-        Fill any slot. Each choice takes effect at once.
+        {describeDraftRules(draft.format)} Fill any slot. Each choice takes
+        effect at once.
       </p>
       <div className="draft-timeline">
-        {teams.map((team) => (
+        {TEAMS.map((team) => (
           <section
             className="draft-team-row"
             data-team={team}
@@ -287,7 +294,6 @@ export function TeamEditor({
   readonly onReset: () => void;
 }): React.JSX.Element {
   const label = teamLabel(team);
-  const count = slots.filter((slot) => slot.heroId).length;
   const roles = new Map<HeroRole, number>();
   for (const slot of slots) {
     const role = selectedHeroRole(slot.heroId, slot.deadpoolRole);
@@ -302,12 +308,10 @@ export function TeamEditor({
       <div className="section-heading">
         <h2>
           <span className="team-dot" />
-          {label} <small>{count} / 6</small>
+          {label} <small>{teamCountLabel(slots)}</small>
         </h2>
         <div className="team-editor-actions">
-          <span className="muted-copy">
-            {team === "enemy" ? "Optional" : "Any role mix"}
-          </span>
+          <span className="muted-copy">{TEAM_ROLE_HINT[team]}</span>
           <button
             type="button"
             className="secondary-button"
@@ -406,7 +410,7 @@ export function TeamEditor({
               <AutoGrowTextarea
                 aria-label={`${slotLabel} notes`}
                 placeholder="Slot notes…"
-                maxLength={10_000}
+                maxLength={RULES.notesLength}
                 rows={2}
                 value={slot.notes}
                 onChange={(event) =>
