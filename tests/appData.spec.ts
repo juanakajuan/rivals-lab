@@ -658,7 +658,7 @@ test("autosave refuses to replace a board saved by a newer version", async ({
       version: 99,
       layout: "future",
     });
-    data.autosave.sync({ ...data.workspace, iconSize: 130 });
+    data.autosave.syncBoard({ ...data.workspace, iconSize: 130 });
     await data.autosave.flush();
     return {
       board: await harness.storedRecord("workspace", "board"),
