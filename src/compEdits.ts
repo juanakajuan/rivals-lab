@@ -1,5 +1,4 @@
-import { COMP_MAPS } from "./compMaps";
-import { isGameMode, type GameMode } from "./maps";
+import { MAPS, isGameMode, type GameMode } from "./maps";
 import { compSlot, emptyComp, type Comp, type CompSlot } from "./comps";
 import {
   draftChoiceError,
@@ -182,7 +181,7 @@ export function applyCompEdit(comp: Comp, edit: CompEdit): Comp {
       };
     case "maps": {
       for (const id of edit.mapIds)
-        if (!COMP_MAPS.some((map) => map.id === id))
+        if (!MAPS.some((map) => map.id === id))
           throw new Error(`Unknown map: ${id}.`);
       return {
         ...comp,

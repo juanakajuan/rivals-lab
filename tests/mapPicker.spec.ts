@@ -1,14 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { COMP_MAPS } from "../src/compMaps";
+import { MAPS } from "../src/maps";
 
 const wakanda = "Intergalactic Empire of Wakanda: Birnin T'Challa";
 const hydra = "Hydra Charteris Base: Hell's Heaven";
 const museum = "Museum of Contemplation";
-const placeholderMaps = COMP_MAPS.filter((map) => map.boardMapId === undefined);
-const convoyCount = COMP_MAPS.filter((map) => map.mode === "Convoy").length;
-const dominationCount = COMP_MAPS.filter(
-  (map) => map.mode === "Domination",
-).length;
+const placeholderMaps = MAPS.filter((map) => !("board" in map));
+const convoyCount = MAPS.filter((map) => map.mode === "Convoy").length;
+const dominationCount = MAPS.filter((map) => map.mode === "Domination").length;
 
 function picker(page: Page): Locator {
   return page.getByRole("dialog", { name: "Choose map", exact: true });
@@ -58,9 +56,7 @@ test("map cards show complete names and uncropped images; selection closes and r
   await expect(dialog).toContainText(
     "Placeholder cards still need an overhead map image.",
   );
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(
-    COMP_MAPS.length,
-  );
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(MAPS.length);
   await expect(dialog.locator(".map-picker-placeholder")).toHaveCount(
     placeholderMaps.length,
   );
@@ -256,9 +252,7 @@ test("search matches names and modes without edits, recovers from no results, an
     dialog.getByRole("button", { name: "The God Quarry", exact: true }),
   ).toBeDisabled();
   await search.fill("");
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(
-    COMP_MAPS.length,
-  );
+  await expect(dialog.locator(".map-picker-card")).toHaveCount(MAPS.length);
   await expect(dialog.getByRole("status")).toHaveCount(0);
   await expect(search).toBeFocused();
   await page.keyboard.type("museum");

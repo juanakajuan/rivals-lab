@@ -1,5 +1,5 @@
-import { COMP_MAPS, type CompMapSelection } from "./compMaps";
-import { isGameMode } from "./maps";
+import type { CompMapSelection } from "./compMaps";
+import { MAPS, findMap, isGameMode } from "./maps";
 import {
   chooseLegacyDraftHero,
   draftSlots,
@@ -42,7 +42,7 @@ export interface SavedComp {
   readonly comp: Comp;
 }
 
-export const MAX_COMP_MAPS = COMP_MAPS.length;
+export const MAX_COMP_MAPS = MAPS.length;
 
 export function compSlot(
   heroId: string | null,
@@ -184,16 +184,18 @@ function decodeDraft(value: unknown): DraftState | null {
 function decodeMapSelectionOrLegacyMapId(
   comp: Record<string, unknown>,
 ): CompMapSelection {
-  let mapIds: readonly string[];
+  let storedIds: readonly string[];
   if (comp.mapIds !== undefined)
-    mapIds = items(comp.mapIds, MAX_COMP_MAPS).map((id) =>
+    storedIds = items(comp.mapIds, MAX_COMP_MAPS).map((id) =>
       text(id, RULES.idLength),
     );
-  else if (comp.mapId === undefined || comp.mapId === null) mapIds = [];
-  else mapIds = [text(comp.mapId, RULES.idLength)];
-  for (const id of mapIds)
-    if (!COMP_MAPS.some((map) => map.id === id))
-      throw new Error(`Unknown map: ${id}.`);
+  else if (comp.mapId === undefined || comp.mapId === null) storedIds = [];
+  else storedIds = [text(comp.mapId, RULES.idLength)];
+  const mapIds = storedIds.map((id) => {
+    const map = findMap(id);
+    if (!map) throw new Error(`Unknown map: ${id}.`);
+    return map.id;
+  });
   if (new Set(mapIds).size !== mapIds.length)
     throw new Error("A map appears twice in one comp.");
   const gameMode = comp.gameMode ?? null;

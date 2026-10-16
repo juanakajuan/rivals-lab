@@ -31,9 +31,14 @@ import {
   type HeroSelection,
   type Team,
 } from "./heroes";
-import type { GameMode, MapId } from "./maps";
+import {
+  BOARD_MAPS,
+  findBoardMap,
+  type BuiltinBoardMapId,
+  type GameMode,
+} from "./maps";
 import { MapPicker } from "./MapPicker";
-import { BOARD_MAP_OPTIONS } from "./mapPickerOptions";
+import { boardMapOption } from "./boardMaps";
 import "./builder.css";
 import { errorMessage } from "./errorMessage";
 
@@ -111,7 +116,7 @@ export function CompBuilder({
   readonly start: SavedCompSessionStart;
   readonly onOpenComp: (openComp: OpenCompSnapshot) => void;
   readonly onImport: () => void;
-  readonly onOpenBoard: (comp: Comp, mapId: MapId) => void;
+  readonly onOpenBoard: (comp: Comp, mapId: BuiltinBoardMapId) => void;
 }): React.JSX.Element {
   const [session] = useState(() => new SavedCompSession(storage, start));
   const [savedState, setSavedState] = useState(() => session.state);
@@ -127,9 +132,10 @@ export function CompBuilder({
   const status = compStatus(comp);
   const selectedMaps = selectedCompMaps(comp);
   const selectedMap = selectedMaps[0];
-  const supportedBoardMapIds = selectedMaps.flatMap((map) =>
-    map.boardMapId === undefined ? [] : [map.boardMapId],
-  );
+  const supportedBoardMapIds = selectedMaps.flatMap((map) => {
+    const board = findBoardMap(map.id);
+    return board ? [board.id] : [];
+  });
   const supportedBoardMapId =
     selectedMaps.length === 1 ? supportedBoardMapIds[0] : undefined;
   const boardTransferDisabled = !TEAMS.some((team) =>
@@ -387,8 +393,8 @@ export function CompBuilder({
                 Open on Position Board <ArrowUpRight size={15} />
               </button>
             ) : (
-              <MapPicker<MapId>
-                options={BOARD_MAP_OPTIONS}
+              <MapPicker<BuiltinBoardMapId>
+                options={BOARD_MAPS.map(boardMapOption)}
                 selectedValue={undefined}
                 triggerLabel="Open on Position Board"
                 triggerContent={
@@ -399,7 +405,7 @@ export function CompBuilder({
                 triggerClassName="secondary-button"
                 disabled={boardTransferDisabled}
                 title="Choose a Position Board map"
-                description={`${selectedMap ? `${selectedMap.name} has no board image yet.` : "This comp has no map selected."} Choose a supported map. The saved comp’s map will stay unchanged.`}
+                description={`${selectedMap ? `${selectedMap.shortName} has no board image yet.` : "This comp has no map selected."} Choose a supported map. The saved comp’s map will stay unchanged.`}
                 onChoose={(mapId) => onOpenBoard(comp, mapId)}
               />
             )}

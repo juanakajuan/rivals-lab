@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "comps": [
+    {
+      "id": "midtown-dive",
+      "updatedAt": "2026-09-30T18:00:00.000Z",
+      "comp": {
+        "name": "Midtown dive",
+        "notes": "Take the bridge.",
+        "mapIds": ["midtown"],
+        "gameMode": null,
+        "teams": {
+          "ally": [
+            { "heroId": "hulk", "notes": "Front line" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ],
+          "enemy": [
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ]
+        },
+        "draft": null
+      }
+    },
+    {
+      "id": "midtown-poke",
+      "updatedAt": "2026-09-01T18:00:00.000Z",
+      "comp": {
+        "name": "Midtown poke",
+        "notes": "",
+        "mapId": "midtown",
+        "teams": {
+          "ally": [
+            { "heroId": "angela", "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ],
+          "enemy": [
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ]
+        },
+        "draft": null
+      }
+    }
+  ]
+}

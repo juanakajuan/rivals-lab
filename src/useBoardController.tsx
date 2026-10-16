@@ -36,7 +36,7 @@ import {
 import type { BoardToken } from "./boardTokens";
 import type { Workspace } from "./workspaceRecord";
 import { normalizeSearch } from "./searchText";
-import { getMap, isMapId, type MapId } from "./maps";
+import { findBoardMap, type BuiltinBoardMapId } from "./maps";
 
 import {
   resolveBoardMap,
@@ -64,7 +64,7 @@ export interface BoardController {
   readonly headerActions: ReactNode;
   readonly content: ReactNode;
   readonly overlays: ReactNode;
-  readonly openComp: (comp: Comp, mapId: MapId) => boolean;
+  readonly openComp: (comp: Comp, mapId: BuiltinBoardMapId) => boolean;
   readonly dismissMenu: () => void;
   readonly document: Pick<BoardSnapshot, "board" | "iconSize" | "customMaps">;
 }
@@ -525,8 +525,9 @@ export function useBoardController({
 
   function changeMap(mapId: BoardMapId): void {
     cancelUpload();
-    const selected = isMapId(mapId)
-      ? ({ kind: "builtin", id: mapId } satisfies SelectedBoardMap)
+    const builtin = findBoardMap(mapId);
+    const selected = builtin
+      ? ({ kind: "builtin", id: builtin.id } satisfies SelectedBoardMap)
       : customMaps.find((map) => map.id === mapId);
     if (!selected) return;
     const map = resolveBoardMap(selected);
@@ -536,7 +537,7 @@ export function useBoardController({
     setAnnouncement(`${map.name} selected.`);
   }
 
-  function openComp(comp: Comp, mapId: MapId): boolean {
+  function openComp(comp: Comp, mapId: BuiltinBoardMapId): boolean {
     cancelUpload();
     if (
       tokens.length &&
@@ -545,7 +546,7 @@ export function useBoardController({
       )
     )
       return false;
-    const map = getMap(mapId);
+    const map = resolveBoardMap({ kind: "builtin", id: mapId });
     session.openComp({ comp, mapId });
     setSelectedTokenId(null);
     setContextMenu(null);

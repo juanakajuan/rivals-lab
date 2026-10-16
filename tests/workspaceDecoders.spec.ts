@@ -284,7 +284,7 @@ const HEROES = [
 
 function boardRecord(allies: number): Record<string, unknown> {
   return {
-    mapId: "birnin-tchalla-domination",
+    mapId: "birnin-tchalla",
     tokens: HEROES.slice(0, allies).map((heroId, index) => ({
       id: `ally-${heroId}`,
       heroId,

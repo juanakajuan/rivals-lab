@@ -145,9 +145,9 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
     choice.kind === "mode"
       ? `Game mode: ${choice.mode}`
       : map
-        ? `Map: ${map.name} · ${map.mode}`
+        ? `Map: ${map.shortName} · ${map.mode}`
         : choice.kind === "maps"
-          ? `Maps: ${choice.maps.map((entry) => entry.name).join(", ")}`
+          ? `Maps: ${choice.maps.map((entry) => entry.shortName).join(", ")}`
           : null;
   if (
     !comp.name.trim() &&
@@ -171,15 +171,15 @@ export async function renderCompImage(comp: Comp): Promise<Blob> {
   if (!drawingContext) throw new Error("This browser cannot create an image.");
   const context = drawingContext;
   let mapImage: HTMLImageElement | undefined;
-  if (map) {
+  if (map?.preview) {
     const image = new Image();
-    image.src = map.previewImagePath;
+    image.src = map.preview.imagePath;
     try {
       await image.decode();
       if (image.naturalWidth <= 0 || image.naturalHeight <= 0)
         throw new Error("Invalid map image dimensions.");
     } catch {
-      throw new Error(`${map.name} preview could not load. Try again.`);
+      throw new Error(`${map.shortName} preview could not load. Try again.`);
     }
     mapImage = image;
   }

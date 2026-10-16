@@ -17,7 +17,7 @@ import {
 } from "./boardTokens";
 import type { Comp } from "./comps";
 import { TEAMS, TEAM_SIZE, type Team } from "./heroes";
-import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
+import { DEFAULT_MAP_ID, type BuiltinBoardMapId } from "./maps";
 
 import {
   resolveBoardMap,
@@ -402,9 +402,9 @@ export class BoardSession {
     mapId,
   }: {
     readonly comp: Comp;
-    readonly mapId: MapId;
+    readonly mapId: BuiltinBoardMapId;
   }): BoardSnapshot {
-    const map = getMap(mapId);
+    const map = resolveBoardMap({ kind: "builtin", id: mapId });
     const tokens: BoardToken[] = [];
     for (const team of TEAMS) {
       comp.teams[team].forEach((slot, index) => {

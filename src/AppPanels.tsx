@@ -23,13 +23,14 @@ import {
   type HeroDefinition,
   type Team,
 } from "./heroes";
-import type {
-  BoardMapDefinition,
-  BoardMapId,
-  CustomBoardMap,
+import {
+  boardMapOption,
+  type BoardMapDefinition,
+  type BoardMapId,
+  type CustomBoardMap,
 } from "./boardMaps";
-import { MapPicker } from "./MapPicker";
-import { BOARD_MAP_PICKER_OPTIONS } from "./mapPickerOptions";
+import { MapPicker, type MapPickerEntry } from "./MapPicker";
+import { MAPS } from "./maps";
 
 export type BoardUploadState =
   | { readonly kind: "idle" }
@@ -249,7 +250,11 @@ export function BoardPanel({
   onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
   const mapOptions = [
-    ...BOARD_MAP_PICKER_OPTIONS,
+    ...MAPS.map((map): MapPickerEntry<BoardMapId> =>
+      "board" in map
+        ? boardMapOption(map)
+        : { placeholder: true, id: map.id, name: map.name, detail: map.mode },
+    ),
     ...customMaps.map((map) => ({
       value: map.id,
       name: map.name,

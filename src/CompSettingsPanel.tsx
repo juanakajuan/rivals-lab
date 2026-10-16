@@ -4,10 +4,28 @@ import { compStatus } from "./compEdits";
 import { compMapLabel, selectedCompMaps } from "./compMaps";
 import { GameModeIcon } from "./GameModeIcon";
 import { RULES } from "./heroes";
-import { COMP_MAP_OPTIONS } from "./mapPickerOptions";
-import { MapPicker } from "./MapPicker";
+import { MapPicker, type MapPickerEntry } from "./MapPicker";
 import { Map } from "lucide-react";
-import type { GameMode } from "./maps";
+import { MAPS, type GameMode, type MapEntry } from "./maps";
+
+const COMP_MAP_OPTIONS: readonly MapPickerEntry<string, null>[] = [
+  {
+    single: true,
+    id: "any-map",
+    value: null,
+    name: "Any map",
+    detail: "No map restriction",
+    imagePath: null,
+  },
+  ...MAPS.map((map: MapEntry) => ({
+    value: map.id,
+    name: map.shortName,
+    detail: map.mode,
+    ...(map.preview
+      ? { imagePath: map.preview.imagePath, imageSize: map.preview.size }
+      : { imagePath: null }),
+  })),
+];
 
 export interface CompSettingsPanelProps {
   readonly comp: Comp;
@@ -119,11 +137,11 @@ export function CompSettingsPanel({
                 <span className="selected-map-neutral" aria-hidden="true">
                   <GameModeIcon mode={gameMode} />
                 </span>
-              ) : selectedMap ? (
+              ) : selectedMap?.preview ? (
                 <img
-                  src={selectedMap.previewImagePath}
+                  src={selectedMap.preview.imagePath}
                   alt=""
-                  style={{ objectPosition: selectedMap.selectedCardPosition }}
+                  style={{ objectPosition: selectedMap.preview.cardPosition }}
                 />
               ) : (
                 <span className="selected-map-neutral" aria-hidden="true">
@@ -145,7 +163,7 @@ export function CompSettingsPanel({
         />
         <figcaption>
           {selectedMaps.length === 1 && selectedMap
-            ? `${selectedMap.name} · ${selectedMap.mode}`
+            ? `${selectedMap.shortName} · ${selectedMap.mode}`
             : compMapLabel(comp)}
         </figcaption>
       </figure>

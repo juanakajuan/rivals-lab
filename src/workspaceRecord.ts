@@ -25,7 +25,7 @@ import {
   type CompLibrary,
 } from "./compLibrary";
 import { TEAMS, TEAM_SIZE } from "./heroes";
-import { MAPS } from "./maps";
+import { findBoardMap } from "./maps";
 import {
   decodeOpenCompSnapshot,
   emptyOpenComp,
@@ -70,11 +70,12 @@ export function decodeBoardRecord(
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Invalid Position Board.");
   const record: Partial<Record<string, unknown>> = value;
-  const maps = new Map<string, SelectedBoardMap>([
-    ...MAPS.map(({ id }) => [id, { kind: "builtin", id }] as const),
-    ...customMaps.map((map) => [map.id, map] as const),
-  ]);
-  const map = typeof record.mapId === "string" && maps.get(record.mapId);
+  const storedMap = (id: string): SelectedBoardMap | undefined => {
+    const builtin = findBoardMap(id);
+    if (builtin) return { kind: "builtin", id: builtin.id };
+    return customMaps.find((map) => map.id === id);
+  };
+  const map = typeof record.mapId === "string" && storedMap(record.mapId);
   if (!map) throw new Error("The Position Board map is missing.");
   if (!Array.isArray(record.tokens) || record.tokens.length > MAX_BOARD_TOKENS)
     throw new Error("Invalid hero token list.");
@@ -101,7 +102,7 @@ export function decodeBoardRecord(
   const drawingsByMap: Partial<Record<BoardMapId, readonly BoardDrawing[]>> =
     {};
   for (const [mapId, list] of Object.entries(drawings)) {
-    const owner = maps.get(mapId);
+    const owner = storedMap(mapId);
     if (!owner) throw new Error("Board drawings belong to a missing map.");
     if (!Array.isArray(list)) throw new Error("Invalid board drawings.");
     if (list.length > MAX_DRAWINGS_PER_MAP)

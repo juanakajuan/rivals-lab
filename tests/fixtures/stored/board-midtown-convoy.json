@@ -1,0 +1,20 @@
+{
+  "mapId": "midtown-convoy",
+  "tokens": [
+    { "id": "ally-hulk", "heroId": "hulk", "team": "ally", "x": 300, "y": 200 }
+  ],
+  "drawingsByMap": {
+    "midtown-convoy": [
+      {
+        "id": "note",
+        "kind": "note",
+        "x": 30,
+        "y": 40,
+        "color": "#ffd166",
+        "text": "Rotate",
+        "width": 180
+      }
+    ]
+  },
+  "iconSize": 120
+}
