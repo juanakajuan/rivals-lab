@@ -56,6 +56,10 @@ test("MRC bans and saves are global and the draft ends after Ban 3", () => {
   });
   expect(draftProgress(undone).pendingChoices).toEqual([]);
   expect(draftEffects(undone).banned.enemy.has("the-thing")).toBe(false);
+  expect(draftChoiceError(undone, "strange")).toBe("Protected for this team.");
+  expect(draftChoiceError(undone, "hulk")).toBe(
+    "Already banned for this team.",
+  );
 });
 
 test("an empty MRC draft has three bans and two saves and no fourth ban slot", () => {
