@@ -22,6 +22,7 @@ import { DEFAULT_MAP_ID, getMap, type MapId } from "./maps";
 import {
   resolveBoardMap,
   type BoardMapId,
+  type CustomBoardMap,
   type SelectedBoardMap,
 } from "./boardMaps";
 
@@ -33,8 +34,12 @@ export interface BoardState {
   >;
 }
 
-export interface BoardSessionState extends BoardState {
+export interface BoardSnapshot {
+  readonly board: BoardState;
+  readonly tokens: readonly BoardToken[];
+  readonly boardRevision: number;
   readonly iconSize: IconSize;
+  readonly customMaps: readonly CustomBoardMap[];
   readonly canUndo: boolean;
   readonly canRedo: boolean;
 }
@@ -135,36 +140,42 @@ function equalBoards(left: BoardState, right: BoardState): boolean {
 export class BoardSession {
   private past: readonly BoardState[] = [];
   private future: readonly BoardState[] = [];
-  private board: BoardState;
-  private iconSize: IconSize;
-  private current: BoardSessionState;
-  private boardRevision = 0;
+  private current: BoardSnapshot;
+  private readonly listeners = new Set<() => void>();
 
   constructor(
     private readonly measureNote: MeasureBoardNote,
     board: BoardState = initialBoard(),
     iconSize: IconSize = DEFAULT_ICON_SIZE,
+    customMaps: readonly CustomBoardMap[] = [],
   ) {
-    this.iconSize = iconSize;
-    this.board = keepEarliestTeamPlacements(board);
+    const kept = keepEarliestTeamPlacements(board);
     this.current = {
-      ...this.board,
+      board: kept,
+      tokens: clampTokens(kept, iconSize).tokens,
+      boardRevision: 0,
       iconSize,
+      customMaps,
       canUndo: false,
       canRedo: false,
     };
   }
 
-  get state(): BoardSessionState {
-    return this.current;
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+
+  readonly getSnapshot = (): BoardSnapshot => this.current;
+
+  private get board(): BoardState {
+    return this.current.board;
   }
 
-  get revision(): number {
-    return this.boardRevision;
-  }
-
-  visibleTokens(): readonly BoardToken[] {
-    return clampTokens(this.board, this.iconSize).tokens;
+  private get iconSize(): IconSize {
+    return this.current.iconSize;
   }
 
   placeHero({
@@ -211,10 +222,6 @@ export class BoardSession {
     const spacing = boundary * 2 + 4;
     const halfWidth = Math.floor(map.width / 2);
     const preferredStart = Math.floor(map.width * TEAM_HALF_START[team]);
-    const tokens = this.board.tokens.map((token) => ({
-      x: clampToBoard(token.x, map.width, this.iconSize),
-      y: clampToBoard(token.y, map.height, this.iconSize),
-    }));
     for (const startX of [preferredStart, halfWidth - preferredStart]) {
       for (let y = spacing; y <= map.height - boundary; y += spacing) {
         for (
@@ -223,7 +230,7 @@ export class BoardSession {
           x += spacing
         ) {
           if (
-            tokens.some(
+            this.current.tokens.some(
               (token) =>
                 Math.abs(token.x - x) < spacing &&
                 Math.abs(token.y - y) < spacing,
@@ -243,7 +250,7 @@ export class BoardSession {
   }: {
     readonly id: string;
     readonly point: BoardPoint;
-  }): BoardSessionState {
+  }): BoardSnapshot {
     const map = resolveBoardMap(this.board.map);
     return this.commit({
       ...this.board,
@@ -259,14 +266,14 @@ export class BoardSession {
     });
   }
 
-  removeToken(id: string): BoardSessionState {
+  removeToken(id: string): BoardSnapshot {
     return this.commit({
       ...this.board,
       tokens: this.board.tokens.filter((token) => token.id !== id),
     });
   }
 
-  editDrawing(drawing: BoardDrawing): BoardSessionState {
+  editDrawing(drawing: BoardDrawing): BoardSnapshot {
     const drawings = this.board.drawingsByMap[this.board.map.id] ?? [];
     const bounded =
       drawing.kind === "note"
@@ -332,7 +339,7 @@ export class BoardSession {
     return moved;
   }
 
-  removeDrawing(id: string): BoardSessionState {
+  removeDrawing(id: string): BoardSnapshot {
     return this.commitDrawings(
       (this.board.drawingsByMap[this.board.map.id] ?? []).filter(
         (drawing) => drawing.id !== id,
@@ -340,7 +347,7 @@ export class BoardSession {
     );
   }
 
-  clear(): BoardSessionState {
+  clear(): BoardSnapshot {
     return this.commit({
       ...this.board,
       tokens: [],
@@ -348,7 +355,7 @@ export class BoardSession {
     });
   }
 
-  reset(): BoardSessionState {
+  reset(): BoardSnapshot {
     const map = resolveBoardMap(this.board.map);
     return this.commit({
       ...this.board,
@@ -361,19 +368,23 @@ export class BoardSession {
     });
   }
 
-  setIconSize(iconSize: IconSize): BoardSessionState {
+  setIconSize(iconSize: IconSize): BoardSnapshot {
     if (iconSize === this.iconSize) return this.current;
-    this.iconSize = iconSize;
-    this.current = {
-      ...this.board,
+    return this.publish({
+      ...this.current,
+      tokens: clampTokens(this.board, iconSize).tokens,
       iconSize,
-      canUndo: this.past.length > 0,
-      canRedo: this.future.length > 0,
-    };
-    return this.current;
+    });
   }
 
-  changeMap(map: SelectedBoardMap): BoardSessionState {
+  addCustomMap(map: CustomBoardMap): BoardSnapshot {
+    return this.publish({
+      ...this.current,
+      customMaps: [...this.current.customMaps, map],
+    });
+  }
+
+  changeMap(map: SelectedBoardMap): BoardSnapshot {
     const dimensions = resolveBoardMap(map);
     return this.commit({
       ...this.board,
@@ -392,7 +403,7 @@ export class BoardSession {
   }: {
     readonly comp: Comp;
     readonly mapId: MapId;
-  }): BoardSessionState {
+  }): BoardSnapshot {
     const map = getMap(mapId);
     const tokens: BoardToken[] = [];
     for (const team of TEAMS) {
@@ -427,7 +438,7 @@ export class BoardSession {
     });
   }
 
-  undo(): BoardSessionState {
+  undo(): BoardSnapshot {
     const board = this.past.at(-1);
     if (!board) return this.current;
     this.past = this.past.slice(0, -1);
@@ -435,7 +446,7 @@ export class BoardSession {
     return this.restore(board);
   }
 
-  redo(): BoardSessionState {
+  redo(): BoardSnapshot {
     const board = this.future[0];
     if (!board) return this.current;
     this.past = [...this.past, this.board].slice(-HISTORY_LIMIT);
@@ -443,7 +454,7 @@ export class BoardSession {
     return this.restore(board);
   }
 
-  private commitDrawings(drawings: readonly BoardDrawing[]): BoardSessionState {
+  private commitDrawings(drawings: readonly BoardDrawing[]): BoardSnapshot {
     return this.commit({
       ...this.board,
       drawingsByMap: {
@@ -460,7 +471,7 @@ export class BoardSession {
     );
   }
 
-  private commit(board: BoardState): BoardSessionState {
+  private commit(board: BoardState): BoardSnapshot {
     board = keepEarliestTeamPlacements(board);
     if (equalBoards(this.board, board)) return this.current;
     this.past = [...this.past, this.board].slice(-HISTORY_LIMIT);
@@ -468,15 +479,20 @@ export class BoardSession {
     return this.restore(board);
   }
 
-  private restore(board: BoardState): BoardSessionState {
-    this.board = board;
-    this.boardRevision += 1;
-    this.current = {
-      ...board,
-      iconSize: this.iconSize,
+  private restore(board: BoardState): BoardSnapshot {
+    return this.publish({
+      ...this.current,
+      board,
+      tokens: clampTokens(board, this.iconSize).tokens,
+      boardRevision: this.current.boardRevision + 1,
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0,
-    };
-    return this.current;
+    });
+  }
+
+  private publish(snapshot: BoardSnapshot): BoardSnapshot {
+    this.current = snapshot;
+    for (const listener of this.listeners) listener();
+    return snapshot;
   }
 }
