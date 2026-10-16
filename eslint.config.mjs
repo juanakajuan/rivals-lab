@@ -30,6 +30,24 @@ const ownedGlobals = [
   },
 ];
 
+const ownedSyntax = [
+  {
+    owner: "src/heroes.ts",
+    selector: "Literal[value=/^(ally|enemy)$/]",
+    message:
+      "src/heroes.ts owns the team names. Use TEAMS, type Team, isTeam(), otherTeam(), teamCounts(), or a Record<Team, …> lookup.",
+  },
+];
+
+const restrictedSyntax = [
+  {
+    selector:
+      "CallExpression[callee.name='useState'] > CallExpression[callee.property.name='getSnapshot'], CallExpression[callee.name='useState'] > ArrowFunctionExpression > CallExpression[callee.property.name='getSnapshot']",
+    message:
+      "Do not copy a store snapshot into React state. Read it with useSyncExternalStore(store.subscribe, store.getSnapshot).",
+  },
+];
+
 const globalObjects = ["window", "globalThis", "self"];
 
 /**
@@ -63,7 +81,11 @@ function ownerRules(owner) {
     globalObjects.map((object) => ({ object, property: name, message })),
   );
   // An entry with no options keeps the options of an earlier block, so an owner turns the rule off.
+  const syntax = ownedSyntax
+    .filter((entry) => entry.owner !== owner)
+    .map(({ selector, message }) => ({ selector, message }));
   return {
+    "no-restricted-syntax": ["error", ...restrictedSyntax, ...syntax],
     "no-restricted-imports": restrictedImports(owner),
     "no-restricted-globals": globals.length ? ["error", ...globals] : "off",
     "no-restricted-properties": properties.length
@@ -73,7 +95,11 @@ function ownerRules(owner) {
 }
 
 const owners = [
-  ...new Set([...ownedImports, ...ownedGlobals].map(({ owner }) => owner)),
+  ...new Set(
+    [...ownedImports, ...ownedGlobals, ...ownedSyntax].map(
+      ({ owner }) => owner,
+    ),
+  ),
 ];
 
 export default defineConfig(
@@ -125,24 +151,7 @@ export default defineConfig(
   },
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/heroes.ts"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "Literal[value=/^(ally|enemy)$/]",
-          message:
-            "src/heroes.ts owns the team names. Use TEAMS, type Team, isTeam(), otherTeam(), teamCounts(), or a Record<Team, …> lookup.",
-        },
-        {
-          selector:
-            "CallExpression[callee.name='useState'] > CallExpression[callee.property.name='getSnapshot'], CallExpression[callee.name='useState'] > ArrowFunctionExpression > CallExpression[callee.property.name='getSnapshot']",
-          message:
-            "Do not copy a store snapshot into React state. Read it with useSyncExternalStore(store.subscribe, store.getSnapshot).",
-        },
-      ],
-      ...ownerRules(),
-    },
+    rules: ownerRules(),
   },
   ...owners.map((owner) => ({ files: [owner], rules: ownerRules(owner) })),
   {
