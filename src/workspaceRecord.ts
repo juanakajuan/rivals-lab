@@ -98,12 +98,13 @@ const BOARD_MIGRATIONS: readonly BoardMigration[] = [
 
 export const BOARD_RECORD_VERSION = BOARD_MIGRATIONS.length + 1;
 
-export function storedBoardVersion(value: unknown): number | null {
+export function isNewerBoardRecord(value: unknown): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value))
-    return null;
+    return false;
   const record: Partial<Record<string, unknown>> = value;
-  const version = record.version ?? 1;
-  return typeof version === "number" ? version : null;
+  return (
+    typeof record.version === "number" && record.version > BOARD_RECORD_VERSION
+  );
 }
 
 export function decodeBoardRecord(

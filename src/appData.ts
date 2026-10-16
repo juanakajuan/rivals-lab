@@ -18,8 +18,7 @@ import {
   EMPTY_STORED_RECORDS,
   decodeStoredRecords,
   encodeBoardRecord,
-  BOARD_RECORD_VERSION,
-  storedBoardVersion,
+  isNewerBoardRecord,
   type StoredRecords,
   type Workspace,
 } from "./workspaceRecord";
@@ -412,8 +411,7 @@ class BrowserAutosave implements WorkspaceAutosave {
             [WORKSPACE, CUSTOM_MAPS],
             [[WORKSPACE, "board"]],
             ([board], active) => {
-              if ((storedBoardVersion(board) ?? 0) > BOARD_RECORD_VERSION)
-                throw new NewerRecordError();
+              if (isNewerBoardRecord(board)) throw new NewerRecordError();
               for (const put of batch)
                 active.objectStore(put.store).put(put.value, put.key);
             },
