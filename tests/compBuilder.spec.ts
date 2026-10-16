@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { emptyComp } from "../src/comps";
-import { parseCompLibraryStrict } from "../src/compLibrary";
+import {
+  decodeCompLibrary,
+  libraryErrorSummary,
+  parseCompLibraryStrict,
+} from "../src/compLibrary";
 import { emptyDraft } from "../src/draft";
 import {
   addCompCopies,
@@ -740,6 +744,7 @@ test("repeated load errors are shown once", async ({ page }) => {
     comps: [bad("a"), bad("b"), bad("c")],
   });
   const message = "Invalid or oversized text in comp data.";
+  expect(libraryErrorSummary(decodeCompLibrary(source))).toBe(message);
   expect(() => parseCompLibraryStrict(source)).toThrow(
     new RegExp(`^${message.replaceAll(".", "\\.")}$`),
   );
@@ -750,7 +755,7 @@ test("repeated load errors are shown once", async ({ page }) => {
   );
   await page.goto("/");
   await openBuilder(page);
-  const alert = page.getByRole("alert");
-  await expect(alert).toContainText("3 saved comp(s) cannot be loaded.");
-  expect(((await alert.textContent()) ?? "").split(message)).toHaveLength(2);
+  await expect(page.getByRole("alert").locator("p")).toHaveText(
+    `3 saved comp(s) cannot be loaded. ${message} Entries that cannot be loaded stay stored for recovery.`,
+  );
 });

@@ -16,6 +16,7 @@ import {
 import { applyCompEdit, type CompEdit } from "./compEdits";
 import { RULES } from "./heroes";
 import type { CompStorage } from "./appData";
+import { errorMessage } from "./errorMessage";
 
 export interface SavedCompLibraryView {
   readonly entries: readonly SavedComp[];
@@ -100,10 +101,6 @@ type EditorLink =
       readonly revision: string;
       readonly baseline: Comp;
     };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "The operation failed.";
-}
 
 export class SavedCompWriteError extends Error {
   constructor(cause: unknown) {

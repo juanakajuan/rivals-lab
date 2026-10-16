@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   applyCompEdit,
+  bannedHeroConflicts,
   compChoiceError,
   compStatus,
   hasDraftChoices,
@@ -106,6 +107,36 @@ test("picker and edit rules agree on duplicates and team-scoped bans", () => {
         selection: { heroId: "hulk" },
       }),
     ).toThrow("Banned for this team.");
+  }
+});
+
+test("banned hero conflicts list the slots each draft ban hits", () => {
+  const formats: readonly DraftFormat[] = ["mrc", "ignite"];
+  for (const format of formats) {
+    let comp = applyCompEdit(emptyComp(), { kind: "draftFormat", format });
+    const picks: readonly (readonly [CompHeroTarget, string])[] = [
+      [allySlot, "hulk"],
+      [{ kind: "slot", team: "ally", index: 3 }, "luna"],
+      [enemySlot, "hulk"],
+    ];
+    for (const [target, heroId] of picks)
+      comp = applyCompEdit(comp, {
+        kind: "chooseHero",
+        target,
+        selection: { heroId },
+      });
+    expect([...bannedHeroConflicts(comp, "ally")]).toEqual([]);
+    expect(compStatus(comp)).toBe("Incomplete");
+    comp = applyCompEdit(comp, {
+      kind: "chooseHero",
+      target: { kind: "draft", slot: { team: "enemy", kind: "ban", index: 0 } },
+      selection: { heroId: "hulk" },
+    });
+    expect([...bannedHeroConflicts(comp, "ally")]).toEqual([0]);
+    expect([...bannedHeroConflicts(comp, "enemy")]).toEqual(
+      format === "mrc" ? [0] : [],
+    );
+    expect(compStatus(comp)).toBe("Conflict");
   }
 });
 

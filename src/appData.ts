@@ -20,6 +20,7 @@ import {
   type StoredRecords,
   type Workspace,
 } from "./workspaceRecord";
+import { errorMessage } from "./errorMessage";
 
 export interface CompStorage {
   read(): Promise<string | null>;
@@ -70,10 +71,6 @@ class ReplacedElsewhereError extends Error {
     super(REPLACED_ELSEWHERE_MESSAGE);
     this.name = "ReplacedElsewhereError";
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "The operation failed.";
 }
 
 function asError(cause: unknown, message: string): Error {
