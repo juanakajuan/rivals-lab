@@ -102,6 +102,14 @@ change, so a reload keeps them. Undo history still resets on reload. Every write
 checks the stored data generation. A tab whose data was replaced in another tab
 stops writing and asks for a reload.
 
+Stored records have a `version` field. `decodeStoredRecords` in
+`src/workspaceRecord.ts` decodes the records for boot and for a backup restore.
+Both modes run the same migrations. A board from before the team limit keeps the
+first 6 heroes per team and shows a notice. In `boot` mode, a record that cannot
+load falls back to an empty value. In `restore` mode, the import stops with the
+error. A tab does not overwrite a record that a newer app version saved. It stops
+saving and asks for a reload.
+
 Backup in the top bar downloads one JSON file with all of it. Import in the same
 dialog previews a file before anything changes. A full backup replaces this
 browser's data and reloads the page. A version 1 comps file adds copies, as
@@ -145,8 +153,11 @@ Entries without a Deadpool role stay editable; no role is guessed.
 
 For a format or rule change, add an explicit migration at the decode boundary
 before current validation. For a new envelope version, add a version-specific
-migration in `decodeCompLibrary`. Keep the old decoder or rule definition needed
-to validate the source. Add a regression for the old data and the migrated result.
+migration in `decodeCompLibrary`. For a new board format, add a migration to
+`BOARD_MIGRATIONS`. The board record version follows the length of that list.
+Keep the old decoder or rule definition needed to validate the source. Add a
+golden fixture of the old format to `tests/fixtures/stored/` and a test for the
+migrated result.
 Do not map retired IDs without a known replacement or guess lost draft choices.
 If migration cannot preserve meaning, keep the raw entry unavailable for recovery.
 

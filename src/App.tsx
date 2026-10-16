@@ -63,7 +63,7 @@ export default function App({
 }: {
   readonly data: AppData;
 }): React.JSX.Element {
-  const { workspace, autosave, comps, compStart, backup } = data;
+  const { workspace, boardNotices, autosave, comps, compStart, backup } = data;
   const [route, setRoute] = useState<Route>(() => {
     const initial = routeFromPath();
     canonicalizePath(initial);
@@ -74,6 +74,7 @@ export default function App({
   const board = useBoardController({
     active: route === "board",
     workspace,
+    notices: boardNotices,
   });
   useEffect(
     () => autosave.syncBoard(board.document),

@@ -54,7 +54,7 @@ export type HeroPlaceResult = HeroPlacement | { readonly kind: "team-full" };
 export type HeroAddResult =
   HeroPlaceResult | { readonly kind: "existing" | "full" };
 
-function keepEarliestTeamPlacements(board: BoardState): BoardState {
+export function keepEarliestTeamPlacements(board: BoardState): BoardState {
   const counts: Record<Team, number> = { ally: 0, enemy: 0 };
   const tokens = board.tokens.filter(
     (token) => ++counts[token.team] <= TEAM_SIZE,
@@ -149,10 +149,9 @@ export class BoardSession {
     iconSize: IconSize = DEFAULT_ICON_SIZE,
     customMaps: readonly CustomBoardMap[] = [],
   ) {
-    const kept = keepEarliestTeamPlacements(board);
     this.current = {
-      board: kept,
-      tokens: clampTokens(kept, iconSize).tokens,
+      board,
+      tokens: clampTokens(board, iconSize).tokens,
       boardRevision: 0,
       iconSize,
       customMaps,

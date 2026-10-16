@@ -268,24 +268,6 @@ test("teams cap additions without blocking moves or changing history on rejectio
   }
 });
 
-test("legacy boards keep the first six placements independently per team", () => {
-  const tokens = HEROES.slice(0, 8).flatMap((hero, index) =>
-    (["ally", "enemy"] as const).map((team) => ({
-      id: `${team}-${hero.id}`,
-      heroId: hero.id,
-      team,
-      x: index * 50,
-      y: 100,
-    })),
-  );
-  const session = new BoardSession(measureNote, { ...initial, tokens });
-  expect(session.getSnapshot().board.tokens).toEqual(
-    tokens.slice(0, TEAM_SIZE * 2),
-  );
-  session.clear();
-  expect(session.undo().board.tokens).toEqual(tokens.slice(0, TEAM_SIZE * 2));
-});
-
 test("drawings remain isolated by map through edit, clear, reset, and history", () => {
   const session = new BoardSession(measureNote, initial);
   const note: BoardDrawing = {

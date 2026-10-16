@@ -10,7 +10,11 @@ import {
   type CustomBoardMap,
   type SelectedBoardMap,
 } from "./boardMaps";
-import { initialBoard, type BoardState } from "./boardSession";
+import {
+  initialBoard,
+  keepEarliestTeamPlacements,
+  type BoardState,
+} from "./boardSession";
 import {
   DEFAULT_ICON_SIZE,
   decodeToken,
@@ -31,6 +35,7 @@ import {
   emptyOpenComp,
   type OpenCompSnapshot,
 } from "./savedComps";
+import { storedVersion } from "./storedVersion";
 
 export interface Workspace {
   readonly board: BoardState;
@@ -39,7 +44,22 @@ export interface Workspace {
   readonly openComp: OpenCompSnapshot;
 }
 
+export type DecodeMode = "boot" | "restore";
+
+interface DecodedRecords {
+  readonly workspace: Workspace;
+  readonly library: CompLibrary;
+  readonly boardNotices: readonly string[];
+}
+
+interface DecodedBoard {
+  readonly board: BoardState;
+  readonly iconSize: IconSize;
+  readonly notices: readonly string[];
+}
+
 export interface BoardRecord {
+  readonly version: number;
   readonly mapId: BoardMapId;
   readonly tokens: readonly BoardToken[];
   readonly drawingsByMap: BoardState["drawingsByMap"];
@@ -62,14 +82,38 @@ export const EMPTY_STORED_RECORDS: StoredRecords = {
 
 const MAX_BOARD_TOKENS = 200;
 
+const TEAM_LIMIT_NOTICE = `Saved board limited to the first ${TEAM_SIZE} heroes per team. Extra placements were removed.`;
+
+type BoardMigration = (board: BoardState) => {
+  readonly board: BoardState;
+  readonly notice: string | null;
+};
+
+const BOARD_MIGRATIONS: readonly BoardMigration[] = [
+  (board) => {
+    const kept = keepEarliestTeamPlacements(board);
+    return { board: kept, notice: kept === board ? null : TEAM_LIMIT_NOTICE };
+  },
+];
+
+export const BOARD_RECORD_VERSION = BOARD_MIGRATIONS.length + 1;
+
+export function storedBoardVersion(value: unknown): number | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return null;
+  const record: Partial<Record<string, unknown>> = value;
+  const version = record.version ?? 1;
+  return typeof version === "number" ? version : null;
+}
+
 export function decodeBoardRecord(
   value: unknown,
   customMaps: readonly CustomBoardMap[],
-  allowLegacyTeams = false,
-): { readonly board: BoardState; readonly iconSize: IconSize } {
+): DecodedBoard {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw new Error("Invalid Position Board.");
   const record: Partial<Record<string, unknown>> = value;
+  const version = storedVersion(record.version ?? 1, BOARD_RECORD_VERSION);
   const storedMap = (id: string): SelectedBoardMap | undefined => {
     const builtin = findBoardMap(id);
     if (builtin) return { kind: "builtin", id: builtin.id };
@@ -82,16 +126,6 @@ export function decodeBoardRecord(
   const tokens = record.tokens.map(decodeToken);
   if (new Set(tokens.map((token) => token.id)).size !== tokens.length)
     throw new Error("A hero appears twice on the Position Board.");
-  if (
-    !allowLegacyTeams &&
-    TEAMS.some(
-      (team) =>
-        tokens.filter((token) => token.team === team).length > TEAM_SIZE,
-    )
-  )
-    throw new Error(
-      `Position Board teams cannot exceed ${TEAM_SIZE} heroes. Remove extra heroes before importing this backup.`,
-    );
   const drawings = record.drawingsByMap;
   if (
     typeof drawings !== "object" ||
@@ -112,10 +146,21 @@ export function decodeBoardRecord(
       throw new Error("A drawing ID appears twice on one map.");
     drawingsByMap[owner.id] = decoded;
   }
-  return {
-    board: { map, tokens, drawingsByMap },
-    iconSize: parseIconSize(record.iconSize),
-  };
+  let board: BoardState = { map, tokens, drawingsByMap };
+  const notices: string[] = [];
+  for (const migrate of BOARD_MIGRATIONS.slice(version - 1)) {
+    const migrated = migrate(board);
+    board = migrated.board;
+    if (migrated.notice) notices.push(migrated.notice);
+  }
+  if (
+    TEAMS.some(
+      (team) =>
+        board.tokens.filter((token) => token.team === team).length > TEAM_SIZE,
+    )
+  )
+    throw new Error(`Position Board teams cannot exceed ${TEAM_SIZE} heroes.`);
+  return { board, iconSize: parseIconSize(record.iconSize), notices };
 }
 
 export function encodeBoardRecord(
@@ -123,6 +168,7 @@ export function encodeBoardRecord(
   iconSize: IconSize,
 ): BoardRecord {
   return {
+    version: BOARD_RECORD_VERSION,
     mapId: board.map.id,
     tokens: board.tokens,
     drawingsByMap: board.drawingsByMap,
@@ -130,7 +176,8 @@ export function encodeBoardRecord(
   };
 }
 
-function lenient<T>(decode: () => T, fallback: () => T): T {
+function decodeIn<T>(mode: DecodeMode, decode: () => T, fallback: () => T): T {
+  if (mode === "restore") return decode();
   try {
     return decode();
   } catch {
@@ -138,33 +185,42 @@ function lenient<T>(decode: () => T, fallback: () => T): T {
   }
 }
 
-export function decodeStoredRecords(records: StoredRecords): {
-  readonly workspace: Workspace;
-  readonly library: CompLibrary;
-} {
+export function decodeStoredRecords(
+  records: StoredRecords,
+  mode: DecodeMode,
+): DecodedRecords {
   const customMaps = records.customMaps.flatMap((value) =>
-    lenient(
+    decodeIn(
+      mode,
       () => [decodeCustomMap(value)],
       () => [],
     ),
   );
-  const { board, iconSize } = lenient(
-    () => decodeBoardRecord(records.board, customMaps, true),
-    () => ({ board: initialBoard(), iconSize: DEFAULT_ICON_SIZE }),
+  const { board, iconSize, notices } = decodeIn(
+    mode,
+    () => decodeBoardRecord(records.board, customMaps),
+    (): DecodedBoard => ({
+      board: initialBoard(),
+      iconSize: DEFAULT_ICON_SIZE,
+      notices: [],
+    }),
   );
   return {
     workspace: {
       board,
       customMaps,
       iconSize,
-      openComp: lenient(
+      openComp: decodeIn(
+        mode,
         () => decodeOpenCompSnapshot(records.openComp),
         emptyOpenComp,
       ),
     },
-    library: lenient(
+    library: decodeIn(
+      mode,
       () => decodeCompLibrary(records.library ?? serializeCompLibrary([])),
       () => EMPTY_LIBRARY,
     ),
+    boardNotices: notices,
   };
 }

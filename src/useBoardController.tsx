@@ -73,9 +73,11 @@ export interface BoardController {
 export function useBoardController({
   active,
   workspace,
+  notices,
 }: {
   readonly active: boolean;
   readonly workspace: Workspace;
+  readonly notices: readonly string[];
 }): BoardController {
   const boardHostRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<BoardCanvas | null>(null);
@@ -90,11 +92,7 @@ export function useBoardController({
       ),
   );
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
-  const [legacyBoardNotice] = useState(
-    snapshot.board.tokens.length < workspace.board.tokens.length
-      ? `Saved board limited to the first ${TEAM_SIZE} heroes per team. Extra placements were removed.`
-      : null,
-  );
+  const boardNotice = notices.length ? notices.join(" ") : null;
   const [uploadState, setUploadState] = useState<BoardUploadState>({
     kind: "idle",
   });
@@ -123,7 +121,7 @@ export function useBoardController({
   const [isHeroDragging, setIsHeroDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null);
   const [announcement, setAnnouncement] = useState(
-    legacyBoardNotice ?? "Drag any token to explain a rotation or position.",
+    boardNotice ?? "Drag any token to explain a rotation or position.",
   );
   const selectedToken = tokens.find((token) => token.id === selectedTokenId);
   const selectedHero = selectedToken
@@ -607,7 +605,7 @@ export function useBoardController({
       <main className="app-main" hidden={!active}>
         <HeroPanel
           selectedTeam={selectedTeam}
-          notice={legacyBoardNotice}
+          notice={boardNotice}
           heroSearch={heroSearch}
           visibleHeroes={visibleHeroes}
           tokens={tokens}

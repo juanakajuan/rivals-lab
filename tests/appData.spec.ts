@@ -5,6 +5,17 @@ import { HEROES } from "../src/heroes";
 import { emptyComp } from "../src/comps";
 import { decodeCompLibrary, serializeCompLibrary } from "../src/compLibrary";
 
+const SEVEN_ALLIES = HEROES.slice(0, 7).map((hero) => ({
+  id: `ally-${hero.id}`,
+  heroId: hero.id,
+  team: "ally",
+  x: 100,
+  y: 100,
+}));
+
+const NEWER_VERSION =
+  "This data was saved by a newer version of Rivals Lab. Reload the page to update.";
+
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/tests/fixtures/appData.html");
   await page.waitForFunction(() => "appDataHarness" in window);
@@ -24,12 +35,14 @@ test("legacy saved teams migrate to six, show a notice, and autosave the retaine
     })),
   );
   await page.evaluate(async (tokens) => {
-    const data = await window.appDataHarness.openAppData();
-    data.autosave.syncBoard({
-      ...data.workspace,
-      board: { ...data.workspace.board, tokens },
+    const harness = window.appDataHarness;
+    await harness.openAppData();
+    await harness.storeRecord("workspace", "board", {
+      mapId: "birnin-tchalla",
+      tokens,
+      drawingsByMap: {},
+      iconSize: 100,
     });
-    await data.autosave.flush();
   }, tokens);
   await page.goto("/board");
   await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
@@ -44,11 +57,10 @@ test("legacy saved teams migrate to six, show a notice, and autosave the retaine
     "Saved board limited to the first 6 heroes per team. Extra placements were removed.",
   );
   await openHarness(page);
-  const retained = await page.evaluate(
-    async () =>
-      (await window.appDataHarness.openAppData()).workspace.board.tokens,
+  const retained = await page.evaluate(() =>
+    window.appDataHarness.storedRecord("workspace", "board"),
   );
-  expect(retained).toEqual(tokens.slice(0, 12));
+  expect(retained).toMatchObject({ version: 2, tokens: tokens.slice(0, 12) });
 });
 
 test("a board token and a custom map drawing survive a reload", async ({
@@ -460,6 +472,7 @@ test("a full backup restores every record in a fresh browser", async ({
       customMapBytes: 0,
       iconSize: 100,
     },
+    boardNotices: [],
   });
   expect(await storedRecords(target)).toEqual({
     library: null,
@@ -603,6 +616,61 @@ test("a save from a tab opened before a restore fails and keeps the restored lib
   expect(restored.library).toBe(storedLibrary);
 });
 
+test("a backup from before the team limit restores six heroes per team with a notice", async ({
+  page,
+}) => {
+  await openHarness(page);
+  await seedWorkspace(page);
+  const backup = await downloadBackup(page);
+  const legacy = backup
+    .replace('"board":{"version":2,', '"board":{')
+    .replace(/"tokens":\[[^\]]*\]/, `"tokens":${JSON.stringify(SEVEN_ALLIES)}`);
+  expect(legacy).not.toContain('"board":{"version"');
+  const preview = await page.evaluate(
+    (file) => window.appDataHarness.readImport(file),
+    legacy,
+  );
+  expect(preview).toMatchObject({
+    kind: "restore",
+    boardNotices: [
+      "Saved board limited to the first 6 heroes per team. Extra placements were removed.",
+    ],
+    file: { heroes: 6 },
+  });
+  await applyRestore(page);
+  expect(
+    await page.evaluate(() =>
+      window.appDataHarness.storedRecord("workspace", "board"),
+    ),
+  ).toMatchObject({ version: 2, tokens: SEVEN_ALLIES.slice(0, 6) });
+});
+
+test("autosave refuses to replace a board saved by a newer version", async ({
+  page,
+}) => {
+  await openHarness(page);
+  const result = await page.evaluate(async () => {
+    const harness = window.appDataHarness;
+    const data = await harness.openAppData();
+    const statuses: unknown[] = [];
+    data.autosave.subscribe((status) => statuses.push(status));
+    await harness.storeRecord("workspace", "board", {
+      version: 99,
+      layout: "future",
+    });
+    data.autosave.sync({ ...data.workspace, iconSize: 130 });
+    await data.autosave.flush();
+    return {
+      board: await harness.storedRecord("workspace", "board"),
+      status: statuses.at(-1),
+    };
+  });
+  expect(result).toEqual({
+    board: { version: 99, layout: "future" },
+    status: { kind: "failed", message: NEWER_VERSION },
+  });
+});
+
 test("a rejected file explains why and writes nothing", async ({ page }) => {
   await openHarness(page);
   await seedWorkspace(page);
@@ -629,15 +697,7 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
   );
   const overfull = backup.replace(
     /"tokens":\[[^\]]*\]/,
-    `"tokens":${JSON.stringify(
-      HEROES.slice(0, 7).map((hero) => ({
-        id: `ally-${hero.id}`,
-        heroId: hero.id,
-        team: "ally",
-        x: 100,
-        y: 100,
-      })),
-    )}`,
+    `"tokens":${JSON.stringify(SEVEN_ALLIES)}`,
   );
   const cases: readonly (readonly [string, string, number?])[] = [
     ["{", "This file is damaged or is not JSON."],

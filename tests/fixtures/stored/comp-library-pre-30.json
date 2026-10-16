@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "comps": [
+    {
+      "id": "krakoa-brawl",
+      "updatedAt": "2026-09-20T18:00:00.000Z",
+      "comp": {
+        "name": "Krakoa brawl",
+        "notes": "",
+        "mapId": "krakoa",
+        "teams": {
+          "ally": [
+            { "heroId": "hulk", "notes": "Dive" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ],
+          "enemy": [
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ]
+        },
+        "draft": null
+      }
+    },
+    {
+      "id": "ignite-draft",
+      "updatedAt": "2026-09-21T18:00:00.000Z",
+      "comp": {
+        "name": "Ignite draft",
+        "notes": "First pick",
+        "mapId": null,
+        "teams": {
+          "ally": [
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ],
+          "enemy": [
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ]
+        },
+        "draft": {
+          "format": "ignite",
+          "firstTeam": "ally",
+          "choices": ["hulk"]
+        }
+      }
+    },
+    {
+      "id": "obsolete-hero",
+      "updatedAt": "2026-09-22T18:00:00.000Z",
+      "comp": {
+        "name": "Retired pick",
+        "notes": "",
+        "mapId": "midtown",
+        "teams": {
+          "ally": [
+            { "heroId": "retired-hero", "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ],
+          "enemy": [
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" },
+            { "heroId": null, "notes": "" }
+          ]
+        },
+        "draft": null
+      }
+    }
+  ]
+}
