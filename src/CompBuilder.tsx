@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowUpRight, Download } from "lucide-react";
 import { DraftPanel, HeroPicker, TeamEditor } from "./BuilderPanels";
 import { CompLibraryPanel } from "./CompLibraryPanel";
@@ -17,12 +17,8 @@ import {
   type CompEdit,
   type CompHeroTarget,
 } from "./compEdits";
-import {
-  SavedCompSession,
-  type OpenCompSnapshot,
-  type SavedCompSessionStart,
-} from "./savedComps";
-import type { CompStorage } from "./appData";
+import { SavedCompSession, type SavedCompSessionStart } from "./savedComps";
+import type { CompStorage, WorkspaceAutosave } from "./appData";
 import type { DraftFormat } from "./draft";
 import {
   RULES,
@@ -108,19 +104,21 @@ function NameDialog({
 export function CompBuilder({
   storage,
   start,
-  onOpenComp,
+  autosave,
   onImport,
   onOpenBoard,
 }: {
   readonly storage: CompStorage;
   readonly start: SavedCompSessionStart;
-  readonly onOpenComp: (openComp: OpenCompSnapshot) => void;
+  readonly autosave: WorkspaceAutosave;
   readonly onImport: () => void;
   readonly onOpenBoard: (comp: Comp, mapId: BuiltinBoardMapId) => void;
 }): React.JSX.Element {
   const [session] = useState(() => new SavedCompSession(storage, start));
-  const [savedState, setSavedState] = useState(() => session.state);
-  const { comp, savedId, dirty, library } = savedState;
+  const { comp, savedId, dirty, library } = useSyncExternalStore(
+    session.subscribe,
+    session.getSnapshot,
+  );
   const [picker, setPicker] = useState<CompHeroTarget | null>(null);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [message, setMessage] = useState("");
@@ -147,23 +145,17 @@ export function CompBuilder({
   else if (dirty) saveStatus = "Unsaved changes";
   else if (savedId) saveStatus = "All changes saved";
 
-  useEffect(
-    () => onOpenComp(session.openComp),
-    [onOpenComp, session, savedState],
-  );
+  useEffect(() => {
+    const save = (): void =>
+      autosave.syncOpenComp(session.getSnapshot().openComp);
+    save();
+    return session.subscribe(save);
+  }, [autosave, session]);
 
   useEffect(() => {
-    let active = true;
-    async function refresh(): Promise<void> {
-      await session.refresh();
-      if (active) setSavedState(session.state);
-    }
-    const unsubscribe = storage.subscribe(() => void refresh());
-    void refresh();
-    return () => {
-      active = false;
-      unsubscribe();
-    };
+    const unsubscribe = storage.subscribe(() => void session.refresh());
+    void session.refresh();
+    return unsubscribe;
   }, [session, storage]);
 
   async function commit<T>(
@@ -174,7 +166,6 @@ export function CompBuilder({
     setWriting(true);
     try {
       const result = await operation();
-      setSavedState(session.state);
       setError(null);
       return { result };
     } catch (cause) {
@@ -208,7 +199,7 @@ export function CompBuilder({
 
   function edit(change: CompEdit): boolean {
     try {
-      setSavedState(session.edit(change));
+      session.edit(change);
       setMessage("");
       setError(null);
       return true;
@@ -220,7 +211,7 @@ export function CompBuilder({
 
   function load(entry: SavedComp | null): void {
     if (!canDiscard()) return;
-    setSavedState(session.load(entry));
+    session.load(entry);
     setPicker(null);
     setMessage(entry ? `Loaded ${entry.comp.name}.` : "New comp.");
     setError(null);

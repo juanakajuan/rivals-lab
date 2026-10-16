@@ -12,6 +12,13 @@ const ownedImports = [
     message:
       "src/useBoardController.tsx owns BoardSession. Read board state from the BoardController that useBoardController() returns.",
   },
+  {
+    owner: "src/CompBuilder.tsx",
+    regex: "(^|/)savedComps(\\.ts)?$",
+    importNames: ["SavedCompSession"],
+    message:
+      "src/CompBuilder.tsx owns SavedCompSession. Pass CompBuilder the CompStorage and WorkspaceAutosave from openAppData(), and read comp state in CompBuilder with useSyncExternalStore(session.subscribe, session.getSnapshot).",
+  },
 ];
 
 const ownedGlobals = [

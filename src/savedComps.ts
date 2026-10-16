@@ -24,10 +24,11 @@ export interface SavedCompLibraryView {
   readonly unavailableCount: number;
 }
 
-export interface SavedCompSessionState {
+export interface SavedCompSnapshot {
   readonly comp: Comp;
   readonly savedId: string | null;
   readonly dirty: boolean;
+  readonly openComp: OpenCompSnapshot;
   readonly library: SavedCompLibraryView;
 }
 
@@ -131,7 +132,8 @@ function savedLink(entry: SavedComp): EditorLink {
 export class SavedCompSession {
   private baseline: Comp;
   private link: EditorLink;
-  private current: SavedCompSessionState;
+  private current: SavedCompSnapshot;
+  private readonly listeners = new Set<() => void>();
   private editorIdentity = Symbol();
   private editorGeneration = Symbol();
   private refreshGeneration = 0;
@@ -151,53 +153,31 @@ export class SavedCompSession {
         : undefined;
     this.baseline = openComp.baseline;
     this.link = entry ? savedLink(entry) : { kind: "new" };
-    this.current = {
-      comp: openComp.comp,
-      savedId: entry?.id ?? null,
-      dirty: !sameComp(openComp.comp, openComp.baseline),
-      library: libraryView(library),
+    this.current = this.editorSnapshot(openComp.comp, libraryView(library));
+  }
+
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
     };
-  }
+  };
 
-  get state(): SavedCompSessionState {
-    return this.current;
-  }
+  readonly getSnapshot = (): SavedCompSnapshot => this.current;
 
-  get openComp(): OpenCompSnapshot {
-    return {
-      comp: this.current.comp,
-      baseline: this.baseline,
-      saved:
-        this.link.kind === "saved"
-          ? { id: this.link.id, baseline: this.link.baseline }
-          : null,
-    };
-  }
-
-  edit(edit: CompEdit): SavedCompSessionState {
+  edit(edit: CompEdit): void {
     const comp = applyCompEdit(this.current.comp, edit);
-    this.current = {
-      ...this.current,
-      comp,
-      dirty: !sameComp(comp, this.baseline),
-    };
     this.editorGeneration = Symbol();
-    return this.current;
+    this.publishEditor(comp);
   }
 
-  load(entry: SavedComp | null): SavedCompSessionState {
+  load(entry: SavedComp | null): void {
     const comp = entry?.comp ?? emptyComp();
     this.baseline = comp;
     this.link = entry ? savedLink(entry) : { kind: "new" };
-    this.current = {
-      ...this.current,
-      comp,
-      savedId: entry?.id ?? null,
-      dirty: false,
-    };
     this.editorIdentity = Symbol();
     this.editorGeneration = Symbol();
-    return this.current;
+    this.publishEditor(comp);
   }
 
   async save(name: string, asCopy = false): Promise<SaveResult> {
@@ -235,15 +215,10 @@ export class SavedCompSession {
         this.baseline = comp;
         this.link = savedLink(entry);
         const live = this.current.comp;
-        const nextComp =
-          live.name === originalName ? { ...live, name: trimmed } : live;
-        this.current = {
-          ...this.current,
-          comp: nextComp,
-          savedId: id,
-          dirty: !sameComp(nextComp, this.baseline),
-        };
         this.editorGeneration = Symbol();
+        this.publishEditor(
+          live.name === originalName ? { ...live, name: trimmed } : live,
+        );
       }
       await this.refresh();
       if (identity !== this.editorIdentity) return { kind: "differentEditor" };
@@ -275,15 +250,12 @@ export class SavedCompSession {
       );
       if (identity === this.editorIdentity && this.current.savedId === id) {
         const live = this.current.comp;
-        const comp = live.name === originalName ? { ...live, name } : live;
         this.baseline = { ...this.baseline, name };
         if (renamedLink) this.link = renamedLink;
-        this.current = {
-          ...this.current,
-          comp,
-          dirty: !sameComp(comp, this.baseline),
-        };
         this.editorGeneration = Symbol();
+        this.publishEditor(
+          live.name === originalName ? { ...live, name } : live,
+        );
       }
       await this.refresh();
     });
@@ -296,12 +268,8 @@ export class SavedCompSession {
       if (identity === this.editorIdentity && this.current.savedId === id) {
         this.link = { kind: "new" };
         this.baseline = emptyComp();
-        this.current = {
-          ...this.current,
-          savedId: null,
-          dirty: !sameComp(this.current.comp, this.baseline),
-        };
         this.editorGeneration = Symbol();
+        this.publishEditor(this.current.comp);
       }
       await this.refresh();
     });
@@ -326,7 +294,33 @@ export class SavedCompSession {
       };
     }
     if (generation === this.refreshGeneration)
-      this.current = { ...this.current, library };
+      this.publish({ ...this.current, library });
+  }
+
+  private editorSnapshot(
+    comp: Comp,
+    library: SavedCompLibraryView,
+  ): SavedCompSnapshot {
+    const saved =
+      this.link.kind === "saved"
+        ? { id: this.link.id, baseline: this.link.baseline }
+        : null;
+    return {
+      comp,
+      savedId: saved?.id ?? null,
+      dirty: !sameComp(comp, this.baseline),
+      openComp: { comp, baseline: this.baseline, saved },
+      library,
+    };
+  }
+
+  private publishEditor(comp: Comp): void {
+    this.publish(this.editorSnapshot(comp, this.current.library));
+  }
+
+  private publish(snapshot: SavedCompSnapshot): void {
+    this.current = snapshot;
+    for (const listener of this.listeners) listener();
   }
 
   private async runWrite<T>(operation: () => Promise<T>): Promise<T> {

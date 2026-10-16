@@ -71,19 +71,14 @@ export default function App({
   });
   const page = route === "not-found" ? null : route;
   const [backupOpen, setBackupOpen] = useState(false);
-  const [openComp, setOpenComp] = useState(workspace.openComp);
   const board = useBoardController({
     active: route === "board",
     workspace,
   });
-  useEffect(() => {
-    autosave.sync({
-      board: board.document.board,
-      iconSize: board.document.iconSize,
-      customMaps: board.document.customMaps,
-      openComp,
-    });
-  }, [autosave, board.document, openComp]);
+  useEffect(
+    () => autosave.syncBoard(board.document),
+    [autosave, board.document],
+  );
   const { dismissMenu } = board;
 
   useEffect(() => {
@@ -157,7 +152,7 @@ export default function App({
         <CompBuilder
           storage={comps}
           start={compStart}
-          onOpenComp={setOpenComp}
+          autosave={autosave}
           onImport={() => setBackupOpen(true)}
           onOpenBoard={openCompOnBoard}
         />
