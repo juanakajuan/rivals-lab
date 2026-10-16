@@ -25,7 +25,7 @@ test("legacy saved teams migrate to six, show a notice, and autosave the retaine
   );
   await page.evaluate(async (tokens) => {
     const data = await window.appDataHarness.openAppData();
-    data.autosave.sync({
+    data.autosave.syncBoard({
       ...data.workspace,
       board: { ...data.workspace.board, tokens },
     });
@@ -59,7 +59,7 @@ test("a board token and a custom map drawing survive a reload", async ({
     const harness = window.appDataHarness;
     const data = await harness.openAppData();
     const map = await harness.createMap("scrim-map.png", 800, 400);
-    data.autosave.sync({
+    data.autosave.syncBoard({
       ...data.workspace,
       iconSize: 120,
       customMaps: [map],
@@ -213,7 +213,7 @@ test("writes from a replaced data generation change nothing", async ({
         (error: unknown) =>
           error instanceof Error ? error.message : String(error),
       );
-    data.autosave.sync({
+    data.autosave.syncBoard({
       ...data.workspace,
       board: {
         map: { kind: "builtin", id: "hells-heaven" },
@@ -238,6 +238,65 @@ test("writes from a replaced data generation change nothing", async ({
     statuses: ["idle", "replacedElsewhere"],
     library: null,
     board: undefined,
+  });
+});
+
+declare global {
+  interface Window {
+    autosaveProbe?: { readonly puts: string[]; customMapTexts: number };
+  }
+}
+
+test("a Builder keystroke autosaves only the open comp and never encodes custom maps", async ({
+  page,
+}) => {
+  await openHarness(page);
+  await page.evaluate(async () => {
+    const harness = window.appDataHarness;
+    await harness.openAppData();
+    const map = await harness.createMap("scrim-map.png", 800, 400);
+    await harness.storeRecord("custom-maps", map.id, map);
+  });
+  await page.goto("/builder");
+  const notes = page.getByLabel("Comp notes", { exact: true });
+  await expect(notes).toBeVisible();
+  await page.evaluate(() => {
+    const probe: { puts: string[]; customMapTexts: number } = {
+      puts: [],
+      customMapTexts: 0,
+    };
+    window.autosaveProbe = probe;
+    const put: unknown = Reflect.get(IDBObjectStore.prototype, "put");
+    if (typeof put !== "function") throw new Error("Missing IDB put.");
+    Reflect.set(
+      IDBObjectStore.prototype,
+      "put",
+      new Proxy(put, {
+        apply(target, store: IDBObjectStore, args) {
+          probe.puts.push(`${store.name}/${String(args[1])}`);
+          const request: unknown = Reflect.apply(target, store, args);
+          return request;
+        },
+      }),
+    );
+    JSON.stringify = new Proxy(JSON.stringify, {
+      apply(stringify, json, args) {
+        const text: unknown = Reflect.apply(stringify, json, args);
+        if (typeof text === "string" && text.includes("data:image/"))
+          probe.customMapTexts += 1;
+        return text;
+      },
+    });
+  });
+
+  await notes.pressSequentially("a");
+
+  await expect
+    .poll(() => page.evaluate(() => window.autosaveProbe?.puts))
+    .toEqual(["workspace/openComp"]);
+  expect(await page.evaluate(() => window.autosaveProbe)).toEqual({
+    puts: ["workspace/openComp"],
+    customMapTexts: 0,
   });
 });
 
@@ -274,8 +333,8 @@ async function seedWorkspace(page: Page): Promise<number> {
       );
       const first = await harness.createMap("scrim-map.png", 800, 400);
       const second = await harness.createMap("tower.png", 300, 600);
-      data.autosave.sync({
-        openComp,
+      data.autosave.syncOpenComp(openComp);
+      data.autosave.syncBoard({
         iconSize: 130,
         customMaps: [first, second],
         board: {

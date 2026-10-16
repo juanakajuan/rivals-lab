@@ -13,7 +13,7 @@ import {
   type CompLibrary,
 } from "./compLibrary";
 import { downloadBlob } from "./downloadBlob";
-import type { SavedCompSessionStart } from "./savedComps";
+import type { OpenCompSnapshot, SavedCompSessionStart } from "./savedComps";
 import {
   EMPTY_STORED_RECORDS,
   decodeStoredRecords,
@@ -34,8 +34,11 @@ export type AutosaveStatus =
   | { readonly kind: "replacedElsewhere" }
   | { readonly kind: "failed"; readonly message: string };
 
+export type BoardWorkspace = Omit<Workspace, "openComp">;
+
 export interface WorkspaceAutosave {
-  sync(workspace: Workspace): void;
+  syncBoard(workspace: BoardWorkspace): void;
+  syncOpenComp(openComp: OpenCompSnapshot): void;
   flush(): Promise<void>;
   subscribe(listener: (status: AutosaveStatus) => void): () => void;
 }
@@ -321,7 +324,7 @@ class BrowserAutosave implements WorkspaceAutosave {
       this.confirmedMaps.set(map.id, JSON.stringify(map));
   }
 
-  sync(workspace: Workspace): void {
+  syncBoard(workspace: BoardWorkspace): void {
     if (this.stopped) return;
     const board = encodeBoardRecord(workspace.board, workspace.iconSize);
     const boardText = JSON.stringify(board);
@@ -332,16 +335,6 @@ class BrowserAutosave implements WorkspaceAutosave {
         value: board,
         mark: () => {
           this.confirmedBoard = boardText;
-        },
-      });
-    const openCompText = JSON.stringify(workspace.openComp);
-    if (openCompText !== this.confirmedOpenComp)
-      this.schedule({
-        store: WORKSPACE,
-        key: "openComp",
-        value: workspace.openComp,
-        mark: () => {
-          this.confirmedOpenComp = openCompText;
         },
       });
     for (const map of workspace.customMaps) {
@@ -356,6 +349,20 @@ class BrowserAutosave implements WorkspaceAutosave {
         },
       });
     }
+  }
+
+  syncOpenComp(openComp: OpenCompSnapshot): void {
+    if (this.stopped) return;
+    const openCompText = JSON.stringify(openComp);
+    if (openCompText !== this.confirmedOpenComp)
+      this.schedule({
+        store: WORKSPACE,
+        key: "openComp",
+        value: openComp,
+        mark: () => {
+          this.confirmedOpenComp = openCompText;
+        },
+      });
   }
 
   flush(): Promise<void> {

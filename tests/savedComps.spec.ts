@@ -60,7 +60,9 @@ const saved: SavedComp = {
 };
 
 function entry(session: SavedCompSession, id = saved.id): SavedComp {
-  const result = session.state.library.entries.find((item) => item.id === id);
+  const result = session
+    .getSnapshot()
+    .library.entries.find((item) => item.id === id);
   if (!result) throw new Error(`Missing saved comp: ${id}.`);
   return result;
 }
@@ -122,15 +124,15 @@ for (const operation of delayedWrites) {
     };
     storage.replace(serializeCompLibrary([remote, ...local]));
     await session.refresh();
-    expect(session.state.library.entries.map((item) => item.comp.name)).toEqual(
-      expectedNames,
-    );
+    expect(
+      session.getSnapshot().library.entries.map((item) => item.comp.name),
+    ).toEqual(expectedNames);
     deliver.resolve();
     await writing;
 
-    expect(session.state.library.entries.map((item) => item.comp.name)).toEqual(
-      expectedNames,
-    );
+    expect(
+      session.getSnapshot().library.entries.map((item) => item.comp.name),
+    ).toEqual(expectedNames);
     expect(
       parseCompLibraryStrict(await session.exportData()).map(
         (item) => item.comp.name,
@@ -163,16 +165,16 @@ test("edits during commit stay local and dirty after the submitted snapshot is s
     name: "Plan",
     notes: "Submitted notes",
   });
-  expect(session.state.comp).toEqual({
+  expect(session.getSnapshot().comp).toEqual({
     ...saved.comp,
     name: "Newer name",
     notes: "Newer notes",
   });
-  expect(session.state.savedId).toBe(saved.id);
-  expect(session.state.dirty).toBe(true);
+  expect(session.getSnapshot().savedId).toBe(saved.id);
+  expect(session.getSnapshot().dirty).toBe(true);
   expect(await session.save("Newer name")).toEqual({ kind: "clean" });
   expect(entry(session).comp.notes).toBe("Newer notes");
-  expect(session.state.dirty).toBe(false);
+  expect(session.getSnapshot().dirty).toBe(false);
 });
 
 test("loading another comp during commit keeps that editor and its saved link", async () => {
@@ -199,13 +201,13 @@ test("loading another comp during commit keeps that editor and its saved link", 
 
   expect(await saving).toEqual({ kind: "differentEditor" });
   expect(entry(session).comp.notes).toBe("Submitted notes");
-  expect(session.state.comp).toEqual(other.comp);
-  expect(session.state.savedId).toBe(other.id);
-  expect(session.state.dirty).toBe(false);
+  expect(session.getSnapshot().comp).toEqual(other.comp);
+  expect(session.getSnapshot().savedId).toBe(other.id);
+  expect(session.getSnapshot().dirty).toBe(false);
   session.edit({ kind: "notes", value: "Updated other notes" });
   expect(await session.save("Other plan")).toEqual({ kind: "clean" });
   expect(entry(session, other.id).comp.notes).toBe("Updated other notes");
-  expect(session.state.library.entries).toHaveLength(2);
+  expect(session.getSnapshot().library.entries).toHaveLength(2);
 });
 
 test("failed writes preserve local edits, saved state, and stored data", async () => {
@@ -213,7 +215,7 @@ test("failed writes preserve local edits, saved state, and stored data", async (
   const session = await sessionFor(storage);
   session.load(entry(session));
   session.edit({ kind: "notes", value: "Unsaved notes" });
-  const before = session.state;
+  const before = session.getSnapshot();
   const source = await session.exportData();
   storage.failWrites = true;
 
@@ -223,24 +225,24 @@ test("failed writes preserve local edits, saved state, and stored data", async (
     () => session.remove(saved.id),
   ]) {
     await expect(operation()).rejects.toThrow(SavedCompWriteError);
-    expect(session.state).toBe(before);
+    expect(session.getSnapshot()).toBe(before);
     expect(await session.exportData()).toBe(source);
   }
   storage.failWrites = false;
   await session.save(" Plan ");
-  expect(session.state.dirty).toBe(false);
-  expect(session.state.comp.name).toBe("Plan");
+  expect(session.getSnapshot().dirty).toBe(false);
+  expect(session.getSnapshot().comp.name).toBe("Plan");
   expect(entry(session).comp.notes).toBe("Unsaved notes");
   session.edit({ kind: "notes", value: "Later edit" });
   await session.rename(saved.id, "Renamed");
-  expect(session.state.dirty).toBe(true);
-  expect(session.state.comp.notes).toBe("Later edit");
+  expect(session.getSnapshot().dirty).toBe(true);
+  expect(session.getSnapshot().comp.notes).toBe("Later edit");
   await session.save("Renamed");
   expect(entry(session).comp.notes).toBe("Later edit");
   await session.remove(saved.id);
-  expect(session.state.savedId).toBeNull();
-  expect(session.state.dirty).toBe(true);
-  expect(session.state.comp.notes).toBe("Later edit");
+  expect(session.getSnapshot().savedId).toBeNull();
+  expect(session.getSnapshot().dirty).toBe(true);
+  expect(session.getSnapshot().comp.notes).toBe("Later edit");
 });
 
 for (const renameBeforeSave of [false, true]) {
@@ -252,23 +254,23 @@ for (const renameBeforeSave of [false, true]) {
     const newer = { ...saved, comp: { ...saved.comp, notes: "Remote edits" } };
     storage.replace(serializeCompLibrary([newer]));
     await session.refresh();
-    expect(session.state.comp.notes).toBe("Local edits");
+    expect(session.getSnapshot().comp.notes).toBe("Local edits");
     if (renameBeforeSave) await session.rename(saved.id, "Renamed");
 
-    const before = session.state;
+    const before = session.getSnapshot();
     const source = await session.exportData();
-    await expect(session.save(session.state.comp.name)).rejects.toThrow(
+    await expect(session.save(session.getSnapshot().comp.name)).rejects.toThrow(
       "changed in another tab",
     );
-    expect(session.state).toBe(before);
+    expect(session.getSnapshot()).toBe(before);
     expect(await session.exportData()).toBe(source);
 
     await session.save("Recovered copy", true);
-    expect(session.state.savedId).not.toBe(saved.id);
-    expect(session.state.dirty).toBe(false);
-    expect(session.state.comp.notes).toBe("Local edits");
+    expect(session.getSnapshot().savedId).not.toBe(saved.id);
+    expect(session.getSnapshot().dirty).toBe(false);
+    expect(session.getSnapshot().comp.notes).toBe("Local edits");
     expect(entry(session).comp.notes).toBe("Remote edits");
-    expect(session.state.library.entries).toHaveLength(2);
+    expect(session.getSnapshot().library.entries).toHaveLength(2);
   });
 }
 
@@ -286,15 +288,15 @@ test("a deleted or unavailable saved comp cannot be restored by a stale editor",
     session.edit({ kind: "notes", value: "Local edits" });
     storage.replace(replacement);
     await session.refresh();
-    const before = session.state;
+    const before = session.getSnapshot();
     await expect(session.save("Plan")).rejects.toThrow(
       "deleted in another tab",
     );
-    expect(session.state).toBe(before);
+    expect(session.getSnapshot()).toBe(before);
     expect(await session.exportData()).toBe(replacement);
     await session.save("Recovered copy", true);
-    expect(session.state.savedId).not.toBe(saved.id);
-    expect(session.state.comp.notes).toBe("Local edits");
+    expect(session.getSnapshot().savedId).not.toBe(saved.id);
+    expect(session.getSnapshot().comp.notes).toBe("Local edits");
   }
 });
 
@@ -325,7 +327,7 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
     }),
   );
   const session = await sessionFor(storage);
-  expect(session.state.library.unavailableCount).toBe(1);
+  expect(session.getSnapshot().library.unavailableCount).toBe(1);
   const migrated = entry(session);
   expect(migrated.comp.draft?.teams.ally.ban[0]).toBe("strange");
   expect(migrated.comp.teams.ally[0]?.deadpoolRole).toBeUndefined();
@@ -338,9 +340,9 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
   );
   await storage.update((library) => withCompCopies(library, exported));
   await session.refresh();
-  const copy = session.state.library.entries.find(
-    (item) => item.id !== saved.id,
-  );
+  const copy = session
+    .getSnapshot()
+    .library.entries.find((item) => item.id !== saved.id);
   if (!copy) throw new Error("Missing imported copy.");
   await session.remove(copy.id);
 
@@ -364,15 +366,15 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
 test("invalid library data stays available for export and cannot be overwritten", async () => {
   const source = "broken saved data";
   const session = await sessionFor(new MemoryStorage(source));
-  expect(session.state.library.error).toContain(
+  expect(session.getSnapshot().library.error).toContain(
     "Saved comps could not be read",
   );
   session.edit({ kind: "name", value: "Do not overwrite" });
-  const before = session.state;
+  const before = session.getSnapshot();
   await expect(session.save("Do not overwrite")).rejects.toThrow(
     SavedCompWriteError,
   );
-  expect(session.state).toBe(before);
+  expect(session.getSnapshot()).toBe(before);
   expect(await session.exportData()).toBe(source);
 });
 
@@ -397,12 +399,12 @@ test("unavailable entries count toward storage limits and failed imports are ato
     const storage = new MemoryStorage(source);
     const session = await sessionFor(storage);
     session.edit({ kind: "name", value: "New comp" });
-    const before = session.state;
+    const before = session.getSnapshot();
     await expect(session.save("New comp")).rejects.toThrow("library limit");
     await expect(
       storage.update((library) => withCompCopies(library, [saved])),
     ).rejects.toThrow("library limit");
-    expect(session.state).toBe(before);
+    expect(session.getSnapshot()).toBe(before);
     expect(await session.exportData()).toBe(source);
   }
 });
@@ -414,14 +416,13 @@ test("copies keep the open comp, its edits, and its saved link", async () => {
   session.edit({ kind: "notes", value: "Still unsaved" });
   await storage.update((library) => withCompCopies(library, [saved]));
   await session.refresh();
-  expect(session.state.comp.notes).toBe("Still unsaved");
-  expect(session.state.dirty).toBe(true);
-  expect(session.state.savedId).toBe(saved.id);
-  expect(session.state.library.entries.map((item) => item.comp.name)).toEqual([
-    "Plan",
-    "Plan",
-  ]);
-  expect(session.openComp.saved?.id).toBe(saved.id);
+  expect(session.getSnapshot().comp.notes).toBe("Still unsaved");
+  expect(session.getSnapshot().dirty).toBe(true);
+  expect(session.getSnapshot().savedId).toBe(saved.id);
+  expect(
+    session.getSnapshot().library.entries.map((item) => item.comp.name),
+  ).toEqual(["Plan", "Plan"]);
+  expect(session.getSnapshot().openComp.saved?.id).toBe(saved.id);
 });
 
 test("a session resumes a stored open comp and drops a stale link", async () => {
@@ -436,7 +437,7 @@ test("a session resumes a stored open comp and drops a stale link", async () => 
       saved: { id: saved.id, baseline: saved.comp },
     },
   });
-  expect(linked.state).toMatchObject({
+  expect(linked.getSnapshot()).toMatchObject({
     comp: edited,
     savedId: saved.id,
     dirty: true,
@@ -453,12 +454,12 @@ test("a session resumes a stored open comp and drops a stale link", async () => 
       saved: { id: saved.id, baseline: stale },
     },
   });
-  expect(detached.state).toMatchObject({
+  expect(detached.getSnapshot()).toMatchObject({
     comp: edited,
     savedId: null,
     dirty: true,
   });
-  expect(detached.openComp).toEqual({
+  expect(detached.getSnapshot().openComp).toEqual({
     comp: edited,
     baseline: stale,
     saved: null,
@@ -474,7 +475,7 @@ test("rejected edits preserve session state and conflict plans remain savable", 
     target: { kind: "slot", team: "ally", index: 0 },
     selection: { heroId: "hulk" },
   });
-  const before = session.state;
+  const before = session.getSnapshot();
   expect(() =>
     session.edit({
       kind: "chooseHero",
@@ -482,8 +483,8 @@ test("rejected edits preserve session state and conflict plans remain savable", 
       selection: { heroId: "hulk" },
     }),
   ).toThrow("Already on this team.");
-  expect(session.state).toBe(before);
-  expect(session.state.dirty).toBe(true);
+  expect(session.getSnapshot()).toBe(before);
+  expect(session.getSnapshot().dirty).toBe(true);
   session.edit({ kind: "draftFormat", format: "mrc" });
   session.edit({
     kind: "chooseHero",
@@ -493,14 +494,49 @@ test("rejected edits preserve session state and conflict plans remain savable", 
   await session.save("Plan");
   const reloaded = await sessionFor(storage);
   reloaded.load(entry(reloaded));
-  expect(reloaded.state.comp.teams.ally[0]).toEqual({
+  expect(reloaded.getSnapshot().comp.teams.ally[0]).toEqual({
     heroId: "hulk",
     notes: "",
   });
-  expect(reloaded.state.comp.draft?.teams.ally.ban).toEqual([
+  expect(reloaded.getSnapshot().comp.draft?.teams.ally.ban).toEqual([
     "hulk",
     null,
     null,
   ]);
-  expect(reloaded.state.dirty).toBe(false);
+  expect(reloaded.getSnapshot().dirty).toBe(false);
+});
+
+test("getSnapshot returns the same object until a change, and a refresh keeps the open comp", async () => {
+  const storage = new MemoryStorage(serializeCompLibrary([saved]));
+  const session = await sessionFor(storage);
+  let notified = 0;
+  const unsubscribe = session.subscribe(() => {
+    notified += 1;
+  });
+  const first = session.getSnapshot();
+  expect(session.getSnapshot()).toBe(first);
+  await session.exportData();
+  expect(session.getSnapshot()).toBe(first);
+  expect(notified).toBe(0);
+
+  session.edit({ kind: "notes", value: "Edited" });
+  const edited = session.getSnapshot();
+  expect(edited).not.toBe(first);
+  expect(session.getSnapshot()).toBe(edited);
+  expect(edited.openComp).toEqual({
+    comp: { ...emptyComp(), notes: "Edited" },
+    baseline: emptyComp(),
+    saved: null,
+  });
+  expect(notified).toBe(1);
+
+  await session.refresh();
+  const refreshed = session.getSnapshot();
+  expect(refreshed).not.toBe(edited);
+  expect(refreshed.openComp).toBe(edited.openComp);
+  expect(notified).toBe(2);
+
+  unsubscribe();
+  session.edit({ kind: "notes", value: "Unheard" });
+  expect(notified).toBe(2);
 });
