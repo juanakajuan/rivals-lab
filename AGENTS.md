@@ -1,25 +1,49 @@
 # Agent instructions
 
-## Release notes
+## Rules and checks
 
-- For each user-visible change, add one file `releases/pending/<id>.json` before opening the PR. The file name is the note ID. Use lowercase letters, digits, and single hyphens.
+Each row names a rule and the check that fails when you break it. The Check column names the text that each check contains, and the Where column names the files that hold it. `npm run test:agents` fails when a Where file does not exist or does not contain a Check text.
+
+| Rule                                                                                                                                                         | Check                                                                                               | Where                                                                                                  | Past mistake                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Formatting, lint, types, and the release-note and PR-rule tests pass before you push. CI runs the same list.                                                 | `npm run verify`                                                                                    | `package.json`, `.github/workflows/checks.yml`                                                         | #97 failed format and lint only in CI.                              |
+| Do not use `any`, unchecked type assertions, or `@ts-` suppressions.                                                                                         | `"strict": true`, `recommendedTypeChecked`, `no-unsafe-type-assertion`, `ban-ts-comment`            | `tsconfig.json`, `eslint.config.mjs`                                                                   | None recorded.                                                      |
+| Hooks follow the React rules of hooks and list every dependency.                                                                                             | `react-hooks/rules-of-hooks`, `react-hooks/exhaustive-deps`                                         | `eslint.config.mjs`                                                                                    | None recorded.                                                      |
+| Each release note is one file `releases/pending/<id>.json` that contains only `{ "text": "..." }`. The ID has lowercase letters, digits, and single hyphens. | `NOTE_FILE`, `the file must contain only`                                                           | `scripts/releases.ts`, `tests/releases.test.ts`                                                        | Append conflicts on one notes file in #68, #76, and #94.            |
+| Note text starts with `Feature: ` or `Bug fix: `.                                                                                                            | `start the note text with`                                                                          | `scripts/releases.ts`, `tests/releases.test.ts`                                                        | 9081f90 (#52) relabeled notes that had no prefix.                   |
+| A pending note does not use an ID that is in `releases/published.json`.                                                                                      | `this ID is already in releases/published.json`                                                     | `scripts/releases.ts`, `tests/releases.test.ts`                                                        | f8c5fe9 (#68) added a published note again.                         |
+| A change to `src/` code needs a change under `tests/`, or a `no-test: <reason>` line in the PR body.                                                         | `id: "test"`, `no-test:`                                                                            | `scripts/check-pr.ts`, `tests/checkPr.test.ts`, `.github/workflows/pr-rules.yml`                       | 6bf1c26 (#90) changed map search with no test.                      |
+| A `.tsx` or `.css` change needs a media link in the PR body, or a `No visible change` line.                                                                  | `id: "media"`, `No visible change`                                                                  | `scripts/check-pr.ts`, `tests/checkPr.test.ts`, `.github/workflows/pr-rules.yml`                       | #94 changed the UI with no screenshots.                             |
+| A change to `AGENTS.md`, `CLAUDE.md`, or `.claude/**` needs the scope `agents` in the PR title.                                                              | `id: "agents"`, `titleScopes`                                                                       | `scripts/check-pr.ts`, `tests/checkPr.test.ts`, `.github/workflows/pr-rules.yml`                       | 821078c (#88) deleted the verify skill in an unrelated PR.          |
+| Only `src/heroes.ts` writes the team names. Other code uses `TEAMS`, `Team`, and the helpers in `src/heroes.ts`.                                             | `ownedSyntax`, `owns the team names`                                                                | `eslint.config.mjs`                                                                                    | #83: the board allowed 8 heroes per team and the builder allowed 6. |
+| Only `src/useBoardController.tsx` imports `BoardSession`.                                                                                                    | `ownedImports`, `owns BoardSession`                                                                 | `eslint.config.mjs`                                                                                    | About 12 sites synced a React copy of board state by hand.          |
+| Only `src/CompBuilder.tsx` imports `SavedCompSession`.                                                                                                       | `ownedImports`, `owns SavedCompSession`                                                             | `eslint.config.mjs`                                                                                    | The open comp had 4 copies before #116.                             |
+| Only `src/appData.ts` uses `indexedDB`, `localStorage`, or `BroadcastChannel`.                                                                               | `ownedGlobals`, `owns browser storage`                                                              | `eslint.config.mjs`                                                                                    | Save races in #29, #42, and 3b8fca4 (#65).                          |
+| Do not copy a store snapshot into React state.                                                                                                               | `Do not copy a store snapshot into React state`                                                     | `eslint.config.mjs`                                                                                    | d066b09 and 817af76 lost the token selection during a drag.         |
+| A board position is a `BoardPoint`. Only `clampToBoard` makes one. `npm run check` rejects a raw point.                                                      | `type BoardPoint`, `brandBoardPoint`                                                                | `src/boardTokens.ts`                                                                                   | 56b3fa2 (#71) moved edge heroes off the map.                        |
+| `src/maps.ts` is the one map catalog. Never remove or reuse a map ID.                                                                                        | `each map ID and legacy ID names one map`, `every stored map ID still resolves to a map`            | `tests/mapCatalog.spec.ts`, `tests/fixtures/mapIds.json`                                               | #68 fixed the Krakoa name in only one of two map lists.             |
+| Data saved by an earlier version still loads.                                                                                                                | `a library saved before #30`, `a board saved before #98`                                            | `tests/storedFormats.spec.ts`, `tests/fixtures/stored`                                                 | #30 and #98 broke saved libraries and boards.                       |
+| Each stored record has a version. The app refuses a record from a newer version and does not replace it.                                                     | `NewerRecordError`, `records from a newer version are refused, not replaced`                        | `src/storedVersion.ts`, `tests/storedFormats.spec.ts`                                                  | Unit 11 (#117).                                                     |
+| A PR merges to `main` only when 4 checks pass. Branch protection requires these job names.                                                                   | `Format, lint, types, and build`, `Development and production browsers`, `check-pr`, `Agent review` | `.github/workflows/checks.yml`, `.github/workflows/pr-rules.yml`, `.github/workflows/agent-review.yml` | #88 merged with 3 blocking reviews open.                            |
+
+## Change a rule or a check
+
+- When you add a check, add its row to the table and delete the prose rule that it replaces.
+- When a rule has no check, put it in Judgment calls.
+- To restrict an owner's import, global, or syntax, add an entry to the `ownedImports`, `ownedGlobals`, or `ownedSyntax` table in `eslint.config.mjs`. The single `src/**/*.{ts,tsx}` block applies each entry to every file except its owner. Never add a second block for the same rule.
+
+## Judgment calls
+
+No check enforces these rules. Apply them yourself.
+
+- Add a release note only for a change that users can see. Skip changes to documentation, tests, or internal code.
+- Write the note as one short sentence about what users can now see or do. Omit implementation details.
+- Use `Feature: ` for a new capability and `Bug fix: ` for a correction to existing behavior.
 - Commit the note on the same branch as the change. If the PR is already open, add the note to that PR.
-- Describe what users can now see or do in one short sentence. Omit implementation details.
-- Put only `{ "text": "..." }` in the file. Give each new note a unique, stable ID.
-- Start every note's `text` with `Feature: ` or `Bug fix: `. Use `Feature: ` for new capabilities and `Bug fix: ` for corrections to existing behavior.
-- When revising a pending note, keep its file name. For a later change to a published feature, use a new ID.
-- Do not edit other notes' files. Skip changes to documentation, tests, or internal code unless they change user-visible behavior.
-- `npm run test:releases` fails when a note has no prefix or uses an ID that is already in `releases/published.json`.
+- When you revise a pending note, keep its file name. For a later change to a published feature, use a new ID. Do not edit other notes' files.
 - Follow the release note format in [README.md](README.md#changelog-publication). The deploy script assigns dates and updates published history.
-
-## Issues and pull requests
-
-- Run `npm run verify` before you push a branch for a PR. It must exit 0.
-- Include screenshots or videos in the description of every new GitHub issue and PR that involves a visible change or bug.
-- Show the before and after state when a PR changes existing UI.
+- A test for a change must fail without the change.
+- Include screenshots or videos in the description of every new GitHub issue and PR that involves a visible change or bug. Show the before and after state when a PR changes existing UI.
 - Never commit screenshots or videos to the repo. Attach them through GitHub's upload in the description or comment, and keep local captures out of git.
 - To attach media from the command line, run `npm run media:login` once on each machine, then `npm run media:upload -- <PR or issue URL> <files>`. It prints one link per file. Put the links in the description. The login stays in `~/.cache/gh-upload-profile`.
-- The `check-pr` job fails a PR that breaks one of these rules. Run `npm run check:pr -- <PR number>` to check an open PR.
-  - A change to `src/` code needs a change under `tests/`, or a `no-test: <reason>` line in the PR body.
-  - A `.tsx` or `.css` change needs a media link in the PR body, or a `No visible change` line.
-  - A change to `AGENTS.md`, `CLAUDE.md`, or `.claude/**` needs the scope `agents` in the PR title, for example `docs(agents): <summary>`.
+- Run `npm run check:pr -- <PR number>` to check the PR rules on an open PR.

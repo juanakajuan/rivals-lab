@@ -19,4 +19,4 @@ Preconditions: server up and doctor clean.
 
 ## Gotchas
 
-- Notes come from `releases/` at build time. A new entry in `releases/pending.json` needs a server restart to appear.
+- Notes come from `releases/` at build time. A new note file in `releases/pending/` needs a server restart to appear.

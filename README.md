@@ -63,7 +63,7 @@ reports, traces, and downloaded images in the `browser-results` Actions artifact
 
 The PR rules workflow runs `scripts/check-pr.ts` on each pull request and on
 each edit of its title or body. The rules are in
-[AGENTS.md](AGENTS.md#issues-and-pull-requests). Run
+[AGENTS.md](AGENTS.md#rules-and-checks). Run
 `npm run check:pr -- <PR number>` to check an open PR, and
 `npm run test:check-pr` to test the rules.
 
