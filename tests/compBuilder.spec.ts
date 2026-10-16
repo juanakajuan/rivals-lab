@@ -171,6 +171,14 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
   await openBuilder(page);
   await pickHero(page, "Allies slot 1: Choose hero", "Doctor Strange");
   await page.getByLabel("Draft format").selectOption("mrc");
+  await expect(page.getByLabel("Draft format").locator("option")).toHaveText([
+    "Free build",
+    "MRC · 3 bans / 2 saves",
+    "Ignite · 5 bans / 2 saves",
+  ]);
+  await expect(page.locator(".draft-panel p.muted-copy")).toContainText(
+    "3 bans + 2 saves per team",
+  );
   await expect(page.getByRole("button", { name: /Choose ban/ })).toHaveCount(0);
   for (const team of ["ally", "enemy"])
     await expect(
@@ -231,6 +239,9 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
     .getByRole("button", { name: "Clear Allies save 2", exact: true })
     .click();
   await page.getByLabel("Draft format").selectOption("ignite");
+  await expect(page.locator(".draft-panel p.muted-copy")).toContainText(
+    "5 bans + 2 saves per team",
+  );
   await expect(
     page.locator('.draft-team-row[data-team="ally"] .step-number'),
   ).toHaveText([

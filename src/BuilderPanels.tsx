@@ -149,9 +149,11 @@ export function DraftPanel({
         </span>
       </div>
       <p className="muted-copy">
+        {draft.teams.ally.ban.length} bans + {draft.teams.ally.save.length}{" "}
+        saves per team.{" "}
         {draft.format === "mrc"
-          ? "4 bans + 2 saves per team. Bans and saves apply to both teams."
-          : "5 bans + 2 saves per team. Ban for the opponent. Save for your team."}{" "}
+          ? "Bans and saves apply to both teams."
+          : "Ban for the opponent. Save for your team."}{" "}
         Fill any slot. Each choice takes effect at once.
       </p>
       <div className="draft-timeline">
