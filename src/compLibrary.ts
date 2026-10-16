@@ -103,6 +103,24 @@ export class StoredLibrarySource {
   }
 }
 
+export function withCompCopies(
+  library: CompLibrary,
+  comps: readonly SavedComp[],
+): CompLibrary {
+  const updatedAt = new Date().toISOString();
+  return {
+    ...library,
+    entries: [
+      ...comps.map((entry): SavedComp => ({
+        ...entry,
+        id: crypto.randomUUID(),
+        updatedAt,
+      })),
+      ...library.entries,
+    ],
+  };
+}
+
 export function updateLibrarySource(
   stored: string | null,
   transform: (library: CompLibrary) => CompLibrary,

@@ -203,11 +203,16 @@ test("writes from a replaced data generation change nothing", async ({
     const statuses: string[] = [];
     data.autosave.subscribe((status) => statuses.push(status.kind));
     await harness.storeRecord("workspace", "epoch", "another-tab");
-    const copy = await harness.prependCompCopies(data.comps, [saved]).then(
-      () => "written",
-      (error: unknown) =>
-        error instanceof Error ? error.message : String(error),
-    );
+    const copy = await data.comps
+      .update((library) => ({
+        ...library,
+        entries: [saved, ...library.entries],
+      }))
+      .then(
+        () => "written",
+        (error: unknown) =>
+          error instanceof Error ? error.message : String(error),
+      );
     data.autosave.sync({
       ...data.workspace,
       board: {
@@ -466,6 +471,77 @@ test("a comps file previews copies and leaves the board alone", async ({
     "Poke",
   ]);
   expect(library.entries[0]?.id).not.toBe("poke");
+});
+
+test("a comps import during a save keeps the save and the copies", async ({
+  page,
+}) => {
+  await openHarness(page);
+  const result = await page.evaluate(
+    async (file) => {
+      const harness = window.appDataHarness;
+      const session = await harness.openCompSession();
+      session.edit({ kind: "notes", value: "First" });
+      await session.save("Dive");
+      session.edit({ kind: "notes", value: "Second" });
+      await harness.readImport(file);
+      const [imported, saved] = await Promise.all([
+        harness.applyImport(),
+        session.save("Dive"),
+      ]);
+      return {
+        imported,
+        saved,
+        library: await harness.storedRecord(
+          "comp-libraries",
+          "rivals-lab.comps.v1",
+        ),
+      };
+    },
+    serializeCompLibrary([poke]),
+  );
+  expect(result.imported).toEqual({ kind: "added", count: 1 });
+  expect(result.saved).toEqual({ kind: "clean" });
+  expect(
+    decodeCompLibrary(String(result.library))
+      .entries.map((entry) => `${entry.comp.name}: ${entry.comp.notes}`)
+      .sort(),
+  ).toEqual(["Dive: Second", "Poke: "]);
+});
+
+test("a save from a tab opened before a restore fails and keeps the restored library", async ({
+  page,
+}) => {
+  await openHarness(page);
+  await seedWorkspace(page);
+  const backup = await downloadBackup(page);
+  const editor = await page.context().newPage();
+  await openHarness(editor);
+  await editor.evaluate(async () => {
+    const session = await window.appDataHarness.openCompSession();
+    session.edit({ kind: "notes", value: "Edited in the old tab" });
+  });
+  await page.evaluate(
+    (backup) => window.appDataHarness.readImport(backup),
+    backup,
+  );
+  await applyRestore(page);
+  const restored = await storedRecords(page);
+  const save = await editor.evaluate(() =>
+    window.appDataHarness
+      .compSession()
+      .save("Dive")
+      .then(
+        (result) => result.kind,
+        (error: unknown) =>
+          error instanceof Error ? error.message : String(error),
+      ),
+  );
+  expect(save).toBe(
+    "This browser's data was replaced in another tab. Reload to continue.",
+  );
+  expect(await storedRecords(page)).toEqual(restored);
+  expect(restored.library).toBe(storedLibrary);
 });
 
 test("a rejected file explains why and writes nothing", async ({ page }) => {

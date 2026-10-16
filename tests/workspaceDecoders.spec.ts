@@ -8,29 +8,12 @@ import {
   decodeCompLibrary,
   parseCompLibraryStrict,
   serializeCompLibrary,
-  updateLibrarySource,
-  type CompLibrary,
+  withCompCopies,
 } from "../src/compLibrary";
-import type { CompStorage } from "../src/appData";
 import { readImportFile, type StoredState } from "../src/backup";
-import { prependCompCopies } from "../src/savedComps";
 import { decodeBoardRecord, decodeStoredRecords } from "../src/workspaceRecord";
 
 const MAP_ID = "custom:0b4c5f7e-8c1d-4f2a-9e3b-6a7d8c9e0f12";
-
-class MemoryStorage implements CompStorage {
-  constructor(public source: string | null) {}
-  read(): Promise<string | null> {
-    return Promise.resolve(this.source);
-  }
-  update(transform: (library: CompLibrary) => CompLibrary) {
-    this.source = updateLibrarySource(this.source, transform).text;
-    return Promise.resolve();
-  }
-  subscribe(): () => void {
-    return () => {};
-  }
-}
 
 function saved(id: string, name: string): SavedComp {
   return {
@@ -251,17 +234,11 @@ test("library records keep extra keys and unavailable entries", () => {
   ).toThrow("The library limit is 500 comps.");
 });
 
-test("copies are prepended with new IDs and existing comps stay", async () => {
-  const storage = new MemoryStorage(
-    serializeCompLibrary([saved("dive", "Dive")]),
+test("copies are prepended with new IDs and existing comps stay", () => {
+  const { entries } = withCompCopies(
+    decodeCompLibrary(serializeCompLibrary([saved("dive", "Dive")])),
+    [saved("dive", "Dive"), saved("poke", "Poke")],
   );
-  expect(
-    await prependCompCopies(storage, [
-      saved("dive", "Dive"),
-      saved("poke", "Poke"),
-    ]),
-  ).toBe(2);
-  const entries = parseCompLibraryStrict(storage.source ?? "");
   expect(entries.map((entry) => entry.comp.name)).toEqual([
     "Dive",
     "Poke",

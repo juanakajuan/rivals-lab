@@ -14,6 +14,17 @@ const ownedImports = [
   },
 ];
 
+const ownedGlobals = [
+  {
+    owner: "src/appData.ts",
+    names: ["indexedDB", "localStorage", "BroadcastChannel"],
+    message:
+      "src/appData.ts owns browser storage and the storage channel. Write saved comps with CompStorage.update from openAppData(), or add the storage code to src/appData.ts.",
+  },
+];
+
+const globalObjects = ["window", "globalThis", "self"];
+
 /**
  * @param {string} [owner]
  * @returns {import("eslint").Linter.RuleEntry}
@@ -32,6 +43,31 @@ function restrictedImports(owner) {
     },
   ];
 }
+
+/**
+ * @param {string} [owner]
+ * @returns {import("eslint").Linter.RulesRecord}
+ */
+function ownerRules(owner) {
+  const globals = ownedGlobals
+    .filter((entry) => entry.owner !== owner)
+    .flatMap(({ names, message }) => names.map((name) => ({ name, message })));
+  const properties = globals.flatMap(({ name, message }) =>
+    globalObjects.map((object) => ({ object, property: name, message })),
+  );
+  // An entry with no options keeps the options of an earlier block, so an owner turns the rule off.
+  return {
+    "no-restricted-imports": restrictedImports(owner),
+    "no-restricted-globals": globals.length ? ["error", ...globals] : "off",
+    "no-restricted-properties": properties.length
+      ? ["error", ...properties]
+      : "off",
+  };
+}
+
+const owners = [
+  ...new Set([...ownedImports, ...ownedGlobals].map(({ owner }) => owner)),
+];
 
 export default defineConfig(
   globalIgnores([
@@ -98,13 +134,10 @@ export default defineConfig(
             "Do not copy a store snapshot into React state. Read it with useSyncExternalStore(store.subscribe, store.getSnapshot).",
         },
       ],
-      "no-restricted-imports": restrictedImports(),
+      ...ownerRules(),
     },
   },
-  ...ownedImports.map(({ owner }) => ({
-    files: [owner],
-    rules: { "no-restricted-imports": restrictedImports(owner) },
-  })),
+  ...owners.map((owner) => ({ files: [owner], rules: ownerRules(owner) })),
   {
     files: ["src/**/*.tsx"],
     plugins: {

@@ -7,6 +7,7 @@ import {
   parseCompLibraryStrict,
   serializeCompLibrary,
   updateLibrarySource,
+  withCompCopies,
   type CompLibrary,
 } from "../src/compLibrary";
 import { SavedCompSession, SavedCompWriteError } from "../src/savedComps";
@@ -77,11 +78,10 @@ function deferred(): {
   return { promise, resolve };
 }
 
-const delayedWrites: readonly ("save" | "rename" | "remove" | "import")[] = [
+const delayedWrites: readonly ("save" | "rename" | "remove")[] = [
   "save",
   "rename",
   "remove",
-  "import",
 ];
 
 for (const operation of delayedWrites) {
@@ -110,10 +110,6 @@ for (const operation of delayedWrites) {
       case "remove":
         writing = session.remove(saved.id);
         expectedNames = ["Remote plan"];
-        break;
-      case "import":
-        writing = session.addCopies([saved]);
-        expectedNames = ["Remote plan", "Plan", "Plan"];
         break;
     }
 
@@ -230,10 +226,6 @@ test("failed writes preserve local edits, saved state, and stored data", async (
     expect(session.state).toBe(before);
     expect(await session.exportData()).toBe(source);
   }
-  await expect(session.addCopies([saved])).rejects.toThrow(SavedCompWriteError);
-  expect(session.state).toBe(before);
-  expect(await session.exportData()).toBe(source);
-
   storage.failWrites = false;
   await session.save(" Plan ");
   expect(session.state.dirty).toBe(false);
@@ -341,10 +333,11 @@ test("library operations preserve recovery data, metadata, and explicit legacy m
   session.edit({ kind: "notes", value: "Updated notes" });
   await session.save("Plan");
   await session.rename(saved.id, "Renamed");
-  const imported = await session.addCopies(
-    parseCompLibraryStrict(await session.exportData(entry(session))),
+  const exported = parseCompLibraryStrict(
+    await session.exportData(entry(session)),
   );
-  expect(imported.count).toBe(1);
+  await storage.update((library) => withCompCopies(library, exported));
+  await session.refresh();
   const copy = session.state.library.entries.find(
     (item) => item.id !== saved.id,
   );
@@ -401,23 +394,26 @@ test("unavailable entries count toward storage limits and failed imports are ato
     comps: [{ ...unavailable, recoveryPayload: "x".repeat(MAX_IMPORT_BYTES) }],
   });
   for (const source of [full, oversized]) {
-    const session = await sessionFor(new MemoryStorage(source));
+    const storage = new MemoryStorage(source);
+    const session = await sessionFor(storage);
     session.edit({ kind: "name", value: "New comp" });
     const before = session.state;
     await expect(session.save("New comp")).rejects.toThrow("library limit");
-    await expect(session.addCopies([saved])).rejects.toThrow("library limit");
+    await expect(
+      storage.update((library) => withCompCopies(library, [saved])),
+    ).rejects.toThrow("library limit");
     expect(session.state).toBe(before);
     expect(await session.exportData()).toBe(source);
   }
 });
 
 test("copies keep the open comp, its edits, and its saved link", async () => {
-  const session = await sessionFor(
-    new MemoryStorage(serializeCompLibrary([saved])),
-  );
+  const storage = new MemoryStorage(serializeCompLibrary([saved]));
+  const session = await sessionFor(storage);
   session.load(entry(session));
   session.edit({ kind: "notes", value: "Still unsaved" });
-  expect(await session.addCopies([saved])).toEqual({ count: 1 });
+  await storage.update((library) => withCompCopies(library, [saved]));
+  await session.refresh();
   expect(session.state.comp.notes).toBe("Still unsaved");
   expect(session.state.dirty).toBe(true);
   expect(session.state.savedId).toBe(saved.id);
