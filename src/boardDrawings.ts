@@ -1,4 +1,4 @@
-import type { MapDefinition } from "./maps";
+import type { BoardImage } from "./maps";
 
 interface DrawingBase {
   readonly id: string;
@@ -148,7 +148,7 @@ export function moveDrawing(
   drawing: BoardDrawing,
   x: number,
   y: number,
-  map: Pick<MapDefinition, "width" | "height">,
+  map: Pick<BoardImage, "width" | "height">,
   measureNote: MeasureBoardNote,
 ): BoardDrawing {
   const left = drawing.kind === "arrow" ? Math.min(0, drawing.dx) : 0;
@@ -262,7 +262,7 @@ export type DrawingHandle =
       readonly cursor: ResizeCursor;
     };
 
-type MapSize = Pick<MapDefinition, "width" | "height">;
+type MapSize = Pick<BoardImage, "width" | "height">;
 
 export function drawingHandles(
   drawing: BoardDrawing,

@@ -2,6 +2,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { lockBuildOutput, readReleaseFeed } from "./scripts/releases.ts";
+import { MAPS, type MapEntry } from "./src/maps.ts";
+
+const CATALOG: readonly MapEntry[] = MAPS;
 
 export default defineConfig(async ({ command }) => {
   const releases = await readReleaseFeed(import.meta.dirname);
@@ -40,6 +43,31 @@ export default defineConfig(async ({ command }) => {
                 "unrecorded",
               releases,
             }),
+          });
+        },
+      },
+      {
+        name: "map-preview-sources",
+        generateBundle() {
+          this.emitFile({
+            type: "asset",
+            fileName: "map-previews/sources.json",
+            source: `${JSON.stringify(
+              CATALOG.flatMap(({ id, preview }) =>
+                preview
+                  ? [
+                      {
+                        mapId: id,
+                        file: preview.imagePath.slice("/map-previews/".length),
+                        source: preview.source,
+                        image: preview.sourceImage,
+                      },
+                    ]
+                  : [],
+              ),
+              null,
+              2,
+            )}\n`,
           });
         },
       },

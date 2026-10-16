@@ -27,7 +27,7 @@ test("map changes and position bounds form one reversible edit", () => {
   const session = new BoardSession(
     measureNote,
     {
-      map: { kind: "builtin", id: "museum-of-contemplation-convoy" },
+      map: { kind: "builtin", id: "museum-of-contemplation" },
       tokens: [
         { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 640 },
       ],
@@ -39,11 +39,11 @@ test("map changes and position bounds form one reversible edit", () => {
   expect(original.board.tokens[0]?.y).toBe(640);
   const changed = session.changeMap({
     kind: "builtin",
-    id: "birnin-tchalla-domination",
+    id: "birnin-tchalla",
   });
   expect(changed).toMatchObject({
     board: {
-      map: { kind: "builtin", id: "birnin-tchalla-domination" },
+      map: { kind: "builtin", id: "birnin-tchalla" },
       tokens: [
         { id: "ally-strange", heroId: "strange", team: "ally", x: 270, y: 618 },
       ],
@@ -277,7 +277,7 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     session.moveDrawing({ id: "note", delta: { x: -10, y: 9999 } }),
   ).toEqual({ ...note, x: 20, y: 618 });
   expect(session.undo().board.drawingsByMap[DEFAULT_MAP_ID]).toEqual([note]);
-  session.changeMap({ kind: "builtin", id: "hells-heaven-domination" });
+  session.changeMap({ kind: "builtin", id: "hells-heaven" });
   const arrow = session.addDrawing({ kind: "arrow", color: "#ff6268" });
   if (!arrow) throw new Error("Expected an arrow.");
   expect(arrow).toMatchObject({
@@ -290,25 +290,17 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
   });
   expect(session.clear().board.drawingsByMap).toEqual({
     [DEFAULT_MAP_ID]: [note],
-    "hells-heaven-domination": [],
+    "hells-heaven": [],
   });
-  expect(session.undo().board.drawingsByMap["hells-heaven-domination"]).toEqual(
-    [arrow],
-  );
+  expect(session.undo().board.drawingsByMap["hells-heaven"]).toEqual([arrow]);
   expect(session.reset().board.drawingsByMap).toEqual({
     [DEFAULT_MAP_ID]: [note],
-    "hells-heaven-domination": [],
+    "hells-heaven": [],
   });
-  expect(session.undo().board.drawingsByMap["hells-heaven-domination"]).toEqual(
-    [arrow],
-  );
+  expect(session.undo().board.drawingsByMap["hells-heaven"]).toEqual([arrow]);
   session.removeDrawing(arrow.id);
-  expect(
-    session.getSnapshot().board.drawingsByMap["hells-heaven-domination"],
-  ).toEqual([]);
-  expect(session.undo().board.drawingsByMap["hells-heaven-domination"]).toEqual(
-    [arrow],
-  );
+  expect(session.getSnapshot().board.drawingsByMap["hells-heaven"]).toEqual([]);
+  expect(session.undo().board.drawingsByMap["hells-heaven"]).toEqual([arrow]);
 });
 
 test("comp transfer preserves drawings and roles and restores map and formation together", () => {
@@ -338,7 +330,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
   } satisfies ReturnType<typeof emptyComp>;
   const transferred = session.openComp({
     comp,
-    mapId: "museum-of-contemplation-convoy",
+    mapId: "museum-of-contemplation",
   });
   expect(transferred.board.tokens).toEqual([
     {
@@ -367,7 +359,7 @@ test("comp transfer preserves drawings and roles and restores map and formation 
         ally: [{ heroId: "deadpool", deadpoolRole: "Strategist", notes: "" }],
       },
     },
-    mapId: "museum-of-contemplation-convoy",
+    mapId: "museum-of-contemplation",
   });
   expect(changed.board.tokens[0]?.deadpoolRole).toBe("Strategist");
   expect(session.undo()).toMatchObject({

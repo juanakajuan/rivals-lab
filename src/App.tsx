@@ -4,7 +4,7 @@ import { BackupButton, BackupDialog, StorageNotice } from "./BackupDialog";
 import { Changelog } from "./Changelog";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
-import type { MapId } from "./maps";
+import type { BuiltinBoardMapId } from "./maps";
 import { PAGE_LABELS, PageNavigation, type Page } from "./PageNavigation";
 import { useBoardController } from "./useBoardController";
 
@@ -133,7 +133,7 @@ export default function App({
     dismissMenu();
   }
 
-  function openCompOnBoard(comp: Comp, mapId: MapId): void {
+  function openCompOnBoard(comp: Comp, mapId: BuiltinBoardMapId): void {
     if (board.openComp(comp, mapId)) navigate("board");
   }
 

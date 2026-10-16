@@ -180,7 +180,7 @@ test("boot keeps the parts that decode and starts fresh for the rest", async ({
     { library, openComp },
   );
   expect(booted).toEqual({
-    mapId: "birnin-tchalla-domination",
+    mapId: "birnin-tchalla",
     tokens: 6,
     iconSize: 100,
     openComp,
@@ -211,7 +211,7 @@ test("writes from a replaced data generation change nothing", async ({
     data.autosave.sync({
       ...data.workspace,
       board: {
-        map: { kind: "builtin", id: "hells-heaven-domination" },
+        map: { kind: "builtin", id: "hells-heaven" },
         tokens: [],
         drawingsByMap: {},
       },
@@ -307,7 +307,7 @@ async function seedWorkspace(page: Page): Promise<number> {
                 dy: 40,
               },
             ],
-            "hells-heaven-domination": [
+            "hells-heaven": [
               {
                 id: "zone-1",
                 kind: "zone",
@@ -485,8 +485,8 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
     }),
   ).join(",");
   const crowded = backup.replace(
-    '"hells-heaven-domination":[',
-    `"hells-heaven-domination":[${zones},`,
+    '"hells-heaven":[',
+    `"hells-heaven":[${zones},`,
   );
   const resized = backup.replace(
     /"sourceBytes":(\d+)/,

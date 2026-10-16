@@ -1,27 +1,66 @@
-import { getMap, type MapDefinition, type MapId } from "./maps";
+import type { MapPickerOption } from "./MapPicker";
+import {
+  BOARD_MAPS,
+  type BoardImage,
+  type BoardMap,
+  type BuiltinBoardMapId,
+  type GameMode,
+} from "./maps";
 
 export type CustomBoardMapId = `custom:${string}`;
-export type BoardMapId = MapId | CustomBoardMapId;
+export type BoardMapId = BuiltinBoardMapId | CustomBoardMapId;
 
-export interface CustomBoardMap extends Omit<MapDefinition, "id" | "mode"> {
+export interface BuiltinBoardMap extends BoardImage {
+  readonly id: BuiltinBoardMapId;
+  readonly name: string;
+  readonly mode: GameMode;
+}
+
+export interface CustomBoardMap {
   readonly kind: "custom";
   readonly id: CustomBoardMapId;
+  readonly name: string;
   readonly mode: "Custom image";
+  readonly imagePath: string;
+  readonly width: number;
+  readonly height: number;
   readonly sourceBytes: number;
   readonly sourcePixels: number;
 }
 
 export type SelectedBoardMap =
-  { readonly kind: "builtin"; readonly id: MapId } | CustomBoardMap;
+  { readonly kind: "builtin"; readonly id: BuiltinBoardMapId } | CustomBoardMap;
 
-export type BoardMapDefinition = MapDefinition | CustomBoardMap;
+export type BoardMapDefinition = BuiltinBoardMap | CustomBoardMap;
 
 export type BoardMapUpload =
   | { readonly kind: "ready"; readonly map: CustomBoardMap }
   | { readonly kind: "error"; readonly message: string };
 
+const BUILTIN_BOARD_MAPS: ReadonlyMap<string, BuiltinBoardMap> = new Map(
+  BOARD_MAPS.map(({ id, name, mode, board }) => [
+    id,
+    { id, name, mode, ...board },
+  ]),
+);
+
 export function resolveBoardMap(map: SelectedBoardMap): BoardMapDefinition {
-  return map.kind === "builtin" ? getMap(map.id) : map;
+  if (map.kind === "custom") return map;
+  const builtin = BUILTIN_BOARD_MAPS.get(map.id);
+  if (!builtin) throw new Error(`Unknown map: ${map.id}`);
+  return builtin;
+}
+
+export function boardMapOption(
+  map: BoardMap,
+): MapPickerOption<BuiltinBoardMapId> {
+  return {
+    value: map.id,
+    name: map.name,
+    detail: map.mode,
+    imagePath: map.board.imagePath,
+    imageSize: [map.board.width, map.board.height],
+  };
 }
 
 const FILE_LIMIT = 10 * 1024 * 1024;

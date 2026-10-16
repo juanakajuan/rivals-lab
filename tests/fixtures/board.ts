@@ -3,7 +3,8 @@ import {
   type BoardCanvas,
   type BoardSnapshot,
 } from "../../src/boardCanvas.ts";
-import { DEFAULT_MAP_ID, getMap } from "../../src/maps.ts";
+import { resolveBoardMap } from "../../src/boardMaps.ts";
+import { DEFAULT_MAP_ID } from "../../src/maps.ts";
 
 interface BoardHarness {
   readonly board: BoardCanvas;
@@ -46,7 +47,7 @@ const board = createBoardCanvas(host, {
 window.boardHarness = {
   board,
   snapshot: {
-    map: getMap(DEFAULT_MAP_ID),
+    map: resolveBoardMap({ kind: "builtin", id: DEFAULT_MAP_ID }),
     boardRevision: 0,
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 200, y: 200 },

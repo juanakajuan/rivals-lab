@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
+import { MAPS } from "../src/maps";
 
 async function chooseCompMap(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Comp map", exact: true }).click();
@@ -188,4 +189,21 @@ test("downloads a PNG independently of browser clipboard support", async ({
   } else {
     await expect(page.getByRole("alert")).toHaveCount(0);
   }
+});
+
+test("serves map preview sources generated from the map catalog", async ({
+  request,
+}) => {
+  const response = await request.get("/map-previews/sources.json");
+  expect(response.status()).toBe(200);
+  const sources: unknown = await response.json();
+  expect(sources).toHaveLength(MAPS.filter((map) => "preview" in map).length);
+  expect(sources).toContainEqual({
+    mapId: "god-quarry",
+    file: "god-quarry.jpg",
+    source:
+      "https://www.marvelrivals.com/gameupdate/20260923/41548_1314808.html",
+    image:
+      "https://r.res.easebar.com/pic/20260923/a02e6206-2674-423c-b7d6-c9b8897d5493.jpg",
+  });
 });

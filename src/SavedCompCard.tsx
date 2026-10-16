@@ -34,10 +34,10 @@ export function SavedCompCard({
         onClick={() => onLoad(entry)}
         aria-label={`Load ${entry.comp.name}`}
       >
-        {savedMap && (
+        {savedMap?.preview && (
           <img
             className="saved-map-preview"
-            src={savedMap.previewImagePath}
+            src={savedMap.preview.imagePath}
             alt=""
             loading="lazy"
           />
