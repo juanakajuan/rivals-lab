@@ -138,18 +138,17 @@ function decodeDraft(value: unknown): DraftState | null {
   const draft = record(value);
   if (draft.format !== "mrc" && draft.format !== "ignite")
     throw new Error("Unknown draft format.");
-  // MRC comps saved before Ban 4 was cut carry one extra ban, and that ban is last.
-  const retiredBans = draft.format === "mrc" ? 1 : 0;
+  const legacyMrcTrailingBans = draft.format === "mrc" ? 1 : 0;
+  const teamIds: readonly Team[] = ["ally", "enemy"];
   if (draft.teams !== undefined) {
     const teams = record(draft.teams);
     let result = emptyDraft(draft.format);
-    const teamIds: readonly Team[] = ["ally", "enemy"];
     const kinds: readonly DraftActionKind[] = ["ban", "save"];
     for (const team of teamIds) {
       const slots = record(teams[team]);
       for (const kind of kinds) {
         const length = result.teams[team][kind].length;
-        const max = kind === "ban" ? length + retiredBans : length;
+        const max = kind === "ban" ? length + legacyMrcTrailingBans : length;
         const heroes = items(slots[kind], max);
         if (heroes.length !== length && heroes.length !== max)
           throw new Error("Invalid draft slot count.");
@@ -171,10 +170,11 @@ function decodeDraft(value: unknown): DraftState | null {
     choices: [],
   };
   const actions = draftSlots(emptyDraft(draft.format)).length;
-  for (const hero of items(draft.choices, actions + 2 * retiredBans).slice(
-    0,
-    actions,
-  ))
+  const legacyJointBanChoices = teamIds.length * legacyMrcTrailingBans;
+  for (const hero of items(
+    draft.choices,
+    actions + legacyJointBanChoices,
+  ).slice(0, actions))
     result = chooseLegacyDraftHero(result, text(hero, 100));
   return migrateLegacyDraft(result);
 }
