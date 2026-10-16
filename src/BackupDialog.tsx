@@ -92,6 +92,9 @@ function RestorePreview({
         The file (exported {EXPORTED_AT.format(new Date(preview.exportedAt))})
         has {fileContents(file)}.
       </p>
+      {preview.boardNotices.map((notice) => (
+        <p key={notice}>{notice}</p>
+      ))}
       {file.openComp?.link === "detached" ? (
         <p>The open comp is kept, but it is no longer tied to a saved comp.</p>
       ) : null}

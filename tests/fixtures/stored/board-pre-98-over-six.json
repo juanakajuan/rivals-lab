@@ -1,0 +1,118 @@
+{
+  "mapId": "hells-heaven-domination",
+  "tokens": [
+    {
+      "id": "ally-angela",
+      "heroId": "angela",
+      "team": "ally",
+      "x": 100,
+      "y": 200
+    },
+    {
+      "id": "enemy-angela",
+      "heroId": "angela",
+      "team": "enemy",
+      "x": 100,
+      "y": 500
+    },
+    {
+      "id": "ally-captain-america",
+      "heroId": "captain-america",
+      "team": "ally",
+      "x": 150,
+      "y": 200
+    },
+    {
+      "id": "enemy-captain-america",
+      "heroId": "captain-america",
+      "team": "enemy",
+      "x": 150,
+      "y": 500
+    },
+    {
+      "id": "ally-devil-dinosaur",
+      "heroId": "devil-dinosaur",
+      "team": "ally",
+      "x": 200,
+      "y": 200
+    },
+    {
+      "id": "enemy-devil-dinosaur",
+      "heroId": "devil-dinosaur",
+      "team": "enemy",
+      "x": 200,
+      "y": 500
+    },
+    {
+      "id": "ally-strange",
+      "heroId": "strange",
+      "team": "ally",
+      "x": 250,
+      "y": 200
+    },
+    {
+      "id": "enemy-strange",
+      "heroId": "strange",
+      "team": "enemy",
+      "x": 250,
+      "y": 500
+    },
+    {
+      "id": "ally-emma-frost",
+      "heroId": "emma-frost",
+      "team": "ally",
+      "x": 300,
+      "y": 200
+    },
+    {
+      "id": "enemy-emma-frost",
+      "heroId": "emma-frost",
+      "team": "enemy",
+      "x": 300,
+      "y": 500
+    },
+    {
+      "id": "ally-groot",
+      "heroId": "groot",
+      "team": "ally",
+      "x": 350,
+      "y": 200
+    },
+    {
+      "id": "enemy-groot",
+      "heroId": "groot",
+      "team": "enemy",
+      "x": 350,
+      "y": 500
+    },
+    { "id": "ally-hulk", "heroId": "hulk", "team": "ally", "x": 400, "y": 200 },
+    {
+      "id": "enemy-hulk",
+      "heroId": "hulk",
+      "team": "enemy",
+      "x": 400,
+      "y": 500
+    },
+    {
+      "id": "ally-magneto",
+      "heroId": "magneto",
+      "team": "ally",
+      "x": 450,
+      "y": 200
+    }
+  ],
+  "drawingsByMap": {
+    "hells-heaven-domination": [
+      {
+        "id": "note",
+        "kind": "note",
+        "x": 30,
+        "y": 40,
+        "color": "#ffd166",
+        "text": "Hold point",
+        "width": 180
+      }
+    ]
+  },
+  "iconSize": 100
+}

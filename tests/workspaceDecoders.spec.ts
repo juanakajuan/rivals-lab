@@ -274,24 +274,34 @@ function boardRecord(allies: number): Record<string, unknown> {
   };
 }
 
-test("board records cap teams except for boards this browser already saved", () => {
-  expect(() => decodeBoardRecord(boardRecord(7), [])).toThrow(
-    "Position Board teams cannot exceed 6 heroes. Remove extra heroes before importing this backup.",
+test("board records keep the first six heroes per team in every mode", () => {
+  const legacy = decodeBoardRecord(boardRecord(7), []);
+  expect(legacy.board.tokens.map((token) => token.heroId)).toEqual(
+    HEROES.slice(0, 6),
   );
-  expect(decodeBoardRecord(boardRecord(7), [], true).board.tokens).toHaveLength(
-    7,
-  );
-  expect(decodeBoardRecord(boardRecord(6), []).iconSize).toBe(120);
+  expect(legacy.notices).toEqual([
+    "Saved board limited to the first 6 heroes per team. Extra placements were removed.",
+  ]);
+  expect(() =>
+    decodeBoardRecord({ ...boardRecord(7), version: 2 }, []),
+  ).toThrow("Position Board teams cannot exceed 6 heroes.");
+  expect(decodeBoardRecord(boardRecord(6), [])).toMatchObject({
+    iconSize: 120,
+    notices: [],
+  });
 });
 
 test("damaged stored records fall back to empty state one by one", () => {
-  const { workspace, library } = decodeStoredRecords({
-    library: "not json",
-    board: boardRecord(7),
-    openComp: { broken: true },
-    customMaps: [{ id: "custom:bad" }],
-  });
-  expect(workspace.board.tokens).toHaveLength(7);
+  const { workspace, library } = decodeStoredRecords(
+    {
+      library: "not json",
+      board: boardRecord(7),
+      openComp: { broken: true },
+      customMaps: [{ id: "custom:bad" }],
+    },
+    "boot",
+  );
+  expect(workspace.board.tokens).toHaveLength(6);
   expect(workspace.iconSize).toBe(120);
   expect(workspace.customMaps).toEqual([]);
   expect(workspace.openComp.comp.name).toBe("");

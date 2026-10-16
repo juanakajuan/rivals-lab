@@ -18,10 +18,12 @@ import {
   EMPTY_STORED_RECORDS,
   decodeStoredRecords,
   encodeBoardRecord,
+  isNewerBoardRecord,
   type StoredRecords,
   type Workspace,
 } from "./workspaceRecord";
 import { errorMessage } from "./errorMessage";
+import { NewerRecordError } from "./storedVersion";
 
 export interface CompStorage {
   read(): Promise<string | null>;
@@ -45,6 +47,7 @@ export interface WorkspaceAutosave {
 
 export interface AppData {
   readonly workspace: Workspace;
+  readonly boardNotices: readonly string[];
   readonly comps: CompStorage;
   readonly compStart: SavedCompSessionStart;
   readonly autosave: WorkspaceAutosave;
@@ -314,10 +317,10 @@ class BrowserAutosave implements WorkspaceAutosave {
 
   constructor(private readonly connection: Promise<Connection>) {}
 
-  markPersisted(workspace: Workspace): void {
-    this.confirmedBoard = JSON.stringify(
-      encodeBoardRecord(workspace.board, workspace.iconSize),
-    );
+  markPersisted(workspace: Workspace, boardMigrated: boolean): void {
+    this.confirmedBoard = boardMigrated
+      ? ""
+      : JSON.stringify(encodeBoardRecord(workspace.board, workspace.iconSize));
     this.confirmedOpenComp = JSON.stringify(workspace.openComp);
     this.confirmedMaps.clear();
     for (const map of workspace.customMaps)
@@ -404,14 +407,23 @@ class BrowserAutosave implements WorkspaceAutosave {
         this.pending.clear();
         try {
           const connection = await this.connection;
-          await connection.write([WORKSPACE, CUSTOM_MAPS], [], (_, active) => {
-            for (const put of batch)
-              active.objectStore(put.store).put(put.value, put.key);
-          });
+          await connection.write(
+            [WORKSPACE, CUSTOM_MAPS],
+            [[WORKSPACE, "board"]],
+            ([board], active) => {
+              if (isNewerBoardRecord(board)) throw new NewerRecordError();
+              for (const put of batch)
+                active.objectStore(put.store).put(put.value, put.key);
+            },
+          );
           for (const put of batch) put.mark();
           failure = null;
         } catch (error) {
           if (error instanceof ReplacedElsewhereError) return;
+          if (error instanceof NewerRecordError) {
+            this.stop({ kind: "failed", message: error.message });
+            return;
+          }
           failure = errorMessage(error);
         }
       }
@@ -466,11 +478,11 @@ class BrowserBackup implements BackupStore {
   }
 
   private readonly current = async (): Promise<StoredState> =>
-    decodeStoredRecords(await this.records());
+    decodeStoredRecords(await this.records(), "boot");
 
   async exportBackup(): Promise<void> {
     const records = await this.records();
-    const { workspace } = decodeStoredRecords(records);
+    const { workspace } = decodeStoredRecords(records, "boot");
     downloadBlob(encodeBackup(records, workspace, new Date()));
   }
 
@@ -523,8 +535,11 @@ export async function openAppData(): Promise<AppData> {
     ({ records }) => records,
     () => EMPTY_STORED_RECORDS,
   );
-  const { workspace, library } = decodeStoredRecords(records);
-  autosave.markPersisted(workspace);
+  const { workspace, library, boardNotices } = decodeStoredRecords(
+    records,
+    "boot",
+  );
+  autosave.markPersisted(workspace, boardNotices.length > 0);
   const channel =
     typeof BroadcastChannel === "undefined"
       ? null
@@ -535,6 +550,7 @@ export async function openAppData(): Promise<AppData> {
   });
   return {
     workspace,
+    boardNotices,
     comps,
     compStart: { openComp: workspace.openComp, library },
     autosave,

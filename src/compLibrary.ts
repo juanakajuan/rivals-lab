@@ -5,8 +5,10 @@ import {
   record,
   type SavedComp,
 } from "./comps";
+import { storedVersion } from "./storedVersion";
 
 export const COMP_STORAGE_KEY = "rivals-lab.comps.v1";
+export const COMP_LIBRARY_VERSION = 1;
 export const MAX_IMPORT_BYTES = 2_000_000;
 export const MAX_SAVED_COMPS = 500;
 export const IMPORT_TOO_LARGE = "The file must be smaller than 2 MB.";
@@ -24,12 +26,12 @@ export const EMPTY_LIBRARY: CompLibrary = {
   entries: [],
   unavailable: [],
   errors: [],
-  envelope: { version: 1, comps: [] },
+  envelope: { version: COMP_LIBRARY_VERSION, comps: [] },
 };
 
-export function decodeCompLibraryValue(data: unknown): CompLibrary {
+function decodeCompLibraryValue(data: unknown): CompLibrary {
   const envelope = record(data);
-  if (envelope.version !== 1) throw new Error("Unsupported comp file version.");
+  storedVersion(envelope.version, COMP_LIBRARY_VERSION);
   const raw = items(envelope.comps, MAX_SAVED_COMPS);
   const idCounts = new Map<string, number>();
   for (const item of raw)
@@ -73,7 +75,7 @@ export function parseCompLibraryStrict(source: string): readonly SavedComp[] {
 }
 
 export function serializeCompLibrary(comps: readonly SavedComp[]): string {
-  return JSON.stringify({ version: 1, comps }, null, 2);
+  return JSON.stringify({ version: COMP_LIBRARY_VERSION, comps }, null, 2);
 }
 
 export function savedCompRevision(entry: SavedComp): string {
@@ -92,7 +94,7 @@ export class StoredLibrarySource {
     if (comps.length > MAX_SAVED_COMPS)
       throw new Error(`The library limit is ${MAX_SAVED_COMPS} comps.`);
     const checked = decodeCompLibraryValue({
-      version: 1,
+      version: COMP_LIBRARY_VERSION,
       comps: library.entries,
     });
     if (checked.errors.length) throw new Error(libraryErrorSummary(checked));

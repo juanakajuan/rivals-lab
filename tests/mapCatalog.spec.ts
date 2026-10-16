@@ -86,12 +86,15 @@ test("stored comps with short map IDs and boards with mode map IDs still load", 
     new URL("./fixtures/stored/comp-library-midtown.json", import.meta.url),
     "utf8",
   );
-  const { workspace, library: comps } = decodeStoredRecords({
-    library,
-    board: await readJson("./fixtures/stored/board-midtown-convoy.json"),
-    openComp: undefined,
-    customMaps: [],
-  });
+  const { workspace, library: comps } = decodeStoredRecords(
+    {
+      library,
+      board: await readJson("./fixtures/stored/board-midtown-convoy.json"),
+      openComp: undefined,
+      customMaps: [],
+    },
+    "boot",
+  );
   expect(comps.errors).toEqual([]);
   expect(comps.entries.map(({ comp }) => comp.mapIds)).toEqual([
     ["midtown"],

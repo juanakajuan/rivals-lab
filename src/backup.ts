@@ -1,6 +1,5 @@
 import type { BoardDrawing } from "./boardDrawings";
 import {
-  decodeCustomMap,
   resolveBoardMap,
   verifyCustomMapImages,
   type CustomBoardMap,
@@ -10,20 +9,18 @@ import {
   IMPORT_TOO_LARGE,
   MAX_IMPORT_BYTES,
   StoredLibrarySource,
-  decodeCompLibraryValue,
   parseCompLibraryStrict,
   serializeCompLibrary,
   type CompLibrary,
 } from "./compLibrary";
 import { sameComp, type SavedComp } from "./comps";
 import {
-  decodeOpenCompSnapshot,
   openCompLink,
   type OpenCompLink,
   type OpenCompSnapshot,
 } from "./savedComps";
 import {
-  decodeBoardRecord,
+  decodeStoredRecords,
   encodeBoardRecord,
   type BoardRecord,
   type StoredRecords,
@@ -81,6 +78,7 @@ export type ImportPreview =
       readonly exportedAt: string;
       readonly file: DataSummary;
       readonly current: DataSummary;
+      readonly boardNotices: readonly string[];
     };
 
 export interface ImportSource {
@@ -193,24 +191,28 @@ async function restorePlan(
     throw new Error("The backup date is invalid.");
   if (!Array.isArray(file.customMaps))
     throw new Error("The backup has no custom map list.");
-  const customMaps = file.customMaps.map(decodeCustomMap);
-  if (new Set(customMaps.map((map) => map.id)).size !== customMaps.length)
-    throw new Error("A custom map appears twice in this backup.");
-  const { board, iconSize } = decodeBoardRecord(file.board, customMaps);
-  const openComp = decodeOpenCompSnapshot(file.openComp);
   if (typeof file.library !== "object" || file.library === null)
     throw new Error("The backup has no saved comp library.");
-  const library = decodeCompLibraryValue(file.library);
+  const { workspace, library, boardNotices } = decodeStoredRecords(
+    {
+      library: JSON.stringify(file.library),
+      board: file.board,
+      openComp: file.openComp,
+      customMaps: file.customMaps,
+    },
+    "restore",
+  );
+  const { board, customMaps, iconSize, openComp } = workspace;
+  if (new Set(customMaps.map((map) => map.id)).size !== customMaps.length)
+    throw new Error("A custom map appears twice in this backup.");
   const source = StoredLibrarySource.encode(library);
   await verifyCustomMapImages(customMaps);
   return new ImportPlan(
     {
       kind: "restore",
       exportedAt,
-      file: summarize({
-        workspace: { board, customMaps, iconSize, openComp },
-        library,
-      }),
+      file: summarize({ workspace, library }),
+      boardNotices,
       current: summarize(await current()),
     },
     {
