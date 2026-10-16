@@ -3,8 +3,11 @@ import { BoardSession, type BoardState } from "../src/boardSession";
 import {
   MAX_DRAWINGS_PER_MAP,
   type BoardDrawing,
+  type MapPoint,
   type MeasureBoardNote,
 } from "../src/boardDrawings";
+import { resolveBoardMap } from "../src/boardMaps";
+import { clampToBoard, type BoardPoint } from "../src/boardTokens";
 import { HEROES, TEAM_SIZE } from "../src/heroes";
 import { emptyComp } from "../src/comps";
 import { DEFAULT_MAP_ID } from "../src/maps";
@@ -14,6 +17,11 @@ const measureNote: MeasureBoardNote = (text, width) => {
   void width;
   return { width: 180, height: 36 };
 };
+
+function onBoard(session: BoardSession, point: MapPoint): BoardPoint {
+  const { board, iconSize } = session.getSnapshot();
+  return clampToBoard(point, resolveBoardMap(board.map), iconSize);
+}
 
 const initial: BoardState = {
   map: { kind: "builtin", id: DEFAULT_MAP_ID },
@@ -75,11 +83,17 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   const restored = session.undo();
   expect(restored.canRedo).toBe(true);
   expect(
-    session.moveToken({ id: "ally-strange", point: { x: 270, y: 435 } }),
+    session.moveToken({
+      id: "ally-strange",
+      point: onBoard(session, { x: 270, y: 435 }),
+    }),
   ).toBe(restored);
-  expect(session.moveToken({ id: "missing", point: { x: 400, y: 400 } })).toBe(
-    restored,
-  );
+  expect(
+    session.moveToken({
+      id: "missing",
+      point: onBoard(session, { x: 400, y: 400 }),
+    }),
+  ).toBe(restored);
   expect(session.removeToken("missing")).toBe(restored);
   expect(session.removeDrawing("missing")).toBe(restored);
   expect(
@@ -94,7 +108,7 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   session.placeHero({
     heroId: "strange",
     team: "ally",
-    point: { x: 270, y: 435 },
+    point: onBoard(session, { x: 270, y: 435 }),
   });
   expect(session.getSnapshot()).toBe(restored);
   session.removeToken("ally-strange");
@@ -111,7 +125,10 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
 test("history retains the last 100 edits in order and supports branching", () => {
   const session = new BoardSession(measureNote, initial);
   for (let x = 300; x <= 404; x++) {
-    session.moveToken({ id: "ally-strange", point: { x, y: 435 } });
+    session.moveToken({
+      id: "ally-strange",
+      point: onBoard(session, { x, y: 435 }),
+    });
   }
   for (let x = 403; x >= 304; x--) {
     expect(session.undo().board.tokens[0]?.x).toBe(x);
@@ -120,7 +137,10 @@ test("history retains the last 100 edits in order and supports branching", () =>
   const oldest = session.getSnapshot();
   expect(session.undo()).toBe(oldest);
   expect(
-    session.moveToken({ id: "ally-strange", point: { x: 304, y: 435 } }),
+    session.moveToken({
+      id: "ally-strange",
+      point: onBoard(session, { x: 304, y: 435 }),
+    }),
   ).toBe(oldest);
   for (let x = 305; x <= 404; x++) {
     expect(session.redo().board.tokens[0]?.x).toBe(x);
@@ -143,7 +163,7 @@ test("placement bounds, team identity, and free positions use the current icon s
     session.placeHero({
       heroId: "angela",
       team: "ally",
-      point: { x: -10, y: 999 },
+      point: onBoard(session, { x: -10, y: 999 }),
     }),
   ).toEqual({
     kind: "added",
@@ -176,7 +196,7 @@ test("placement bounds, team identity, and free positions use the current icon s
     session.placeHero({
       heroId: "angela",
       team: "ally",
-      point: { x: 9999, y: -10 },
+      point: onBoard(session, { x: 9999, y: -10 }),
     }),
   ).toEqual({
     kind: "moved",
@@ -225,12 +245,19 @@ test("teams cap additions without blocking moves or changing history on rejectio
       kind: "team-full",
     });
     expect(
-      session.placeHero({ heroId: "luna", team, point: { x: 200, y: 200 } }),
+      session.placeHero({
+        heroId: "luna",
+        team,
+        point: onBoard(session, { x: 200, y: 200 }),
+      }),
     ).toEqual({ kind: "team-full" });
     expect(session.getSnapshot()).toBe(full);
     expect(
-      session.placeHero({ heroId: "angela", team, point: { x: 200, y: 200 } })
-        .kind,
+      session.placeHero({
+        heroId: "angela",
+        team,
+        point: onBoard(session, { x: 200, y: 200 }),
+      }).kind,
     ).toBe("moved");
     session.undo();
     const withRedo = session.getSnapshot();
@@ -447,7 +474,10 @@ test("getSnapshot returns the same object until a change, then a new object", ()
   expect(session.getSnapshot()).toBe(first);
   expect(notified).toBe(0);
 
-  session.moveToken({ id: "ally-strange", point: { x: 300, y: 400 } });
+  session.moveToken({
+    id: "ally-strange",
+    point: onBoard(session, { x: 300, y: 400 }),
+  });
   const moved = session.getSnapshot();
   expect(moved).not.toBe(first);
   expect(session.getSnapshot()).toBe(moved);

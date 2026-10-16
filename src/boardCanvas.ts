@@ -1,12 +1,13 @@
 import Konva from "konva";
 import {
+  DEFAULT_DRAWING_COLOR,
   MIN_DRAWING_SPAN,
   createDrawing as createAnnotation,
   drawingHandles,
   moveDrawing,
   resizeDrawing,
   type BoardDrawing,
-  type BoardPoint,
+  type MapPoint,
   type BoardTool,
   type DrawingHandle,
   type ResizeCursor,
@@ -25,7 +26,8 @@ import type { BoardMapDefinition } from "./boardMaps";
 import {
   SELECTED_RING_WIDTH,
   TOKEN_RADIUS,
-  tokenBoundary,
+  clampToBoard,
+  type BoardPoint,
   type BoardToken,
 } from "./boardTokens";
 
@@ -57,7 +59,7 @@ export interface BoardEvents {
   ) => void;
   readonly onDrawingEdit?: (drawing: BoardDrawing) => void;
   readonly onSelect: (token: BoardToken | null) => void;
-  readonly onMove: (token: BoardToken, x: number, y: number) => void;
+  readonly onMove: (token: BoardToken, point: BoardPoint) => void;
   readonly onContextMenu: (
     token: BoardToken,
     clientX: number,
@@ -67,10 +69,7 @@ export interface BoardEvents {
 
 export interface BoardCanvas {
   readonly update: (snapshot: BoardSnapshot) => void;
-  readonly toBoardPoint: (
-    clientX: number,
-    clientY: number,
-  ) => { readonly x: number; readonly y: number };
+  readonly toMapPoint: (clientX: number, clientY: number) => MapPoint;
   readonly destroy: () => void;
 }
 
@@ -139,11 +138,12 @@ function boundTokenPosition(
   map: BoardMapDefinition,
   iconSize: number,
 ): Konva.Vector2d {
-  const boundary = tokenBoundary(iconSize);
-  return {
-    x: clamp(position.x, boundary * scale, (map.width - boundary) * scale),
-    y: clamp(position.y, boundary * scale, (map.height - boundary) * scale),
-  };
+  const point = clampToBoard(
+    { x: position.x / scale, y: position.y / scale },
+    map,
+    iconSize,
+  );
+  return { x: point.x * scale, y: point.y * scale };
 }
 
 function setBoardCursor(stage: Konva.Stage, cursor: BoardCursor): void {
@@ -202,7 +202,7 @@ export function createBoardCanvas(
     string,
     { group: Konva.Group; drawing: BoardDrawing; dragging: boolean }
   >();
-  let gesture: { start: BoardPoint; preview: Konva.Group } | null = null;
+  let gesture: { start: MapPoint; preview: Konva.Group } | null = null;
   let activeResize: {
     readonly drawing: BoardDrawing;
     readonly handle: DrawingHandle;
@@ -272,10 +272,10 @@ export function createBoardCanvas(
     group.on("dragend", () => {
       drawing.dragging = false;
       setBoardCursor(stage, "grab");
+      if (!snapshot) return;
       events.onMove(
         drawing.token,
-        Math.round(group.x()),
-        Math.round(group.y()),
+        clampToBoard(group.position(), snapshot.map, snapshot.iconSize),
       );
     });
     tokenLayer.add(group);
@@ -388,7 +388,7 @@ export function createBoardCanvas(
   function pointerFromClient(
     clientX: number,
     clientY: number,
-  ): BoardPoint | null {
+  ): MapPoint | null {
     if (!snapshot) return null;
     const scaleX = stage.scaleX();
     const scaleY = stage.scaleY();
@@ -632,7 +632,7 @@ export function createBoardCanvas(
     annotationLayer.batchDraw();
   }
 
-  function pointerPoint(): BoardPoint | null {
+  function pointerPoint(): MapPoint | null {
     const point = stage.getPointerPosition();
     if (!point || !snapshot) return null;
     return {
@@ -669,7 +669,7 @@ export function createBoardCanvas(
       tool,
       gesture.start,
       end,
-      snapshot?.drawingColor ?? "#ffd166",
+      snapshot?.drawingColor ?? DEFAULT_DRAWING_COLOR,
     );
     gesture.preview.position({ x: drawing.x, y: drawing.y });
     gesture.preview.destroyChildren();
@@ -684,7 +684,7 @@ export function createBoardCanvas(
       tool,
       gesture.start,
       end,
-      snapshot?.drawingColor ?? "#ffd166",
+      snapshot?.drawingColor ?? DEFAULT_DRAWING_COLOR,
     );
     cancelGesture();
     if (
@@ -796,7 +796,7 @@ export function createBoardCanvas(
       renderTokens(current);
       renderAnnotations(current);
     },
-    toBoardPoint(clientX, clientY) {
+    toMapPoint(clientX, clientY) {
       const bounds = stage.getContent().getBoundingClientRect();
       return {
         x: (clientX - bounds.left) / stage.scaleX(),

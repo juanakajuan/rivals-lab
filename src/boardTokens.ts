@@ -1,3 +1,4 @@
+import type { BoardSize, MapPoint } from "./boardDrawings";
 import {
   HERO_BY_ID,
   isDeadpoolRole,
@@ -67,11 +68,28 @@ export function tokenBoundary(iconSize: number): number {
   return Math.ceil(((TOKEN_RADIUS + SELECTED_RING_WIDTH / 2) * iconSize) / 100);
 }
 
-export function clampToBoard(
-  value: number,
-  maximum: number,
-  iconSize: number,
-): number {
-  const boundary = tokenBoundary(iconSize);
+declare const onBoard: unique symbol;
+
+export type BoardPoint = MapPoint & { readonly [onBoard]: true };
+
+function brandBoardPoint(point: MapPoint): asserts point is BoardPoint {
+  void point;
+}
+
+function clampAxis(value: number, maximum: number, boundary: number): number {
   return Math.round(Math.max(boundary, Math.min(maximum - boundary, value)));
+}
+
+export function clampToBoard(
+  point: MapPoint,
+  map: BoardSize,
+  iconSize: number,
+): BoardPoint {
+  const boundary = tokenBoundary(iconSize);
+  const clamped = {
+    x: clampAxis(point.x, map.width, boundary),
+    y: clampAxis(point.y, map.height, boundary),
+  };
+  brandBoardPoint(clamped);
+  return clamped;
 }

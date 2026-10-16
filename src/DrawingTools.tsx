@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  DEFAULT_DRAWING_COLOR,
   MAX_NOTE_LENGTH,
+  isHexColor,
   type BoardDrawing,
   type BoardTool,
 } from "./boardDrawings";
@@ -129,7 +131,7 @@ const DRAWING_COLORS: readonly {
   readonly name: string;
   readonly value: string;
 }[] = [
-  { name: "Yellow", value: "#ffd166" },
+  { name: "Yellow", value: DEFAULT_DRAWING_COLOR },
   { name: "Orange", value: "#f49d50" },
   { name: "Red", value: "#df6670" },
   { name: "Pink", value: "#e891c3" },
@@ -152,7 +154,7 @@ function DrawingColor({
   const [open, setOpen] = useState(false);
   const picker = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const valid = /^#[0-9a-f]{6}$/i.test(draft);
+  const valid = isHexColor(draft);
 
   useEffect(() => {
     if (!open) return;
