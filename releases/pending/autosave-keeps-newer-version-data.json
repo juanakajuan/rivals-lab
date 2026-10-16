@@ -1,0 +1,3 @@
+{
+  "text": "Bug fix: Saving no longer overwrites a board or comp library saved by a newer version of Rivals Lab. The page asks you to reload."
+}
