@@ -48,7 +48,7 @@ test("saved comp fields survive a production reload", async ({ page }) => {
   await page.getByLabel("Allies slot 1 notes").fill("Hold the corner.");
   await page.getByLabel("Draft format").selectOption("mrc");
   await page
-    .getByRole("button", { name: "Opponents ban 4: Choose hero", exact: true })
+    .getByRole("button", { name: "Opponents ban 3: Choose hero", exact: true })
     .click();
   await page
     .getByRole("dialog")
@@ -80,7 +80,7 @@ test("saved comp fields survive a production reload", async ({ page }) => {
   );
   await expect(page.getByLabel("Draft format")).toHaveValue("mrc");
   await expect(
-    page.getByRole("button", { name: "Opponents ban 4: Hulk", exact: true }),
+    page.getByRole("button", { name: "Opponents ban 3: Hulk", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(
     "Take high ground.",

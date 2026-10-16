@@ -1,5 +1,5 @@
 import type { Comp } from "./comps";
-import type { DraftFormat } from "./draft";
+import { emptyDraft, type DraftFormat } from "./draft";
 import { compStatus } from "./compEdits";
 import { compMapLabel, selectedCompMaps } from "./compMaps";
 import { GameModeIcon } from "./GameModeIcon";
@@ -19,6 +19,11 @@ export interface CompSettingsPanelProps {
   readonly onMapsChange: (mapIds: readonly string[]) => void;
   readonly onGameModeChange: (mode: GameMode) => void;
   readonly onDraftChange: (format: DraftFormat | null) => void;
+}
+
+function slotCounts(format: DraftFormat): string {
+  const { ban, save } = emptyDraft(format).teams.ally;
+  return `${ban.length} bans / ${save.length} saves`;
 }
 
 export function CompSettingsPanel({
@@ -85,8 +90,8 @@ export function CompSettingsPanel({
               }}
             >
               <option value="free">Free build</option>
-              <option value="mrc">MRC · 4 bans / 2 saves</option>
-              <option value="ignite">Ignite · 5 bans / 2 saves</option>
+              <option value="mrc">{`MRC · ${slotCounts("mrc")}`}</option>
+              <option value="ignite">{`Ignite · ${slotCounts("ignite")}`}</option>
             </select>
           </label>
         </div>

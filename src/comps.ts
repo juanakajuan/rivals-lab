@@ -2,6 +2,7 @@ import { COMP_MAPS, type CompMapSelection } from "./compMaps";
 import { isGameMode } from "./maps";
 import {
   chooseLegacyDraftHero,
+  draftSlots,
   emptyDraft,
   migrateLegacyDraft,
   setDraftHero,
@@ -141,6 +142,7 @@ function decodeDraft(value: unknown): DraftState | null {
   const draft = record(value);
   if (draft.format !== "mrc" && draft.format !== "ignite")
     throw new Error("Unknown draft format.");
+  const legacyMrcTrailingBans = draft.format === "mrc" ? 1 : 0;
   if (draft.teams !== undefined) {
     const teams = record(draft.teams);
     let result = emptyDraft(draft.format);
@@ -148,10 +150,12 @@ function decodeDraft(value: unknown): DraftState | null {
     for (const team of TEAMS) {
       const slots = record(teams[team]);
       for (const kind of kinds) {
-        const heroes = items(slots[kind], result.teams[team][kind].length);
-        if (heroes.length !== result.teams[team][kind].length)
+        const length = result.teams[team][kind].length;
+        const max = kind === "ban" ? length + legacyMrcTrailingBans : length;
+        const heroes = items(slots[kind], max);
+        if (heroes.length !== length && heroes.length !== max)
           throw new Error("Invalid draft slot count.");
-        for (const [index, hero] of heroes.entries())
+        for (const [index, hero] of heroes.slice(0, length).entries())
           result = setDraftHero(
             result,
             { team, kind, index },
@@ -167,7 +171,12 @@ function decodeDraft(value: unknown): DraftState | null {
     firstTeam: draft.firstTeam,
     choices: [],
   };
-  for (const hero of items(draft.choices, 14))
+  const actions = draftSlots(emptyDraft(draft.format)).length;
+  const legacyJointBanChoices = TEAMS.length * legacyMrcTrailingBans;
+  for (const hero of items(
+    draft.choices,
+    actions + legacyJointBanChoices,
+  ).slice(0, actions))
     result = chooseLegacyDraftHero(result, text(hero, RULES.idLength));
   return migrateLegacyDraft(result);
 }

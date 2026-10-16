@@ -5,7 +5,7 @@ export type DraftFormat = "mrc" | "ignite";
 export const DRAFT_RULES = {
   mrc: {
     label: "MRC",
-    bans: 4,
+    bans: 3,
     saves: 2,
     scope: "Bans and saves apply to both teams.",
   },
@@ -70,7 +70,7 @@ function actionTarget(format: DraftFormat, action: DraftAction): Team {
   return otherTeam(action.team);
 }
 
-export function draftPhases(
+function draftPhases(
   draft: Pick<LegacyDraftState, "format" | "firstTeam">,
 ): readonly (readonly DraftAction[])[] {
   const t1 = draft.firstTeam;
@@ -90,7 +90,6 @@ export function draftPhases(
         [save(t1)],
         [ban(t1)],
         [ban(t2)],
-        both,
       ]
     : [
         both,

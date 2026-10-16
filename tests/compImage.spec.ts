@@ -118,7 +118,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     draft: setDraftHero(
       setDraftHero(
         emptyDraft("mrc"),
-        { team: "ally", kind: "ban", index: 3 },
+        { team: "ally", kind: "ban", index: 2 },
         "wolverine",
       ),
       { team: "enemy", kind: "save", index: 1 },
@@ -177,7 +177,7 @@ test("downloads and copies the same full PNG without changing saved data", async
   await expect(
     page.getByRole("region", { name: "Bans and Saves" }).locator(".muted-copy"),
   ).toContainText(
-    "4 bans + 2 saves per team. Bans and saves apply to both teams.",
+    "3 bans + 2 saves per team. Bans and saves apply to both teams.",
   );
   const builderCounts = await Promise.all(
     ["Allies composition", "Opponents composition"].map((name) =>
@@ -329,11 +329,11 @@ test("downloads and copies the same full PNG without changing saved data", async
   );
   const save1 = result.positions.find((entry) => entry.text === "Save 1");
   const ban2 = result.positions.find((entry) => entry.text === "Ban 2");
-  const ban4 = result.positions.find((entry) => entry.text === "Ban 4");
-  if (!save1 || !ban2 || !ban4) throw new Error("Missing draft phase labels");
+  const ban3 = result.positions.find((entry) => entry.text === "Ban 3");
+  if (!save1 || !ban2 || !ban3) throw new Error("Missing draft phase labels");
   expect(save1.y).toBe(ban2.y);
   expect(save1.x).toBeLessThan(ban2.x);
-  expect(ban2.x).toBeLessThan(ban4.x);
+  expect(ban2.x).toBeLessThan(ban3.x);
   const text = result.text.join("\n");
   for (const expected of [
     "Unsaved team plan",
@@ -347,7 +347,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Hold the corner.",
     "Watch portal.",
     "Empty slot note.",
-    "Ban 4",
+    "Ban 3",
     "Wolverine",
     "Save 2",
     "Luna Snow",
@@ -364,6 +364,7 @@ test("downloads and copies the same full PNG without changing saved data", async
     "Pending joint ban",
     "Step 11",
     "Ban 1",
+    "Ban 4",
   ])
     expect(text).not.toContain(excluded);
   await expect(page.getByLabel("Comp notes", { exact: true })).toHaveValue(

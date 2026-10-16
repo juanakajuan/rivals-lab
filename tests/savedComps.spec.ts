@@ -505,7 +505,6 @@ test("rejected edits preserve session state and conflict plans remain savable", 
     "hulk",
     null,
     null,
-    null,
   ]);
   expect(reloaded.state.dirty).toBe(false);
 });
