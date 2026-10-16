@@ -77,7 +77,7 @@ test("selection and late portraits preserve a drag through board updates", async
 test("drop coordinates follow resize and map changes", async ({ page }) => {
   await page.goto("/tests/fixtures/board.html");
   expect(
-    await page.evaluate(() => window.boardHarness.board.toBoardPoint(120, 120)),
+    await page.evaluate(() => window.boardHarness.board.toMapPoint(120, 120)),
   ).toEqual({ x: 200, y: 200 });
   await page.locator("#board").evaluate((host) => {
     host.style.width = "300px";
@@ -85,7 +85,7 @@ test("drop coordinates follow resize and map changes", async ({ page }) => {
   });
   await expect
     .poll(() =>
-      page.evaluate(() => window.boardHarness.board.toBoardPoint(120, 120)),
+      page.evaluate(() => window.boardHarness.board.toMapPoint(120, 120)),
     )
     .toEqual({ x: 400, y: 400 });
   await page.evaluate(() => {
@@ -97,7 +97,7 @@ test("drop coordinates follow resize and map changes", async ({ page }) => {
     harness.board.update(harness.snapshot);
   });
   expect(
-    await page.evaluate(() => window.boardHarness.board.toBoardPoint(120, 120)),
+    await page.evaluate(() => window.boardHarness.board.toMapPoint(120, 120)),
   ).toEqual({ x: 200, y: 200 });
 });
 

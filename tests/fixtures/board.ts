@@ -30,7 +30,7 @@ const board = createBoardCanvas(host, {
     };
     board.update(harness.snapshot);
   },
-  onMove(token, x, y) {
+  onMove(token, { x, y }) {
     const harness = window.boardHarness;
     harness.moves.push({ x, y });
     harness.snapshot = {

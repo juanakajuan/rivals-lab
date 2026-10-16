@@ -27,13 +27,19 @@ export type NoteDrawing = DrawingBase & {
 
 export type BoardDrawing = ArrowDrawing | ZoneDrawing | NoteDrawing;
 export type BoardTool = "move" | BoardDrawing["kind"];
-export interface BoardPoint {
+export interface MapPoint {
   readonly x: number;
   readonly y: number;
 }
 export interface BoardSize {
   readonly width: number;
   readonly height: number;
+}
+
+export const DEFAULT_DRAWING_COLOR = "#ffd166";
+
+export function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }
 
 export type MeasureBoardNote = (text: string, width: number) => BoardSize;
@@ -112,8 +118,7 @@ export function decodeDrawing(value: unknown): BoardDrawing {
   if (!isDrawingKind(kind)) throw new Error("Unknown drawing kind.");
   if (typeof id !== "string" || !id || id.length > 100)
     throw new Error("Invalid drawing ID.");
-  if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color))
-    throw new Error("Invalid drawing color.");
+  if (!isHexColor(color)) throw new Error("Invalid drawing color.");
   return DRAWING_DECODERS[kind](
     { id, color, x: finite(fields.x), y: finite(fields.y) },
     fields,
@@ -122,8 +127,8 @@ export function decodeDrawing(value: unknown): BoardDrawing {
 
 export function createDrawing(
   kind: BoardDrawing["kind"],
-  start: BoardPoint,
-  end: BoardPoint,
+  start: MapPoint,
+  end: MapPoint,
   color: string,
 ): BoardDrawing {
   const base = { id: crypto.randomUUID(), color, ...start };
@@ -246,19 +251,19 @@ export type DrawingHandle =
   | {
       readonly kind: "arrow";
       readonly id: ArrowHandleId;
-      readonly at: BoardPoint;
+      readonly at: MapPoint;
       readonly cursor: ResizeCursor;
     }
   | {
       readonly kind: "zone";
       readonly id: ZoneHandleId;
-      readonly at: BoardPoint;
+      readonly at: MapPoint;
       readonly cursor: ResizeCursor;
     }
   | {
       readonly kind: "note";
       readonly id: NoteHandleId;
-      readonly at: BoardPoint;
+      readonly at: MapPoint;
       readonly cursor: ResizeCursor;
     };
 
@@ -281,7 +286,7 @@ export function drawingHandles(
 export function resizeDrawing(
   drawing: BoardDrawing,
   handle: DrawingHandle,
-  pointer: BoardPoint,
+  pointer: MapPoint,
   map: MapSize,
   measureNote: MeasureBoardNote,
 ): BoardDrawing {
@@ -336,7 +341,7 @@ function zoneHandles(zone: ZoneDrawing): readonly DrawingHandle[] {
     se: { x: right, y: bottom },
     sw: { x: left, y: bottom },
     nw: { x: left, y: top },
-  } satisfies { readonly [Id in ZoneHandleId]: BoardPoint };
+  } satisfies { readonly [Id in ZoneHandleId]: MapPoint };
   return [
     zoneHandle("n", at.n),
     zoneHandle("e", at.e),
@@ -349,7 +354,7 @@ function zoneHandles(zone: ZoneDrawing): readonly DrawingHandle[] {
   ];
 }
 
-function zoneHandle(id: ZoneHandleId, at: BoardPoint): DrawingHandle {
+function zoneHandle(id: ZoneHandleId, at: MapPoint): DrawingHandle {
   return { kind: "zone", id, at, cursor: ZONE_HANDLE_TABLE[id].cursor };
 }
 
@@ -361,7 +366,7 @@ function noteHandles(
   const at = {
     w: { x: note.x, y: midY },
     e: { x: note.x + note.width, y: midY },
-  } satisfies { readonly [Id in NoteHandleId]: BoardPoint };
+  } satisfies { readonly [Id in NoteHandleId]: MapPoint };
   return [
     { kind: "note", id: "w", at: at.w, cursor: NOTE_HANDLE_TABLE.w.cursor },
     { kind: "note", id: "e", at: at.e, cursor: NOTE_HANDLE_TABLE.e.cursor },
@@ -449,7 +454,7 @@ function resizeAxis(
 function resizeZone(
   zone: ZoneDrawing,
   handle: ZoneHandleId,
-  pointer: BoardPoint,
+  pointer: MapPoint,
   map: MapSize,
 ): ZoneDrawing {
   const row = ZONE_HANDLE_TABLE[handle];
@@ -484,21 +489,21 @@ function resizeZone(
   return next;
 }
 
-function clampToMap(point: BoardPoint, map: MapSize): BoardPoint {
+function clampToMap(point: MapPoint, map: MapSize): MapPoint {
   return {
     x: Math.min(map.width, Math.max(0, point.x)),
     y: Math.min(map.height, Math.max(0, point.y)),
   };
 }
 
-function clampInteger(point: BoardPoint, map: MapSize): BoardPoint {
+function clampInteger(point: MapPoint, map: MapSize): MapPoint {
   return {
     x: Math.min(Math.max(Math.round(point.x), 0), Math.floor(map.width)),
     y: Math.min(Math.max(Math.round(point.y), 0), Math.floor(map.height)),
   };
 }
 
-function contains(point: BoardPoint, map: MapSize): boolean {
+function contains(point: MapPoint, map: MapSize): boolean {
   return (
     point.x >= 0 &&
     point.y >= 0 &&
@@ -512,10 +517,10 @@ function arrowFits(map: MapSize): boolean {
 }
 
 function travel(
-  origin: BoardPoint,
-  direction: BoardPoint,
+  origin: MapPoint,
+  direction: MapPoint,
   distance: number,
-): BoardPoint {
+): MapPoint {
   const length = Math.hypot(direction.x, direction.y);
   if (length === 0) return origin;
   return {
@@ -527,9 +532,9 @@ function travel(
 function pushDirection(
   arrow: ArrowDrawing,
   handle: ArrowHandleId,
-  anchor: BoardPoint,
-  pointer: BoardPoint,
-): BoardPoint {
+  anchor: MapPoint,
+  pointer: MapPoint,
+): MapPoint {
   const fromPointer = { x: pointer.x - anchor.x, y: pointer.y - anchor.y };
   if (fromPointer.x !== 0 || fromPointer.y !== 0) return fromPointer;
   const stored =
@@ -541,15 +546,15 @@ function pushDirection(
 }
 
 function separateArrow(
-  anchor: BoardPoint,
-  free: BoardPoint,
+  anchor: MapPoint,
+  free: MapPoint,
   map: MapSize,
-): { readonly anchor: BoardPoint; readonly free: BoardPoint } {
+): { readonly anchor: MapPoint; readonly free: MapPoint } {
   const maxX = Math.floor(map.width);
   const maxY = Math.floor(map.height);
   let nextAnchor = anchor;
   let nextFree = free;
-  const inside = (point: BoardPoint): boolean =>
+  const inside = (point: MapPoint): boolean =>
     point.x >= 0 && point.y >= 0 && point.x <= maxX && point.y <= maxY;
   const limit = maxX + maxY + MIN_DRAWING_SPAN + 2;
   for (let step = 0; step < limit; step += 1) {
@@ -592,7 +597,7 @@ function separateArrow(
 function resizeArrow(
   arrow: ArrowDrawing,
   handle: ArrowHandleId,
-  pointer: BoardPoint,
+  pointer: MapPoint,
   map: MapSize,
 ): ArrowDrawing {
   const tail = { x: arrow.x, y: arrow.y };
@@ -671,7 +676,7 @@ function noteWidthThatFits(
 function resizeNote(
   note: NoteDrawing,
   handle: NoteHandleId,
-  pointer: BoardPoint,
+  pointer: MapPoint,
   map: MapSize,
   measureNote: MeasureBoardNote,
 ): NoteDrawing {

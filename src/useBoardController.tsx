@@ -11,6 +11,7 @@ import { Redo2, Undo2 } from "lucide-react";
 import { BoardPanel, HeroPanel, type BoardUploadState } from "./AppPanels";
 import { DrawingTools } from "./DrawingTools";
 import {
+  DEFAULT_DRAWING_COLOR,
   drawingLimitMessage,
   type BoardDrawing,
   type BoardTool,
@@ -33,7 +34,7 @@ import {
   type BoardSnapshot,
   type HeroPlacement,
 } from "./boardSession";
-import type { BoardToken } from "./boardTokens";
+import { clampToBoard, type BoardPoint, type BoardToken } from "./boardTokens";
 import type { Workspace } from "./workspaceRecord";
 import { normalizeSearch } from "./searchText";
 import { findBoardMap, type BuiltinBoardMapId } from "./maps";
@@ -105,7 +106,7 @@ export function useBoardController({
     [],
   );
   const [tool, setTool] = useState<BoardTool>("move");
-  const [drawingColor, setDrawingColor] = useState("#ffd166");
+  const [drawingColor, setDrawingColor] = useState(DEFAULT_DRAWING_COLOR);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null,
   );
@@ -194,10 +195,10 @@ export function useBoardController({
           `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} selected.`,
         );
       },
-      onMove: (token, x, y) => {
-        session.moveToken({ id: token.id, point: { x, y } });
+      onMove: (token, point) => {
+        session.moveToken({ id: token.id, point });
         setAnnouncement(
-          `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} moved to ${x}, ${y}.`,
+          `${HERO_BY_ID.get(token.heroId)?.name ?? "Hero"} moved to ${point.x}, ${point.y}.`,
         );
       },
       onContextMenu: (token, clientX, clientY) => {
@@ -343,15 +344,10 @@ export function useBoardController({
 
   function placeHero(
     hero: HeroDefinition,
-    x: number,
-    y: number,
+    point: BoardPoint,
     team: Team,
   ): void {
-    const result = session.placeHero({
-      heroId: hero.id,
-      team,
-      point: { x, y },
-    });
+    const result = session.placeHero({ heroId: hero.id, team, point });
     if (result.kind === "team-full") {
       announceTeamFull(team);
       return;
@@ -404,8 +400,15 @@ export function useBoardController({
 
     const board = boardRef.current;
     if (!board) return;
-    const point = board.toBoardPoint(event.clientX, event.clientY);
-    placeHero(hero, point.x, point.y, teamValue);
+    placeHero(
+      hero,
+      clampToBoard(
+        board.toMapPoint(event.clientX, event.clientY),
+        selectedMap,
+        iconSize,
+      ),
+      teamValue,
+    );
   }
 
   function removeToken(token: BoardToken): void {

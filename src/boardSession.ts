@@ -4,7 +4,7 @@ import {
   equalDrawings,
   moveDrawing,
   type BoardDrawing,
-  type BoardPoint,
+  type MapPoint,
   type MeasureBoardNote,
 } from "./boardDrawings";
 import {
@@ -12,6 +12,7 @@ import {
   boardTokenId,
   clampToBoard,
   tokenBoundary,
+  type BoardPoint,
   type BoardToken,
   type IconSize,
 } from "./boardTokens";
@@ -104,8 +105,7 @@ function clampTokens(board: BoardState, iconSize: number): BoardState {
   const map = resolveBoardMap(board.map);
   let moved = false;
   const tokens = board.tokens.map((token) => {
-    const x = clampToBoard(token.x, map.width, iconSize);
-    const y = clampToBoard(token.y, map.height, iconSize);
+    const { x, y } = clampToBoard(token, map, iconSize);
     if (x === token.x && y === token.y) return token;
     moved = true;
     return { ...token, x, y };
@@ -187,14 +187,13 @@ export class BoardSession {
     readonly team: Team;
     readonly point: BoardPoint;
   }): HeroPlaceResult {
-    const map = resolveBoardMap(this.board.map);
     const id = boardTokenId(team, heroId);
     const existing = this.board.tokens.find((token) => token.id === id);
     if (!existing && this.isTeamFull(team)) return { kind: "team-full" };
     const token: BoardToken = {
       ...(existing ?? { id, heroId, team }),
-      x: clampToBoard(point.x, map.width, this.iconSize),
-      y: clampToBoard(point.y, map.height, this.iconSize),
+      x: point.x,
+      y: point.y,
     };
     this.commit({
       ...this.board,
@@ -237,7 +236,11 @@ export class BoardSession {
             )
           )
             continue;
-          return this.placeHero({ heroId, team, point: { x, y } });
+          return this.placeHero({
+            heroId,
+            team,
+            point: clampToBoard({ x, y }, map, this.iconSize),
+          });
         }
       }
     }
@@ -251,17 +254,10 @@ export class BoardSession {
     readonly id: string;
     readonly point: BoardPoint;
   }): BoardSnapshot {
-    const map = resolveBoardMap(this.board.map);
     return this.commit({
       ...this.board,
       tokens: this.board.tokens.map((token) =>
-        token.id === id
-          ? {
-              ...token,
-              x: clampToBoard(point.x, map.width, this.iconSize),
-              y: clampToBoard(point.y, map.height, this.iconSize),
-            }
-          : token,
+        token.id === id ? { ...token, x: point.x, y: point.y } : token,
       ),
     });
   }
@@ -322,7 +318,7 @@ export class BoardSession {
     delta,
   }: {
     readonly id: string;
-    readonly delta: BoardPoint;
+    readonly delta: MapPoint;
   }): BoardDrawing | null {
     const drawing = this.board.drawingsByMap[this.board.map.id]?.find(
       (item) => item.id === id,
@@ -361,8 +357,7 @@ export class BoardSession {
       ...this.board,
       tokens: initialTokens().map((token) => ({
         ...token,
-        x: clampToBoard(token.x, map.width, this.iconSize),
-        y: clampToBoard(token.y, map.height, this.iconSize),
+        ...clampToBoard(token, map, this.iconSize),
       })),
       drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
@@ -391,8 +386,7 @@ export class BoardSession {
       map,
       tokens: this.board.tokens.map((token) => ({
         ...token,
-        x: clampToBoard(token.x, dimensions.width, this.iconSize),
-        y: clampToBoard(token.y, dimensions.height, this.iconSize),
+        ...clampToBoard(token, dimensions, this.iconSize),
       })),
     });
   }
@@ -414,18 +408,15 @@ export class BoardSession {
           heroId: slot.heroId,
           team,
           ...(slot.deadpoolRole ? { deadpoolRole: slot.deadpoolRole } : {}),
-          x: clampToBoard(
-            Math.round(
-              map.width * (TEAM_HALF_START[team] + 0.25) +
+          ...clampToBoard(
+            {
+              x:
+                map.width * (TEAM_HALF_START[team] + 0.25) +
                 (index % 2) * 65 -
                 32,
-            ),
-            map.width,
-            this.iconSize,
-          ),
-          y: clampToBoard(
-            Math.round(map.height * 0.3 + Math.floor(index / 2) * 80),
-            map.height,
+              y: map.height * 0.3 + Math.floor(index / 2) * 80,
+            },
+            map,
             this.iconSize,
           ),
         });

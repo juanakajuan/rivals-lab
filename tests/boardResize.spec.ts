@@ -7,7 +7,7 @@ import {
   moveDrawing,
   resizeDrawing,
   type ArrowDrawing,
-  type BoardPoint,
+  type MapPoint,
   type DrawingHandle,
   type MeasureBoardNote,
   type NoteDrawing,
@@ -115,7 +115,7 @@ const noteWest: DrawingHandle = {
 function resizeTwice(
   drawing: ArrowDrawing | ZoneDrawing | NoteDrawing,
   handle: DrawingHandle,
-  pointer: BoardPoint,
+  pointer: MapPoint,
   bounds: { readonly width: number; readonly height: number },
   measure: MeasureBoardNote,
 ) {
