@@ -37,7 +37,7 @@ export type AutosaveStatus =
 export type BoardWorkspace = Omit<Workspace, "openComp">;
 
 export interface WorkspaceAutosave {
-  syncBoard(board: BoardWorkspace): void;
+  syncBoard(workspace: BoardWorkspace): void;
   syncOpenComp(openComp: OpenCompSnapshot): void;
   flush(): Promise<void>;
   subscribe(listener: (status: AutosaveStatus) => void): () => void;
