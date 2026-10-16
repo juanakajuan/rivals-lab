@@ -5,11 +5,12 @@ import type {
   ImportPreview,
 } from "../../src/backup.ts";
 import { uploadBoardMap, type CustomBoardMap } from "../../src/boardMaps.ts";
-import { prependCompCopies } from "../../src/savedComps.ts";
+import { SavedCompSession } from "../../src/savedComps.ts";
 
 interface AppDataHarness {
   readonly openAppData: typeof openAppData;
-  readonly prependCompCopies: typeof prependCompCopies;
+  openCompSession(): Promise<SavedCompSession>;
+  compSession(): SavedCompSession;
   exportBackup(): Promise<void>;
   readImport(text: string, size?: number): Promise<ImportPreview>;
   applyImport(): Promise<ImportOutcome>;
@@ -79,6 +80,7 @@ function withStore(
 
 let opened: AppData | null = null;
 let plan: ImportPlan | null = null;
+let session: SavedCompSession | null = null;
 
 function openedData(): AppData {
   if (!opened) throw new Error("Rivals Lab data is not open yet.");
@@ -87,7 +89,14 @@ function openedData(): AppData {
 
 window.appDataHarness = {
   openAppData: async () => (opened = await openAppData()),
-  prependCompCopies,
+  openCompSession: async () => {
+    const data = (opened = await openAppData());
+    return (session = new SavedCompSession(data.comps, data.compStart));
+  },
+  compSession: () => {
+    if (!session) throw new Error("No comp session is open.");
+    return session;
+  },
   exportBackup: () => openedData().backup.exportBackup(),
   readImport: async (text, size = new Blob([text]).size) => {
     plan = await openedData().backup.readImportFile({

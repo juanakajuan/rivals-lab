@@ -9,10 +9,11 @@ import {
 import {
   COMP_STORAGE_KEY,
   updateLibrarySource,
+  withCompCopies,
   type CompLibrary,
 } from "./compLibrary";
 import { downloadBlob } from "./downloadBlob";
-import { prependCompCopies, type SavedCompSessionStart } from "./savedComps";
+import type { SavedCompSessionStart } from "./savedComps";
 import {
   EMPTY_STORED_RECORDS,
   decodeStoredRecords,
@@ -64,6 +65,7 @@ const CUSTOM_MAPS = "custom-maps";
 type StoreName = typeof LIBRARY | typeof WORKSPACE | typeof CUSTOM_MAPS;
 type Read = readonly [store: StoreName, key: IDBValidKey | null];
 
+const LIBRARY_CHANGED = "libraryChanged";
 const WORKSPACE_REPLACED = "workspaceReplaced";
 
 class ReplacedElsewhereError extends Error {
@@ -229,16 +231,18 @@ async function boot(onReplaced: () => void): Promise<{
 
 class BrowserCompStorage implements CompStorage {
   private readonly listeners = new Set<() => void>();
-  private channel: BroadcastChannel | null = null;
 
-  constructor(private readonly connection: Promise<Connection>) {}
+  constructor(
+    private readonly connection: Promise<Connection>,
+    private readonly channel: BroadcastChannel | null,
+  ) {
+    channel?.addEventListener("message", (event: MessageEvent<unknown>) => {
+      if (event.data === LIBRARY_CHANGED) this.notify();
+    });
+  }
 
   private readonly notify = (): void => {
     for (const listener of this.listeners) listener();
-  };
-
-  private readonly receive = (event: MessageEvent<unknown>): void => {
-    if (event.data === "libraryChanged") this.notify();
   };
 
   async read(): Promise<string | null> {
@@ -268,25 +272,19 @@ class BrowserCompStorage implements CompStorage {
           );
       },
     );
-    this.channel?.postMessage("libraryChanged");
+    this.channel?.postMessage(LIBRARY_CHANGED);
     this.notify();
   }
 
   subscribe(onChange: () => void): () => void {
     this.listeners.add(onChange);
     if (this.listeners.size === 1) {
-      if (typeof BroadcastChannel !== "undefined") {
-        this.channel = new BroadcastChannel(COMP_STORAGE_KEY);
-        this.channel.addEventListener("message", this.receive);
-      }
       window.addEventListener("focus", this.notify);
       window.addEventListener("pageshow", this.notify);
     }
     return () => {
       this.listeners.delete(onChange);
       if (this.listeners.size) return;
-      this.channel?.close();
-      this.channel = null;
       window.removeEventListener("focus", this.notify);
       window.removeEventListener("pageshow", this.notify);
     };
@@ -475,11 +473,12 @@ class BrowserBackup implements BackupStore {
 
   async applyImport(plan: ImportPlan): Promise<ImportOutcome> {
     const payload = plan.take();
-    if (payload.kind === "addComps")
-      return {
-        kind: "added",
-        count: await prependCompCopies(this.comps, payload.comps),
-      };
+    if (payload.kind === "addComps") {
+      await this.comps.update((library) =>
+        withCompCopies(library, payload.comps),
+      );
+      return { kind: "added", count: payload.comps.length };
+    }
     const resume = this.autosave.pause();
     try {
       await this.autosave.flush();
@@ -519,11 +518,11 @@ export async function openAppData(): Promise<AppData> {
   );
   const { workspace, library } = decodeStoredRecords(records);
   autosave.markPersisted(workspace);
-  const comps = new BrowserCompStorage(connection);
   const channel =
     typeof BroadcastChannel === "undefined"
       ? null
       : new BroadcastChannel(COMP_STORAGE_KEY);
+  const comps = new BrowserCompStorage(connection, channel);
   channel?.addEventListener("message", (event: MessageEvent<unknown>) => {
     if (event.data === WORKSPACE_REPLACED) replaced();
   });

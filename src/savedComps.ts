@@ -307,16 +307,6 @@ export class SavedCompSession {
     });
   }
 
-  async addCopies(
-    comps: readonly SavedComp[],
-  ): Promise<{ readonly count: number }> {
-    return this.runWrite(async () => {
-      const count = await prependCompCopies(this.storage, comps);
-      await this.refresh();
-      return { count };
-    });
-  }
-
   async exportData(entry?: SavedComp): Promise<string> {
     return entry
       ? serializeCompLibrary([entry])
@@ -355,31 +345,9 @@ export class SavedCompSession {
   private write(
     update: (current: readonly SavedComp[]) => readonly SavedComp[],
   ): Promise<void> {
-    return updateLibrary(this.storage, update);
+    return this.storage.update((library) => ({
+      ...library,
+      entries: update(library.entries),
+    }));
   }
-}
-
-function updateLibrary(
-  storage: CompStorage,
-  update: (current: readonly SavedComp[]) => readonly SavedComp[],
-): Promise<void> {
-  return storage.update((library) => ({
-    ...library,
-    entries: update(library.entries),
-  }));
-}
-
-export async function prependCompCopies(
-  storage: CompStorage,
-  comps: readonly SavedComp[],
-): Promise<number> {
-  await updateLibrary(storage, (current) => [
-    ...comps.map((entry): SavedComp => ({
-      ...entry,
-      id: crypto.randomUUID(),
-      updatedAt: new Date().toISOString(),
-    })),
-    ...current,
-  ]);
-  return comps.length;
 }
