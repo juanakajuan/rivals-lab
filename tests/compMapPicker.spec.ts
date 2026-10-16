@@ -5,7 +5,17 @@ import {
   parseCompLibraryStrict,
   serializeCompLibrary,
 } from "../src/compLibrary";
-import { BOARD_MAPS, GAME_MODES, MAPS } from "../src/maps";
+import {
+  BOARD_MAPS,
+  GAME_MODES,
+  MAPS,
+  type GameMode,
+  type MapEntry,
+} from "../src/maps";
+
+function modeCount(mode: GameMode): number {
+  return MAPS.filter((map) => map.mode === mode).length;
+}
 
 function picker(page: Page): Locator {
   return page.getByRole("dialog", { name: "Choose comp map", exact: true });
@@ -319,9 +329,9 @@ test("comp search matches apostrophes and modes, keeps the current map while typ
     await expect(hellsHeaven).toBeVisible();
   }
   for (const [query, count] of [
-    ["  CONVOY  ", 6],
-    ["convergence", 6],
-    ["domination", 5],
+    ["  CONVOY  ", modeCount("Convoy")],
+    ["convergence", modeCount("Convergence")],
+    ["domination", modeCount("Domination")],
   ] satisfies readonly (readonly [string, number])[]) {
     await search.fill(query);
     await expect(dialog.locator(".map-picker-card")).toHaveCount(count);
@@ -394,19 +404,22 @@ test("keyboard selects maps, focuses the current card, and closes without edits"
   for (let index = 1; index < cardCount; index++) {
     await tabInPicker(page, "Tab", cards.nth(index));
   }
+  const lastMap: MapEntry | undefined = MAPS.at(-1);
+  if (!lastMap?.preview)
+    throw new Error("The last catalog map needs a preview for this test.");
   const last = dialog.getByRole("button", {
-    name: "Lower Manhattan",
+    name: lastMap.shortName,
     exact: true,
   });
   await expect(last).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
-    "Lower Manhattan · Convergence",
+    `${lastMap.shortName} · ${lastMap.mode}`,
   );
   await expect(trigger(page).locator("img")).toHaveAttribute(
     "src",
-    "/map-previews/lower-manhattan.jpg",
+    lastMap.preview.imagePath,
   );
   await expect(trigger(page)).toBeFocused();
   await page.keyboard.press("Space");
@@ -421,11 +434,11 @@ test("keyboard selects maps, focuses the current card, and closes without edits"
   await expect(dialog).toBeHidden();
   await expect(trigger(page)).toBeFocused();
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
-    "Lower Manhattan · Convergence",
+    `${lastMap.shortName} · ${lastMap.mode}`,
   );
   await expect(trigger(page).locator("img")).toHaveAttribute(
     "src",
-    "/map-previews/lower-manhattan.jpg",
+    lastMap.preview.imagePath,
   );
 });
 
