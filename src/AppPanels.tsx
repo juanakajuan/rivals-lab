@@ -249,7 +249,7 @@ export function BoardPanel({
   onDrop,
   onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
-  const mapOptions: MapPickerEntry<BoardMapId>[] = [
+  const mapOptions = [
     ...MAPS.map((map): MapPickerEntry<BoardMapId> =>
       "board" in map
         ? boardMapOption(map)
