@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import type Konva from "konva";
+import type { BoardDrawing } from "../src/boardDrawings.ts";
 import type {} from "./fixtures/board.ts";
 
 for (const viewport of [
@@ -221,4 +223,65 @@ test("late map images cannot replace the current map or selection", async ({
       return [...context.getImageData(110, 100, 1, 1).data];
     });
   expect(ringPixel).toEqual([255, 255, 255, 255]);
+});
+
+test("board updates rebuild only the drawings that changed", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixtures/board.html");
+  await page.waitForFunction(() => Boolean(window.boardHarness));
+  const counts = await page.evaluate(() => {
+    const harness = window.boardHarness;
+    let drawings = Array.from({ length: 2000 }, (_, index): BoardDrawing => {
+      const base = {
+        id: `drawing-${index}`,
+        x: 20 + ((index * 37) % 1100),
+        y: 20 + ((index * 53) % 600),
+        color: "#ffcc00",
+      };
+      if (index % 3 === 0)
+        return { ...base, kind: "zone", width: 40, height: 30 };
+      if (index % 3 === 1) return { ...base, kind: "arrow", dx: 30, dy: 20 };
+      return { ...base, kind: "note", text: `Note ${index}`, width: 120 };
+    });
+    const ids = new Set(drawings.map((drawing) => drawing.id));
+    const shapes = () =>
+      harness.stage.find((node: Konva.Node) =>
+        ids.has(node.getParent()?.id() ?? ""),
+      );
+    const update = (changes: {
+      readonly drawings?: readonly BoardDrawing[];
+      readonly selectedDrawingId?: string | null;
+    }) => {
+      const before = new Set(shapes());
+      harness.snapshot = {
+        ...harness.snapshot,
+        boardRevision: harness.snapshot.boardRevision + 1,
+        drawings,
+        ...changes,
+      };
+      harness.board.update(harness.snapshot);
+      const after = shapes();
+      return {
+        shapes: after.length,
+        rebuilt: after.filter((shape) => !before.has(shape)).length,
+      };
+    };
+    const created = update({});
+    const bumped = update({});
+    drawings = drawings.map((drawing, index) =>
+      index === 7 ? { ...drawing, color: "#00ccff" } : drawing,
+    );
+    const edited = update({ drawings });
+    const selected = update({ selectedDrawingId: "drawing-1" });
+    const reselected = update({ selectedDrawingId: "drawing-2" });
+    return { created, bumped, edited, selected, reselected };
+  });
+  expect(counts).toEqual({
+    created: { shapes: 2000, rebuilt: 2000 },
+    bumped: { shapes: 2000, rebuilt: 0 },
+    edited: { shapes: 2000, rebuilt: 1 },
+    selected: { shapes: 2000, rebuilt: 1 },
+    reselected: { shapes: 2000, rebuilt: 2 },
+  });
 });

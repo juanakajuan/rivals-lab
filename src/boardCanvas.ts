@@ -200,7 +200,13 @@ export function createBoardCanvas(
   annotationLayer.add(handleGroup);
   const annotations = new Map<
     string,
-    { group: Konva.Group; drawing: BoardDrawing; dragging: boolean }
+    {
+      group: Konva.Group;
+      drawing: BoardDrawing;
+      dragging: boolean;
+      painted: BoardDrawing | null;
+      selected: boolean;
+    }
   >();
   let gesture: { start: MapPoint; preview: Konva.Group } | null = null;
   let activeResize: {
@@ -371,7 +377,8 @@ export function createBoardCanvas(
   }
 
   function cancelGesture(): void {
-    gesture?.preview.destroy();
+    if (!gesture) return;
+    gesture.preview.destroy();
     gesture = null;
     annotationLayer.batchDraw();
   }
@@ -560,8 +567,11 @@ export function createBoardCanvas(
 
   function renderAnnotations(current: BoardSnapshot): void {
     const items = current.drawings ?? [];
+    const present = new Set(items.map((drawing) => drawing.id));
+    let changed = false;
     for (const [id, item] of annotations) {
-      if (items.some((drawing) => drawing.id === id)) continue;
+      if (present.has(id)) continue;
+      changed = true;
       item.group.destroy();
       annotations.delete(id);
     }
@@ -569,7 +579,13 @@ export function createBoardCanvas(
       let item = annotations.get(drawing.id);
       if (!item) {
         const group = new Konva.Group({ id: drawing.id });
-        item = { group, drawing, dragging: false };
+        item = {
+          group,
+          drawing,
+          dragging: false,
+          painted: null,
+          selected: false,
+        };
         annotations.set(drawing.id, item);
         const entry = item;
         group.on("click tap", (event) => {
@@ -622,14 +638,26 @@ export function createBoardCanvas(
       const painted = shownDrawing(drawing);
       item.drawing = drawing;
       item.group.draggable(activeResize?.drawing.id !== drawing.id);
-      if (!item.dragging) item.group.position({ x: painted.x, y: painted.y });
+      if (
+        !item.dragging &&
+        (item.group.x() !== painted.x || item.group.y() !== painted.y)
+      ) {
+        item.group.position({ x: painted.x, y: painted.y });
+        changed = true;
+      }
+      const selected = drawing.id === current.selectedDrawingId;
+      if (item.painted === painted && item.selected === selected) continue;
+      item.painted = painted;
+      item.selected = selected;
       item.group.destroyChildren();
-      item.group.add(
-        annotationShape(painted, drawing.id === current.selectedDrawingId),
-      );
+      item.group.add(annotationShape(painted, selected));
+      changed = true;
     }
+    const hadHandles = handleGroup.hasChildren();
     syncHandles(current);
-    annotationLayer.batchDraw();
+    if (changed || hadHandles || handleGroup.hasChildren()) {
+      annotationLayer.batchDraw();
+    }
   }
 
   function pointerPoint(): MapPoint | null {
