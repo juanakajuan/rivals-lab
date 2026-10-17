@@ -11,7 +11,7 @@ Source of truth for verifying user-facing behavior. Read this index, then the ma
 ## Driving conventions
 
 - Prefer ARIA roles and accessible names over CSS selectors.
-- Wait for the `status` region text instead of reading it once; it updates after the action.
+- Wait for status text with a retrying assertion instead of reading it once; it updates after the action. Several `status` regions can exist, so scope the locator (for example `.save-status` in the builder).
 - Do not remove `artifacts/verify/` during cleanup.
 
 ## Proof and skip reporting
@@ -25,7 +25,9 @@ Each file has an H1, one paragraph, then exactly four H2s: `Sub-features`, `How 
 
 ## Features
 
-- [Position Board](./board.md) covers token selection, drag, undo, redo.
-- [Comp Builder save](./builder-save.md) covers naming, hero picks, notes, save, and reload.
+- [Position Board](./board.md) covers token selection, drag, undo, redo, placement, and autosave.
+- [Comp Builder save](./builder-save.md) covers naming, hero picks, notes, map, save, autosave, and load.
 - [Image export](./export-png.md) covers PNG download from the builder.
 - [Changelog](./changelog.md) covers the release notes page.
+- [Backup](./backup.md) covers the full-data backup download.
+- [Page routes](./routes.md) covers URL handling, tab titles, and the not-found page.
