@@ -5,7 +5,7 @@ description: Launch and drive the Rivals Lab web app (Position Board, Draft / Co
 
 # Verify Rivals Lab
 
-Rivals Lab is a Vite + React single-page app served at `/board`, `/builder`, and `/changelog`. There is no backend; saved comps live in the browser's IndexedDB. Drive it with Playwright in Chromium, and prove behavior with screenshots plus asserted state.
+Rivals Lab is a Vite + React single-page app served at `/board`, `/builder`, and `/changelog`. There is no backend; saved comps, the open comp, and the board autosave to the browser's IndexedDB. Drive it with Playwright in Chromium, and prove behavior with screenshots plus asserted state.
 
 Run every command from the repo root. Feature recipes are in [features/README.md](features/README.md); read the matching file before driving.
 
@@ -31,18 +31,18 @@ Read-only. Prints JSON and exits non-zero if the pid file is missing, the URL do
 node .claude/skills/verify/scripts/drive.mjs <flow>
 ```
 
-Flows: `builder-save`, `board-undo`, `export-png`, `changelog`. Each opens a fresh Chromium context (empty IndexedDB), asserts state, and exits non-zero on failure. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` if the Playwright browser is not installed.
+Flows: `builder-save`, `board-undo`, `board-place`, `export-png`, `changelog`, `backup`, `routes`. Each opens a fresh Chromium context (empty IndexedDB), asserts state, and exits non-zero on failure. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` if the Playwright browser is not installed.
 
-For a feature with no flow, copy a flow in `scripts/drive.mjs`. Use stable handles: ARIA roles and names (`Comp name`, `Allies slot 1: Choose hero`, `Undo`, `Redo`, `Download & Copy`), `.coordinates`, `.selection-name strong`, `.stage-host canvas`. The board canvas is 1200 units wide; scale mouse coordinates by `bounds.width / 1200`.
+For a feature with no flow, add an entry to the `flows` object in `scripts/drive.mjs`. Use `expect` from `@playwright/test` for text that changes after an action. Use stable handles: ARIA roles and names (`Comp name`, `Allies slot 1: Choose hero`, `Undo`, `Redo`, `Download & Copy`), `.coordinates`, `.selection-name strong`, `.stage-host canvas`. The board canvas is 1200 units wide; scale mouse coordinates by `bounds.width / 1200`.
 
 ## Evidence
 
-Each flow writes to `artifacts/verify/<flow>/` (gitignored): numbered screenshots, `console.log` with browser console and page errors, and the downloaded PNG for `export-png`. Proof standards:
+Each flow writes to `artifacts/verify/<flow>/` (gitignored): numbered screenshots, `console.log` with browser console and page errors, and the downloaded file for `export-png` and `backup`. Proof standards:
 
 - Use the real UI path (clicks, typing, mouse drag). Do not call app internals.
 - Capture the action and the resulting state, not only the last screen.
 - For persistence, reload the page and assert the stored value comes back.
-- For export, check the downloaded file exists and is a real PNG, not only the status text.
+- For a download, check the saved file: the PNG signature for `export-png`, the parsed JSON for `backup`. The status text alone is not proof.
 - Attach media to PRs with `npm run media:upload`. Never commit it.
 
 ## Cleanup
