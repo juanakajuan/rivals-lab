@@ -1,3 +1,4 @@
+import Konva from "konva";
 import {
   createBoardCanvas,
   type BoardCanvas,
@@ -8,6 +9,7 @@ import { DEFAULT_MAP_ID } from "../../src/maps.ts";
 
 interface BoardHarness {
   readonly board: BoardCanvas;
+  readonly stage: Konva.Stage;
   snapshot: BoardSnapshot;
   readonly moves: { readonly x: number; readonly y: number }[];
 }
@@ -44,8 +46,11 @@ const board = createBoardCanvas(host, {
   },
   onContextMenu() {},
 });
+const stage = Konva.stages.find((candidate) => candidate.container() === host);
+if (!stage) throw new Error("Missing board stage");
 window.boardHarness = {
   board,
+  stage,
   snapshot: {
     map: resolveBoardMap({ kind: "builtin", id: DEFAULT_MAP_ID }),
     boardRevision: 0,
