@@ -847,17 +847,30 @@ button:focus-visible,
   }
 
   .board-panel {
-    order: 1;
-    height: auto;
-    display: block;
-    padding: 18px 12px 24px;
+    display: contents;
+  }
+
+  .board-panel > * {
+    margin-inline: 12px;
+  }
+
+  .board-heading {
+    margin-top: 18px;
+  }
+
+  .board-toolbar {
+    margin-bottom: 24px;
   }
 
   .hero-panel {
-    order: 2;
+    order: 1;
     overflow: visible;
     border-top: 1px solid var(--border);
     border-right: 0;
+  }
+
+  .hero-panel-header {
+    position: static;
   }
 
   .hero-list {
@@ -870,12 +883,10 @@ button:focus-visible,
   }
 
   .board-shell {
-    display: block;
-  }
-
-  .stage-host {
-    height: auto;
-    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    max-height: 45dvh;
   }
 
   .selection-name span,
