@@ -1,10 +1,9 @@
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 const PROFILE = join(homedir(), ".cache", "gh-upload-profile");
 const ASSET = /https:\/\/github\.com\/user-attachments\/assets\/[0-9a-f-]+/;
-const COMMENT_BOX = "textarea#new_comment_field";
 const USAGE = `Usage:
   npm run media:login
   npm run media:upload -- <pull-request-or-issue-url> <image-or-video>...`;
@@ -34,25 +33,17 @@ async function upload(url: string, files: readonly string[]): Promise<void> {
   try {
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto(url);
-    const box = page.locator(COMMENT_BOX);
+    // Issue pages use the React composer and PR pages the classic one. Both
+    // expose a "comment" textbox and an "Add files" button.
+    const box = page.getByRole("textbox", { name: /comment/i }).first();
     await box.waitFor({ timeout: 30_000 });
-    const input = page
-      .locator('form.js-new-comment-form input[type="file"]')
-      .first();
+    const attach = page.getByRole("button", { name: /add files/i }).first();
     for (const file of files) {
       await box.fill("");
-      await input.setInputFiles(resolve(file));
-      await page.waitForFunction(
-        ([selector, source]) => {
-          const field = document.querySelector(selector ?? "");
-          return (
-            field instanceof HTMLTextAreaElement &&
-            new RegExp(source ?? "").test(field.value)
-          );
-        },
-        [COMMENT_BOX, ASSET.source],
-        { timeout: 60_000 },
-      );
+      const chooser = page.waitForEvent("filechooser");
+      await attach.click();
+      await (await chooser).setFiles(resolve(file));
+      await expect(box).toHaveValue(ASSET, { timeout: 60_000 });
       const link = ASSET.exec(await box.inputValue())?.[0];
       if (!link) throw new Error(`GitHub returned no link for ${file}.`);
       console.log(`${basename(file)}\t${link}`);
