@@ -1,5 +1,31 @@
 [
   {
+    "id": "f1cd0ce2-cfa0-40df-8854-682a2e9c030a",
+    "date": "2026-10-20",
+    "notes": [
+      {
+        "id": "autosave-keeps-newer-version-data",
+        "text": "Bug fix: Saving no longer overwrites a board or comp library saved by a newer version of Rivals Lab. The page asks you to reload."
+      },
+      {
+        "id": "board-edge-token-drag-103",
+        "text": "Bug fix: Position Board heroes near the map edge can be dragged again after you make hero icons larger."
+      },
+      {
+        "id": "board-team-limit-83",
+        "text": "Bug fix: Position Board teams now stop at six heroes, matching the Draft / Comp Builder."
+      },
+      {
+        "id": "mrc-three-bans",
+        "text": "Feature: MRC drafts use 3 bans and 2 saves per team, and older 4-ban MRC comps load without Ban 4."
+      },
+      {
+        "id": "restore-over-six-heroes",
+        "text": "Bug fix: A backup with more than 6 heroes on a team now restores with the first 6 heroes per team and a notice."
+      }
+    ]
+  },
+  {
     "id": "252e1af1-25dd-46f7-9f43-1a0085d15219",
     "date": "2026-10-10",
     "notes": [
