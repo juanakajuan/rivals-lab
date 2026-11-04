@@ -1,19 +1,27 @@
 import type { MapPickerOption } from "./MapPicker";
 import {
-  BOARD_MAPS,
-  type BoardImage,
-  type BoardMap,
+  MAPS,
   type BuiltinBoardMapId,
+  type CatalogMap,
+  type CatalogStage,
   type GameMode,
+  type MapId,
 } from "./maps";
 
 export type CustomBoardMapId = `custom:${string}`;
 export type BoardMapId = BuiltinBoardMapId | CustomBoardMapId;
 
-interface BuiltinBoardMap extends BoardImage {
+export interface BuiltinBoardMap {
+  readonly kind: "builtin";
   readonly id: BuiltinBoardMapId;
+  readonly mapId: MapId;
   readonly name: string;
   readonly mode: GameMode;
+  readonly stageName: string;
+  readonly stages: readonly CatalogStage[];
+  readonly imagePath: string;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface CustomBoardMap {
@@ -37,11 +45,34 @@ export type BoardMapUpload =
   | { readonly kind: "ready"; readonly map: CustomBoardMap }
   | { readonly kind: "error"; readonly message: string };
 
+export function scaledSize(
+  width: number,
+  height: number,
+): { readonly width: number; readonly height: number } {
+  const scale = Math.max(
+    1200 / Math.max(width, height),
+    300 / Math.min(width, height),
+  );
+  return { width: width * scale, height: height * scale };
+}
+
 const BUILTIN_BOARD_MAPS: ReadonlyMap<string, BuiltinBoardMap> = new Map(
-  BOARD_MAPS.map(({ id, name, mode, board }) => [
-    id,
-    { id, name, mode, ...board },
-  ]),
+  MAPS.flatMap((map) =>
+    map.stages.map((stage): readonly [string, BuiltinBoardMap] => [
+      stage.id,
+      {
+        kind: "builtin",
+        id: stage.id,
+        mapId: map.id,
+        name: map.name,
+        mode: map.mode,
+        stageName: stage.name,
+        stages: map.stages,
+        imagePath: stage.image.imagePath,
+        ...scaledSize(stage.image.width, stage.image.height),
+      },
+    ]),
+  ),
 );
 
 export function resolveBoardMap(map: SelectedBoardMap): BoardMapDefinition {
@@ -52,14 +83,14 @@ export function resolveBoardMap(map: SelectedBoardMap): BoardMapDefinition {
 }
 
 export function boardMapOption(
-  map: BoardMap,
+  map: CatalogMap,
 ): MapPickerOption<BuiltinBoardMapId> {
+  const [stage] = map.stages;
   return {
-    value: map.id,
+    value: stage.id,
     name: map.name,
     detail: map.mode,
-    imagePath: map.board.imagePath,
-    imageSize: [map.board.width, map.board.height],
+    imagePath: stage.thumb,
   };
 }
 
@@ -72,17 +103,6 @@ const CUSTOM_MAP_ID =
   /^custom:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IMAGE_DATA_URL =
   /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
-
-function scaledSize(
-  width: number,
-  height: number,
-): { readonly width: number; readonly height: number } {
-  const scale = Math.max(
-    1200 / Math.max(width, height),
-    300 / Math.min(width, height),
-  );
-  return { width: width * scale, height: height * scale };
-}
 
 export function customMapBudgetError(
   maps: readonly Pick<CustomBoardMap, "sourceBytes" | "sourcePixels">[],

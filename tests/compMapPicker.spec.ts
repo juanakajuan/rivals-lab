@@ -5,13 +5,7 @@ import {
   parseCompLibraryStrict,
   serializeCompLibrary,
 } from "../src/compLibrary";
-import {
-  BOARD_MAPS,
-  GAME_MODES,
-  MAPS,
-  type GameMode,
-  type MapEntry,
-} from "../src/maps";
+import { GAME_MODES, MAPS, type GameMode, type MapEntry } from "../src/maps";
 
 function modeCount(mode: GameMode): number {
   return MAPS.filter((map) => map.mode === mode).length;
@@ -141,16 +135,14 @@ test("comp image opens the scenic picker and updates one map caption", async ({
         ),
       )
       .toBe(true);
-    const ratios = await image.evaluate((element) => {
-      if (!(element instanceof HTMLImageElement))
-        throw new Error("Missing scenic image");
+    const frame = await image.evaluate((element) => {
       const bounds = element.getBoundingClientRect();
       return {
-        actual: bounds.width / bounds.height,
-        natural: element.naturalWidth / element.naturalHeight,
+        ratio: bounds.width / bounds.height,
+        fit: getComputedStyle(element).objectFit,
       };
     });
-    expect(ratios.actual).toBeCloseTo(ratios.natural, 2);
+    expect(frame).toEqual({ ratio: expect.closeTo(16 / 9, 2), fit: "contain" });
   }
   await dialog.getByRole("button", { name: "Midtown", exact: true }).click();
   await expect(dialog).toBeHidden();
@@ -598,28 +590,28 @@ test("fallback cards preserve comp map and data on rejected replacement and tran
     exact: true,
   });
   await expect(fallback).toContainText(
-    "This comp has no map selected. Choose a supported map. The saved comp’s map will stay unchanged.",
+    "This comp has no map selected. Choose one map. The saved comp’s map will stay unchanged.",
   );
-  await expect(fallback.getByRole("button")).toHaveCount(BOARD_MAPS.length + 1);
+  await expect(fallback.getByRole("button")).toHaveCount(MAPS.length + 1);
   const first = fallback.getByRole("button", {
     name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
     exact: true,
   });
   await expect(first).toBeFocused();
   await expect(fallback.getByRole("button", { pressed: true })).toHaveCount(0);
-  for (const map of BOARD_MAPS) {
+  for (const map of MAPS) {
     await expect(
       fallback
         .getByRole("button", { name: map.name, exact: true })
         .locator("img"),
-    ).toHaveAttribute("src", map.board.imagePath);
+    ).toHaveAttribute("src", map.stages[0].thumb);
   }
   const search = fallback.getByRole("searchbox", {
     name: "Search maps",
     exact: true,
   });
   await search.fill("  CONVOY  ");
-  const convoyMaps = BOARD_MAPS.filter((map) => map.mode === "Convoy");
+  const convoyMaps = MAPS.filter((map) => map.mode === "Convoy");
   await expect(fallback.locator(".map-picker-card")).toHaveCount(
     convoyMaps.length,
   );

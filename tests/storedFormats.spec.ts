@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { readImportFile, type ImportPlan } from "../src/backup";
+import type { BoardDrawing, MeasureBoardNote } from "../src/boardDrawings";
+import { resolveBoardMap } from "../src/boardMaps";
+import { BoardSession } from "../src/boardSession";
 import { decodeCompLibrary, updateLibrarySource } from "../src/compLibrary";
+import { findBoardMap } from "../src/maps";
 import { emptyOpenComp } from "../src/savedComps";
 import {
   EMPTY_STORED_RECORDS,
@@ -89,7 +93,7 @@ test("a board saved before #98 boots and restores to the same six heroes per tea
   );
   expect(booted.workspace.board.map).toEqual({
     kind: "builtin",
-    id: "hells-heaven",
+    id: "hells-heaven-airfield-base",
   });
   expect(booted.boardNotices).toEqual([TEAM_NOTICE]);
   expect(plan.preview).toMatchObject({
@@ -101,6 +105,65 @@ test("a board saved before #98 boots and restores to the same six heroes per tea
     encodeBoardRecord(booted.workspace.board, booted.workspace.iconSize),
   );
   expect(payload.board.version).toBe(2);
+});
+
+test("a board saved before #96 opens the first stage with every token and drawing on its map", async () => {
+  const stored: unknown = JSON.parse(
+    await fixture("board-pre-96-landscape.json"),
+  );
+  const { workspace } = decodeStoredRecords(
+    { ...EMPTY_STORED_RECORDS, board: stored },
+    "boot",
+  );
+  expect(workspace.board.map).toEqual({
+    kind: "builtin",
+    id: "birnin-tchalla-imperial-institute-of-science",
+  });
+  expect(Object.keys(workspace.board.drawingsByMap).sort()).toEqual([
+    "birnin-tchalla-imperial-institute-of-science",
+    "hells-heaven-airfield-base",
+  ]);
+  const noteHeight = 36;
+  const measureNote: MeasureBoardNote = (text, width) => {
+    void text;
+    return { width, height: noteHeight };
+  };
+  const { board, tokens } = new BoardSession(
+    measureNote,
+    workspace.board,
+    workspace.iconSize,
+  ).getSnapshot();
+  const map = resolveBoardMap(board.map);
+  expect(tokens).toHaveLength(2);
+  const offMap = tokens.filter(
+    (token) =>
+      token.x < 0 || token.x > map.width || token.y < 0 || token.y > map.height,
+  );
+  expect(offMap).toEqual([]);
+  const extent = (drawing: BoardDrawing): { width: number; height: number } =>
+    drawing.kind === "zone"
+      ? drawing
+      : drawing.kind === "note"
+        ? { width: drawing.width, height: noteHeight }
+        : { width: drawing.dx, height: drawing.dy };
+  for (const [id, drawings] of Object.entries(board.drawingsByMap)) {
+    const owner = findBoardMap(id);
+    if (!owner) throw new Error(`Unknown map: ${id}`);
+    const bounds = resolveBoardMap({ kind: "builtin", id: owner.stage.id });
+    expect(drawings).toHaveLength(2);
+    for (const drawing of drawings ?? []) {
+      const size = extent(drawing);
+      expect(drawing.x, `${id} ${drawing.id}`).toBeGreaterThanOrEqual(0);
+      expect(drawing.y, `${id} ${drawing.id}`).toBeGreaterThanOrEqual(0);
+      expect(drawing.x + size.width, `${id} ${drawing.id}`).toBeLessThanOrEqual(
+        bounds.width,
+      );
+      expect(
+        drawing.y + size.height,
+        `${id} ${drawing.id}`,
+      ).toBeLessThanOrEqual(bounds.height);
+    }
+  }
 });
 
 test("a board saved by this version decodes without a notice", async () => {

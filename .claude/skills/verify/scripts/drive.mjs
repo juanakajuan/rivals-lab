@@ -32,15 +32,55 @@ async function pickHero(page, slot, hero) {
     .click();
 }
 
-function boardPoint(bounds, x, y) {
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
+function boardPoint(board, x, y) {
+  const scale = board.bounds.width / board.width;
+  return { x: board.bounds.x + x * scale, y: board.bounds.y + y * scale };
 }
 
 async function boardBounds(page) {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
+  const host = page.locator(".stage-host").first();
+  const bounds = await host.locator("canvas").first().boundingBox();
   check(bounds !== null, "board canvas has bounds");
-  return bounds;
+  const width = Number(await host.getAttribute("data-map-width"));
+  const height = Number(await host.getAttribute("data-map-height"));
+  check(width > 0 && height > 0, "board reports its map size");
+  return { bounds, width, height };
+}
+
+const TOKEN_BOUNDARY = 24;
+
+function clampedAxis(fraction, length) {
+  return Math.round(
+    Math.max(
+      TOKEN_BOUNDARY,
+      Math.min(length - TOKEN_BOUNDARY, fraction * length),
+    ),
+  );
+}
+
+function strangeStart(board) {
+  return {
+    x: clampedAxis(0.225, board.width),
+    y: clampedAxis(0.665, board.height),
+  };
+}
+
+function coordinatesText(point) {
+  return `x ${point.x}, y ${point.y}`;
+}
+
+async function expectCoordinatesNear(coordinates, point, board) {
+  const tolerance = Math.ceil(board.width / board.bounds.width);
+  await expect
+    .poll(async () => {
+      const match = /^x (\d+), y (\d+)$/.exec(await coordinates.innerText());
+      if (!match) return Infinity;
+      return Math.max(
+        Math.abs(Number(match[1]) - point.x),
+        Math.abs(Number(match[2]) - point.y),
+      );
+    })
+    .toBeLessThanOrEqual(tolerance);
 }
 
 function navLink(page, name) {
@@ -112,29 +152,33 @@ const flows = {
 
   async "board-undo"(page) {
     await page.goto("/board");
-    const bounds = await boardBounds(page);
-    const start = boardPoint(bounds, 270, 435);
-    const end = boardPoint(bounds, 350, 480);
+    const board = await boardBounds(page);
+    const startToken = strangeStart(board);
+    const endToken = { x: startToken.x + 80, y: startToken.y + 45 };
+    const startText = coordinatesText(startToken);
+    const start = boardPoint(board, startToken.x, startToken.y);
+    const end = boardPoint(board, endToken.x, endToken.y);
     const coordinates = page.locator(".coordinates");
     await page.mouse.click(start.x, start.y);
     await expect(page.locator(".selection-name strong")).toHaveText(
       "Doctor Strange",
     );
-    await expect(coordinates).toHaveText("x 270, y 435");
-    check(true, "token at 270,435 is Doctor Strange");
+    await expect(coordinates).toHaveText(startText);
+    check(true, `token at ${startText} is Doctor Strange`);
     await page.screenshot({ path: join(out, "1-selected.png") });
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.mouse.move(end.x, end.y, { steps: 8 });
     await page.mouse.up();
-    await expect(coordinates).toHaveText("x 350, y 480");
-    check(true, "drag moves token to x 350, y 480");
+    await expectCoordinatesNear(coordinates, endToken, board);
+    const movedText = await coordinates.innerText();
+    check(true, `drag moves token to ${movedText}`);
     await page.screenshot({ path: join(out, "2-moved.png") });
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(coordinates).toHaveText("x 270, y 435");
+    await expect(coordinates).toHaveText(startText);
     check(true, "undo restores start position");
     await page.getByRole("button", { name: "Redo", exact: true }).click();
-    await expect(coordinates).toHaveText("x 350, y 480");
+    await expect(coordinates).toHaveText(movedText);
     check(true, "redo restores moved position");
     await page.screenshot({ path: join(out, "3-redone.png") });
   },

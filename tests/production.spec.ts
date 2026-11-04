@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { MAPS } from "../src/maps";
+import {
+  boardGeometry,
+  boardPoint,
+  coordinatesText,
+  defaultToken,
+} from "./boardGeometry";
 
 async function chooseCompMap(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Comp map", exact: true }).click();
@@ -91,31 +97,34 @@ test("saved comp fields survive a production reload", async ({ page }) => {
 test("board token drag can be undone and redone", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
   await page.goto("/board");
-  const canvas = page.locator(".stage-host canvas").first();
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  const x = bounds.x + 270 * scale;
-  const y = bounds.y + 435 * scale;
+  const strange = defaultToken("strange");
+  const startText = coordinatesText(strange);
+  const drag = { x: 80, y: 45 };
+  const { scale } = await boardGeometry(page);
+  const { x, y } = await boardPoint(page, strange.x, strange.y);
   await page.mouse.click(x, y);
   await expect(page.locator(".selection-name strong")).toHaveText(
     "Doctor Strange",
   );
-  await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
+  await expect(page.locator(".coordinates")).toHaveText(startText);
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + 80 * scale, y + 45 * scale, { steps: 8 });
+  await page.mouse.move(x + drag.x * scale, y + drag.y * scale, { steps: 8 });
   await page.mouse.up();
-  await expect(page.locator(".coordinates")).not.toHaveText("x 270, y 435");
+  await expect(page.locator(".coordinates")).not.toHaveText(startText);
   const moved = await page.locator(".coordinates").innerText();
   const coordinates = /^x (\d+), y (\d+)$/.exec(moved);
   if (!coordinates?.[1] || !coordinates[2])
     throw new Error("Missing token coordinates");
   const tolerance = Math.ceil(1 / scale);
-  expect(Math.abs(Number(coordinates[1]) - 350)).toBeLessThanOrEqual(tolerance);
-  expect(Math.abs(Number(coordinates[2]) - 480)).toBeLessThanOrEqual(tolerance);
+  expect(
+    Math.abs(Number(coordinates[1]) - (strange.x + drag.x)),
+  ).toBeLessThanOrEqual(tolerance);
+  expect(
+    Math.abs(Number(coordinates[2]) - (strange.y + drag.y)),
+  ).toBeLessThanOrEqual(tolerance);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
+  await expect(page.locator(".coordinates")).toHaveText(startText);
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(page.locator(".coordinates")).toHaveText(moved);
 });
