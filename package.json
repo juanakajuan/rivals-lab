@@ -23,6 +23,7 @@
     "deploy:discard": "node scripts/releases.ts --discard",
     "media:login": "node scripts/github-media.ts login",
     "media:upload": "node scripts/github-media.ts upload",
+    "maps:import": "node scripts/import-maps.ts",
     "test:releases": "node --test tests/releases.test.ts",
     "test:check-pr": "node --test tests/checkPr.test.ts",
     "test:agents": "node --test tests/agentRules.test.ts",
