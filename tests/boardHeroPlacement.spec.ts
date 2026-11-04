@@ -350,3 +350,36 @@ test.describe("touch placement", () => {
     ).toBeLessThanOrEqual(390);
   });
 });
+
+test.describe("small phone layout", () => {
+  test.use({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 375, height: 812 },
+  });
+
+  test("the map stays in view while the user adds a hero from the end of the list", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const add = page.getByRole("button", {
+      name: "Add Deadpool to Allies",
+      exact: true,
+    });
+    await add.scrollIntoViewIfNeeded();
+    await add.tap();
+    await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
+      "Allies 4",
+    );
+    await expect(page.locator(".selection-name strong")).toHaveText("Deadpool");
+    await expect(page.locator(".stage-host canvas").first()).toBeInViewport({
+      ratio: 1,
+    });
+    await expect(
+      page.getByRole("button", {
+        name: "Remove Deadpool from Allies",
+        exact: true,
+      }),
+    ).toBeInViewport({ ratio: 1 });
+  });
+});
