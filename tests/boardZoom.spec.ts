@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { initialBoard } from "../src/boardSession";
 import {
   boardGeometry,
   boardPoint,
@@ -7,14 +6,15 @@ import {
   DEFAULT_BOARD,
   type ClientPoint,
 } from "./boardGeometry";
+import { EXAMPLE_FORMATION, openExampleBoard } from "./boardSetup";
 
 const map = DEFAULT_BOARD;
-const [token] = [...initialBoard().tokens].sort(
+const [token] = [...EXAMPLE_FORMATION].sort(
   (a, b) =>
     Math.hypot(a.x - map.width / 2, a.y - map.height / 2) -
     Math.hypot(b.x - map.width / 2, b.y - map.height / 2),
 );
-if (!token) throw new Error("The default board has no heroes");
+if (!token) throw new Error("The example formation has no heroes");
 const centerToken = token;
 
 async function zoomPercent(page: Page): Promise<number> {
@@ -41,7 +41,7 @@ async function zoomedTokenPoint(
 test("the scroll wheel zooms around the pointer and heroes stay clickable", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   const point = await boardPoint(page, token.x, token.y);
   await expect(page.locator(".zoom-level")).toHaveText("100%");
   await page.mouse.move(point.x, point.y);
@@ -67,7 +67,7 @@ test("the scroll wheel zooms around the pointer and heroes stay clickable", asyn
 test("the zoom buttons zoom the map, dragging the map pans it, and Fit map restores it", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   const zoomIn = page.getByRole("button", { name: "Zoom in" });
   const zoomOut = page.getByRole("button", { name: "Zoom out" });
   const fit = page.getByRole("button", { name: "Fit map" });

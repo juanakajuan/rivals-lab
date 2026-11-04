@@ -22,12 +22,12 @@ The board shows hero tokens on a map canvas. Users add heroes to a team, select 
 
 Preconditions: server up and doctor clean.
 
-- **Select, drag, undo, redo.** Run `node .claude/skills/verify/scripts/drive.mjs board-undo`. Clicking canvas point (270, 435) selects `Doctor Strange` and `.coordinates` reads `x 270, y 435`. Dragging by (80, 45) changes it to `x 350, y 480`. `Undo` returns it to the start, and `Redo` returns it to the moved value.
-- **Placement and persistence.** Run `node .claude/skills/verify/scripts/drive.mjs board-place`. The team button reads `Allies 3` at start. `Clear` makes it `Allies 0`. `Add Angela to Allies` makes it `Allies 1` and selects `Angela`. Undo and Redo apply to the placement. After a reload, `Allies 1` stays, and `Undo` and `Redo` are disabled.
+- **Select, drag, undo, redo.** Run `node .claude/skills/verify/scripts/drive.mjs board-undo`. `Add Doctor Strange to Allies` places and selects `Doctor Strange`; the flow reads its start from `.coordinates`. Dragging by (80, 45) changes `.coordinates`. `Undo` returns it to the start, and `Redo` returns it to the moved value.
+- **Placement and persistence.** Run `node .claude/skills/verify/scripts/drive.mjs board-place`. A new board reads `Allies 0` and `Opponents 0` and has no `Reset` button. `Add Angela to Allies` makes it `Allies 1` and selects `Angela`. Undo and Redo apply to the placement. `Clear` makes it `Allies 0`, and `Undo` restores it. After a reload, `Allies 1` stays, and `Undo` and `Redo` are disabled.
 
 ## Gotchas
 
 - Canvas coordinates are in 1200-wide board units; scale mouse positions by the canvas width. A custom map uses 1200 for its longest side, so a portrait map is narrower.
-- The board autosaves to IndexedDB. Only a fresh browser context or `Reset` gives the default layout; a reload keeps moved tokens.
+- The board autosaves to IndexedDB. A fresh browser context starts with an empty board; a reload keeps placed and moved tokens.
 - Undo history is in memory only and resets on reload.
 - Match the team button with `getByRole("button", { name: /^Allies/ })`; its name includes the count.

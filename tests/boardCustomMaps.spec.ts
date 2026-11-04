@@ -1,17 +1,8 @@
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import type Konva from "konva";
 import { scaledSize } from "../src/boardMaps";
-import { DEFAULT_ICON_SIZE, clampToBoard } from "../src/boardTokens";
 import { boardGeometry } from "./boardGeometry";
-
-const RESET_FORMATION = [
-  { x: 0.225, y: 0.665 },
-  { x: 0.317, y: 0.535 },
-  { x: 0.192, y: 0.795 },
-  { x: 0.721, y: 0.474 },
-  { x: 0.8, y: 0.627 },
-  { x: 0.758, y: 0.787 },
-] as const;
+import { openExampleBoard } from "./boardSetup";
 
 declare global {
   interface Window {
@@ -322,7 +313,6 @@ test("portrait heroes and each drawing tool work through image replacement and h
 }) => {
   await page.goto("/");
   await upload(page, await imageFile(page, 400, 800, "portrait.png"));
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
   await page
     .getByRole("button", { name: "Add Hulk to Allies", exact: true })
     .click();
@@ -385,35 +375,14 @@ test("portrait heroes and each drawing tool work through image replacement and h
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "arrow selected.",
   );
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
   const map = await boardGeometry(page);
   expect(map.width).toBeCloseTo(scaledSize(400, 800).width);
-  const renderedTokens = await page.evaluate(() => {
-    const stage = window.Konva?.stages.find((item) =>
-      item.container().matches(".stage-host"),
-    );
-    if (!stage) throw new Error("Missing board");
-    return stage
-      .getLayers()
-      .at(-1)
-      ?.getChildren()
-      .map((node) => ({ x: node.x(), y: node.y() }));
-  });
-  expect(renderedTokens).toEqual(
-    RESET_FORMATION.map((slot) =>
-      clampToBoard(
-        { x: slot.x * map.width, y: slot.y * map.height },
-        map,
-        DEFAULT_ICON_SIZE,
-      ),
-    ),
-  );
 });
 
 test("failed uploads preserve image, drawings, formation, undo, and redo", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await upload(page, await imageFile(page, 800, 400));
   await page.getByRole("button", { name: "Draw zone", exact: true }).click();
   await page

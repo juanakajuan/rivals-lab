@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openExampleBoard } from "./boardSetup";
 import { emptyComp } from "../src/comps";
 import {
   decodeCompLibrary,
@@ -310,7 +311,7 @@ test("direct bans and saves apply at once and can be replaced or cleared", async
 test("board transfer requires a supported map and confirms replacement; edits stay in the builder", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await openBuilder(page);
   await expect(page).toHaveURL(/\/builder$/);
   await pickHero(page, "Allies slot 1: Choose hero", "Hulk");

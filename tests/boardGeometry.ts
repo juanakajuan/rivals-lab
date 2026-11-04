@@ -1,7 +1,6 @@
 import type { Page } from "@playwright/test";
 import { resolveBoardMap, type BoardMapDefinition } from "../src/boardMaps";
 import { initialBoard } from "../src/boardSession";
-import type { BoardToken } from "../src/boardTokens";
 
 export interface ClientPoint {
   readonly x: number;
@@ -21,12 +20,6 @@ export interface BoardGeometry {
 export const DEFAULT_BOARD: BoardMapDefinition = resolveBoardMap(
   initialBoard().map,
 );
-
-export function defaultToken(heroId: string): BoardToken {
-  const token = initialBoard().tokens.find((item) => item.heroId === heroId);
-  if (!token) throw new Error(`${heroId} is not on the default board`);
-  return token;
-}
 
 export function coordinatesText(point: ClientPoint): string {
   return `x ${point.x}, y ${point.y}`;

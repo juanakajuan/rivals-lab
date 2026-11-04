@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openExampleBoard } from "./boardSetup";
 import { readFile } from "node:fs/promises";
 import { parseReleases, readReleaseNotes } from "../scripts/releases";
 
@@ -47,7 +48,7 @@ test("builder direct loads and refresh keep the page and the unsaved comp", asyn
 test("links and Back/Forward keep both pages' in-session edits", async ({
   page,
 }) => {
-  await page.goto("/board");
+  await openExampleBoard(page, "/board");
   const boardLink = page.getByRole("link", {
     name: "Position Board",
     exact: true,

@@ -33,7 +33,7 @@ node .claude/skills/verify/scripts/drive.mjs <flow>
 
 Flows: `builder-save`, `board-undo`, `board-place`, `export-png`, `changelog`, `backup`, `routes`. Each opens a fresh Chromium context (empty IndexedDB), asserts state, and exits non-zero on failure. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` if the Playwright browser is not installed.
 
-For a feature with no flow, add an entry to the `flows` object in `scripts/drive.mjs`. Use `expect` from `@playwright/test` for text that changes after an action. Use stable handles: ARIA roles and names (`Comp name`, `Allies slot 1: Choose hero`, `Undo`, `Redo`, `Download & Copy`), `.coordinates`, `.selection-name strong`, `.stage-host canvas`. The board canvas is `data-map-width` by `data-map-height` logical units (read both from `.stage-host`); scale mouse coordinates by `bounds.width / data-map-width`. Default hero placements are fractions of the map, so read a token's position from `.coordinates` or compute it from the fraction and the map size.
+For a feature with no flow, add an entry to the `flows` object in `scripts/drive.mjs`. Use `expect` from `@playwright/test` for text that changes after an action. Use stable handles: ARIA roles and names (`Comp name`, `Allies slot 1: Choose hero`, `Undo`, `Redo`, `Download & Copy`), `.coordinates`, `.selection-name strong`, `.stage-host canvas`. The board canvas is `data-map-width` by `data-map-height` logical units (read both from `.stage-host`); scale mouse coordinates by `bounds.width / data-map-width`. A new board has no heroes. Add one with its `Add <hero> to Allies` button, then read its position from `.coordinates`.
 
 ## Evidence
 

@@ -22,7 +22,8 @@ import {
   BOARD_RECORD_VERSION,
   decodeBoardRecord,
 } from "../src/workspaceRecord";
-import { DEFAULT_BOARD, defaultToken } from "./boardGeometry";
+import { DEFAULT_BOARD } from "./boardGeometry";
+import { exampleToken } from "./boardSetup";
 
 const NOTE_SIZE: BoardSize = { width: 180, height: 36 };
 
@@ -68,7 +69,7 @@ function compSlot(
   );
 }
 
-const strange = defaultToken("strange");
+const strange = exampleToken("strange");
 
 const initial: BoardState = {
   map: { kind: "builtin", id: DEFAULT_MAP_ID },
@@ -167,9 +168,13 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   expect(session.clear()).toBe(edited);
   expect(session.redo()).toBe(edited);
   expect(session.undo().board.tokens).toEqual(initial.tokens);
-  const defaults = new BoardSession(measureNote);
-  const unchanged = defaults.getSnapshot();
-  expect(defaults.reset()).toBe(unchanged);
+});
+
+test("a new board starts with no heroes", () => {
+  const session = new BoardSession(measureNote);
+  const empty = session.getSnapshot();
+  expect(empty.board.tokens).toEqual([]);
+  expect(session.clear()).toBe(empty);
 });
 
 test("history retains the last 100 edits in order and supports branching", () => {
@@ -321,7 +326,7 @@ test("teams cap additions without blocking moves or changing history on rejectio
   }
 });
 
-test("drawings remain isolated by map through edit, clear, reset, and history", () => {
+test("drawings remain isolated by map through edit, clear, and history", () => {
   const session = new BoardSession(measureNote, initial);
   const note: BoardDrawing = {
     id: "note",
@@ -356,11 +361,6 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     color: "#ff6268",
   });
   expect(session.clear().board.drawingsByMap).toEqual({
-    [DEFAULT_MAP_ID]: [note],
-    [HELLS_HEAVEN]: [],
-  });
-  expect(session.undo().board.drawingsByMap[HELLS_HEAVEN]).toEqual([arrow]);
-  expect(session.reset().board.drawingsByMap).toEqual({
     [DEFAULT_MAP_ID]: [note],
     [HELLS_HEAVEN]: [],
   });

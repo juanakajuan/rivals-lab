@@ -5,9 +5,9 @@ import {
   boardGeometry,
   boardPoint,
   coordinatesText,
-  defaultToken,
   type ClientPoint,
 } from "./boardGeometry";
+import { exampleToken, openExampleBoard } from "./boardSetup";
 
 declare global {
   interface Window {
@@ -91,7 +91,7 @@ async function startOnLandscapeMap(page: Page): Promise<void> {
 
 async function strangeOnMap(page: Page): Promise<ClientPoint> {
   return clampToBoard(
-    defaultToken("strange"),
+    exampleToken("strange"),
     await boardGeometry(page),
     DEFAULT_ICON_SIZE,
   );
@@ -302,10 +302,10 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   await expectSelection(page, null, 500, 290);
 });
 
-test("map drawings are isolated; Clear and Reset preserve other maps", async ({
+test("map drawings are isolated; Clear preserves other maps", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await startOnLandscapeMap(page);
   await draw(page, "zone");
   await chooseMap(page, "Hydra Charteris Base: Hell's Heaven");
@@ -320,10 +320,7 @@ test("map drawings are isolated; Clear and Reset preserve other maps", async ({
   await expectSelection(page, null);
   await chooseMap(page, "Hydra Charteris Base: Hell's Heaven");
   await expectSelection(page, "arrow");
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
-    "Allies 3",
-  );
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expectSelection(page, null);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expectSelection(page, "arrow");
@@ -459,7 +456,7 @@ for (const kind of ["arrow", "zone", "note"] as const) {
   test(`${kind} drawings move directly and have a right-click remove menu`, async ({
     page,
   }) => {
-    await page.goto("/");
+    await openExampleBoard(page);
     await startOnLandscapeMap(page);
     const strange = await strangeOnMap(page);
     await draw(page, kind);

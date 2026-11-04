@@ -47,24 +47,6 @@ async function boardBounds(page) {
   return { bounds, width, height };
 }
 
-const TOKEN_BOUNDARY = 24;
-
-function clampedAxis(fraction, length) {
-  return Math.round(
-    Math.max(
-      TOKEN_BOUNDARY,
-      Math.min(length - TOKEN_BOUNDARY, fraction * length),
-    ),
-  );
-}
-
-function strangeStart(board) {
-  return {
-    x: clampedAxis(0.225, board.width),
-    y: clampedAxis(0.665, board.height),
-  };
-}
-
 function coordinatesText(point) {
   return `x ${point.x}, y ${point.y}`;
 }
@@ -152,27 +134,32 @@ const flows = {
 
   async "board-undo"(page) {
     await page.goto("/board");
-    const board = await boardBounds(page);
-    const startToken = strangeStart(board);
-    const endToken = { x: startToken.x + 80, y: startToken.y + 45 };
-    const startText = coordinatesText(startToken);
-    const start = boardPoint(board, startToken.x, startToken.y);
-    const end = boardPoint(board, endToken.x, endToken.y);
     const coordinates = page.locator(".coordinates");
-    await page.mouse.click(start.x, start.y);
+    await page
+      .getByRole("button", {
+        name: "Add Doctor Strange to Allies",
+        exact: true,
+      })
+      .click();
     await expect(page.locator(".selection-name strong")).toHaveText(
       "Doctor Strange",
     );
-    await expect(coordinates).toHaveText(startText);
-    check(true, `token at ${startText} is Doctor Strange`);
+    const placed = /^x (\d+), y (\d+)$/.exec(await coordinates.innerText());
+    check(placed !== null, "Doctor Strange has coordinates");
+    const startToken = { x: Number(placed[1]), y: Number(placed[2]) };
+    const startText = coordinatesText(startToken);
     await page.screenshot({ path: join(out, "1-selected.png") });
+    const board = await boardBounds(page);
+    const endToken = { x: startToken.x + 80, y: startToken.y + 45 };
+    const start = boardPoint(board, startToken.x, startToken.y);
+    const end = boardPoint(board, endToken.x, endToken.y);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.mouse.move(end.x, end.y, { steps: 8 });
     await page.mouse.up();
     await expectCoordinatesNear(coordinates, endToken, board);
     const movedText = await coordinates.innerText();
-    check(true, `drag moves token to ${movedText}`);
+    check(true, `drag moves token from ${startText} to ${movedText}`);
     await page.screenshot({ path: join(out, "2-moved.png") });
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(coordinates).toHaveText(startText);
@@ -186,12 +173,18 @@ const flows = {
   async "board-place"(page) {
     await page.goto("/board");
     const allies = page.getByRole("button", { name: /^Allies/ });
+    const opponents = page.getByRole("button", { name: /^Opponents/ });
     const undo = page.getByRole("button", { name: "Undo", exact: true });
     const redo = page.getByRole("button", { name: "Redo", exact: true });
-    await expect(allies).toHaveText("Allies 3");
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
     await expect(allies).toHaveText("Allies 0");
-    check(true, "Clear empties Allies");
+    await expect(opponents).toHaveText("Opponents 0");
+    check(
+      (await page
+        .getByRole("button", { name: "Reset", exact: true })
+        .count()) === 0,
+      "a new board has no heroes and no Reset button",
+    );
+    await page.screenshot({ path: join(out, "0-empty.png") });
     await page
       .getByRole("button", { name: "Add Angela to Allies", exact: true })
       .click();
@@ -204,6 +197,11 @@ const flows = {
     await redo.click();
     await expect(allies).toHaveText("Allies 1");
     check(true, "undo and redo apply to placement");
+    await page.getByRole("button", { name: "Clear", exact: true }).click();
+    await expect(allies).toHaveText("Allies 0");
+    await undo.click();
+    await expect(allies).toHaveText("Allies 1");
+    check(true, "Clear empties Allies and undo restores it");
     await page.reload();
     await expect(allies).toHaveText("Allies 1");
     await expect(undo).toBeDisabled();

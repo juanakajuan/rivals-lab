@@ -4,7 +4,6 @@ import {
   equalDrawings,
   moveDrawing,
   type BoardDrawing,
-  type BoardSize,
   type MapPoint,
   type MeasureBoardNote,
 } from "./boardDrawings";
@@ -65,43 +64,12 @@ export function keepEarliestTeamPlacements(board: BoardState): BoardState {
 
 const HISTORY_LIMIT = 100;
 
-interface Placement {
-  readonly heroId: string;
-  readonly x: number;
-  readonly y: number;
-}
-
-const INITIAL_PLACEMENTS: Readonly<Record<Team, readonly Placement[]>> = {
-  ally: [
-    { heroId: "strange", x: 0.225, y: 0.665 },
-    { heroId: "psylocke", x: 0.317, y: 0.535 },
-    { heroId: "luna", x: 0.192, y: 0.795 },
-  ],
-  enemy: [
-    { heroId: "magneto", x: 0.721, y: 0.474 },
-    { heroId: "magik", x: 0.8, y: 0.627 },
-    { heroId: "rocket", x: 0.758, y: 0.787 },
-  ],
-};
-
 const TEAM_HALF_START: Readonly<Record<Team, number>> = { ally: 0, enemy: 0.5 };
 
-function initialTokens(map: BoardSize, iconSize: number): BoardToken[] {
-  return TEAMS.flatMap((team) =>
-    INITIAL_PLACEMENTS[team].map(({ heroId, x, y }) => ({
-      id: boardTokenId(team, heroId),
-      heroId,
-      team,
-      ...clampToBoard({ x: x * map.width, y: y * map.height }, map, iconSize),
-    })),
-  );
-}
-
 export function initialBoard(): BoardState {
-  const map: SelectedBoardMap = { kind: "builtin", id: DEFAULT_MAP_ID };
   return {
-    map,
-    tokens: initialTokens(resolveBoardMap(map), DEFAULT_ICON_SIZE),
+    map: { kind: "builtin", id: DEFAULT_MAP_ID },
+    tokens: [],
     drawingsByMap: {},
   };
 }
@@ -373,14 +341,6 @@ export class BoardSession {
     return this.commit({
       ...this.board,
       tokens: [],
-      drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
-    });
-  }
-
-  reset(): BoardSnapshot {
-    return this.commit({
-      ...this.board,
-      tokens: initialTokens(resolveBoardMap(this.board.map), this.iconSize),
       drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }

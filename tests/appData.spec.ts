@@ -194,7 +194,7 @@ test("boot keeps the parts that decode and starts fresh for the rest", async ({
   );
   expect(booted).toEqual({
     mapId: DEFAULT_MAP_ID,
-    tokens: 6,
+    tokens: 0,
     iconSize: 100,
     openComp,
     savedComps: ["Dive"],
@@ -466,7 +466,7 @@ test("a full backup restores every record in a fresh browser", async ({
       unavailableComps: 0,
       openComp: null,
       boardMapName: "Intergalactic Empire of Wakanda: Birnin T'Challa",
-      heroes: 6,
+      heroes: 0,
       drawings: 0,
       mapsWithDrawings: 0,
       customMaps: 0,

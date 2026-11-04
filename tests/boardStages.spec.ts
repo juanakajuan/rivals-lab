@@ -7,9 +7,9 @@ import {
   boardGeometry,
   boardPoint,
   coordinatesText,
-  defaultToken,
   type BoardGeometry,
 } from "./boardGeometry";
+import { exampleToken, openExampleBoard } from "./boardSetup";
 
 declare global {
   interface Window {
@@ -456,7 +456,7 @@ for (const width of [390, 320]) {
 test("a stage switch keeps every hero and clamps them into the new stage", async ({
   page,
 }) => {
-  await page.goto("/board");
+  await openExampleBoard(page, "/board");
   const allies = page.getByRole("button", { name: /^Allies/ });
   const opponents = page.getByRole("button", { name: /^Opponents/ });
   await expect(allies).toHaveText("Allies 3");
@@ -467,7 +467,7 @@ test("a stage switch keeps every hero and clamps them into the new stage", async
   );
   await expect(allies).toHaveText("Allies 3");
 
-  const strange = defaultToken("strange");
+  const strange = exampleToken("strange");
   const from = await boardPoint(page, strange.x, strange.y);
   const to = await boardPoint(
     page,

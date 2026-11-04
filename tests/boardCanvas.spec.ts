@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import type Konva from "konva";
 import type { BoardDrawing } from "../src/boardDrawings.ts";
-import { boardGeometry, boardPoint, defaultToken } from "./boardGeometry.ts";
+import { boardGeometry, boardPoint } from "./boardGeometry.ts";
+import { exampleToken, openExampleBoard } from "./boardSetup.ts";
 import type {} from "./fixtures/board.ts";
 import { HARNESS_MAP } from "./fixtures/boardMap.ts";
 
@@ -138,8 +139,8 @@ test("destroy ignores pending images and repeated cleanup", async ({
 });
 
 test("React keeps selection across drag and map change", async ({ page }) => {
-  await page.goto("/");
-  const strange = defaultToken("strange");
+  await openExampleBoard(page);
+  const strange = exampleToken("strange");
   const { scale } = await boardGeometry(page);
   const drag = { x: 60, y: 40 };
   const start = await boardPoint(page, strange.x, strange.y);

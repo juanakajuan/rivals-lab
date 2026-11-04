@@ -1,12 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { MAPS } from "../src/maps";
-import {
-  boardGeometry,
-  boardPoint,
-  coordinatesText,
-  defaultToken,
-} from "./boardGeometry";
+import { boardGeometry, boardPoint, coordinatesText } from "./boardGeometry";
+import { exampleToken, openExampleBoard } from "./boardSetup";
 
 async function chooseCompMap(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Comp map", exact: true }).click();
@@ -96,8 +92,8 @@ test("saved comp fields survive a production reload", async ({ page }) => {
 
 test("board token drag can be undone and redone", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.goto("/board");
-  const strange = defaultToken("strange");
+  await openExampleBoard(page, "/board");
+  const strange = exampleToken("strange");
   const startText = coordinatesText(strange);
   const drag = { x: 80, y: 45 };
   const { scale } = await boardGeometry(page);

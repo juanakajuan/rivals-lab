@@ -7,6 +7,7 @@ import {
   coordinatesText,
   type ClientPoint,
 } from "./boardGeometry";
+import { openExampleBoard } from "./boardSetup";
 
 function addSpacing(iconSize: number): number {
   return tokenBoundary(iconSize) * 2 + 4;
@@ -26,7 +27,6 @@ for (const key of ["Enter", "Space"]) {
     page,
   }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
     const spacing = addSpacing(DEFAULT_ICON_SIZE);
     const firstSlot = coordinatesText({ x: spacing, y: spacing });
     const add = page.getByRole("button", {
@@ -93,7 +93,6 @@ test("six per team disables Add and rejects new drops while allowing moves and r
   page,
 }) => {
   await page.goto("/board");
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
   const canvas = page.locator(".stage-host canvas").last();
   for (const label of ["Allies", "Opponents"]) {
     const team = page.getByRole("button", { name: new RegExp(`^${label}`) });
@@ -150,7 +149,6 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
   const spacing = addSpacing(DEFAULT_ICON_SIZE);
   const angelaSlot = { x: spacing, y: spacing };
   const hulkSlot = coordinatesText({ x: spacing * 2, y: spacing });
@@ -245,7 +243,6 @@ for (const { iconSize, count } of [
     page,
   }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
     const size = page.getByRole("slider", { name: "Hero icon size" });
     await size.press("End");
     if (iconSize === 140) await size.press("ArrowLeft");
@@ -314,7 +311,7 @@ test.describe("touch placement", () => {
   test("tap adds and removes the same hero independently for each team with history", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openExampleBoard(page);
     const allies = page.getByRole("button", { name: /^Allies/ });
     const opponents = page.getByRole("button", { name: /^Opponents/ });
     const size = page.getByRole("slider", { name: "Hero icon size" });
@@ -401,7 +398,7 @@ test.describe("small phone layout", () => {
     await add.scrollIntoViewIfNeeded();
     await add.tap();
     await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
-      "Allies 4",
+      "Allies 1",
     );
     await expect(page.locator(".selection-name strong")).toHaveText("Deadpool");
     await expect(page.locator(".stage-host canvas").first()).toBeInViewport({
