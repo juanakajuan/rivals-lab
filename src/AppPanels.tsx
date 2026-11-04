@@ -6,7 +6,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Maximize, Minus, Plus, Trash2 } from "lucide-react";
+import { MAX_ZOOM } from "./boardCanvas";
 
 import {
   boardTokenId,
@@ -31,6 +32,8 @@ import {
 } from "./boardMaps";
 import { MapPicker, type MapPickerOption } from "./MapPicker";
 import { MAPS } from "./maps";
+
+export type ZoomChange = "in" | "out" | "reset";
 
 export type BoardUploadState =
   | { readonly kind: "idle" }
@@ -229,6 +232,8 @@ interface BoardPanelProps {
   readonly onMapChange: (mapId: BoardMapId) => void;
   readonly onDrop: (event: DragEvent<HTMLDivElement>) => void;
   readonly onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+  readonly zoom: number;
+  readonly onZoom: (change: ZoomChange) => void;
 }
 
 export function BoardPanel({
@@ -248,6 +253,8 @@ export function BoardPanel({
   onMapChange,
   onDrop,
   onKeyDown,
+  zoom,
+  onZoom,
 }: BoardPanelProps): React.JSX.Element {
   const mapOptions: readonly MapPickerOption<BoardMapId>[] = [
     ...MAPS.map(boardMapOption),
@@ -345,8 +352,38 @@ export function BoardPanel({
           style={{
             aspectRatio: `${selectedMap.width} / ${selectedMap.height}`,
           }}
-          aria-label={`Overhead map of ${selectedMap.name} with draggable heroes and drawings. Press Enter to select the next drawing, arrow keys to move it, Delete to remove it, or Shift+F10 for its menu.`}
+          aria-label={`Overhead map of ${selectedMap.name} with draggable heroes and drawings. Scroll or press + and - to zoom, and drag the map to pan. Press Enter to select the next drawing, arrow keys to move it, Delete to remove it, or Shift+F10 for its menu.`}
         />
+        <div className="zoom-controls" role="group" aria-label="Map zoom">
+          <button
+            type="button"
+            aria-label="Zoom in"
+            title="Zoom in (+)"
+            disabled={zoom >= MAX_ZOOM}
+            onClick={() => onZoom("in")}
+          >
+            <Plus size={16} aria-hidden="true" />
+          </button>
+          <span className="zoom-level">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            title="Zoom out (-)"
+            disabled={zoom <= 1}
+            onClick={() => onZoom("out")}
+          >
+            <Minus size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Fit map"
+            title="Fit map (0)"
+            disabled={zoom <= 1}
+            onClick={() => onZoom("reset")}
+          >
+            <Maximize size={14} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div className="board-toolbar">

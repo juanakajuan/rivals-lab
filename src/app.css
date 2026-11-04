@@ -700,6 +700,7 @@ button:focus-visible,
 }
 
 .board-shell {
+  position: relative;
   flex: 0 1 auto;
   min-height: 0;
   display: flex;
@@ -729,6 +730,48 @@ button:focus-visible,
 
 .stage-host canvas {
   display: block;
+}
+
+.zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+  background: rgba(17, 18, 20, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.zoom-controls button {
+  width: 32px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.zoom-controls button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.zoom-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.zoom-level {
+  padding: 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  border-block: 1px solid var(--border);
 }
 
 .board-toolbar {
