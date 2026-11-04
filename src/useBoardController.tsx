@@ -18,7 +18,8 @@ import {
 } from "./boardDrawings";
 import { measureBoardNote } from "./boardNote";
 import type { Comp } from "./comps";
-import { createBoardCanvas, type BoardCanvas } from "./boardCanvas";
+import { createBoardCanvas, ZOOM_STEP, type BoardCanvas } from "./boardCanvas";
+import type { ZoomChange } from "./AppPanels";
 import {
   HERO_BY_ID,
   HEROES,
@@ -58,6 +59,12 @@ type BoardContextMenu = {
 
 const EMPTY_DRAWINGS: readonly BoardDrawing[] = [];
 
+const ZOOM_KEYS: Readonly<Partial<Record<string, ZoomChange>>> = {
+  "+": "in",
+  "=": "in",
+  "-": "out",
+  "0": "reset",
+};
 const HERO_DRAG_TYPE = "application/x-rivals-hero";
 const TEAM_DRAG_TYPE = "application/x-rivals-team";
 
@@ -117,6 +124,7 @@ export function useBoardController({
   );
   const selectedMap = resolveBoardMap(snapshot.board.map);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
   const [heroSearch, setHeroSearch] = useState("");
   const [isHeroDragging, setIsHeroDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null);
@@ -182,6 +190,7 @@ export function useBoardController({
       },
       onDrawingEdit: editDrawing,
       onDrawingContextMenu: openDrawingMenu,
+      onZoomChange: setZoom,
       onSelect: (token) => {
         setSelectedDrawingId(null);
         setSelectedTokenId(token?.id ?? null);
@@ -466,6 +475,12 @@ export function useBoardController({
     event: React.KeyboardEvent<HTMLDivElement>,
   ): void {
     if (event.target !== event.currentTarget) return;
+    const zoomKey = ZOOM_KEYS[event.key];
+    if (zoomKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      changeZoom(zoomKey);
+      return;
+    }
     if (event.key === "Enter" && mapDrawings.length) {
       event.preventDefault();
       const next =
@@ -487,6 +502,13 @@ export function useBoardController({
       const bounds = event.currentTarget.getBoundingClientRect();
       openDrawingMenu(selectedDrawing, bounds.left + 16, bounds.top + 16);
     }
+  }
+
+  function changeZoom(change: ZoomChange): void {
+    const board = boardRef.current;
+    if (!board) return;
+    if (change === "reset") board.resetZoom();
+    else board.zoomBy(change === "in" ? ZOOM_STEP : 1 / ZOOM_STEP);
   }
 
   function clearBoard(): void {
@@ -645,6 +667,8 @@ export function useBoardController({
           onMapChange={changeMap}
           onDrop={handleBoardDrop}
           onKeyDown={handleBoardKeyDown}
+          zoom={zoom}
+          onZoom={changeZoom}
         />
       </main>
     ),

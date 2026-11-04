@@ -58,6 +58,7 @@ export interface BoardEvents {
     clientY: number,
   ) => void;
   readonly onDrawingEdit?: (drawing: BoardDrawing) => void;
+  readonly onZoomChange?: (zoom: number) => void;
   readonly onSelect: (token: BoardToken | null) => void;
   readonly onMove: (token: BoardToken, point: BoardPoint) => void;
   readonly onContextMenu: (
@@ -70,6 +71,8 @@ export interface BoardEvents {
 export interface BoardCanvas {
   readonly update: (snapshot: BoardSnapshot) => void;
   readonly toMapPoint: (clientX: number, clientY: number) => MapPoint;
+  readonly zoomBy: (factor: number) => void;
+  readonly resetZoom: () => void;
   readonly destroy: () => void;
 }
 
@@ -113,37 +116,29 @@ function drawMap(
   layer.draw();
 }
 
-function resizeStage(
-  stage: Konva.Stage,
-  host: HTMLDivElement,
-  map: BoardMapDefinition,
-): void {
-  const { clientWidth: width, clientHeight: height } = host;
-  if (width <= 0 || height <= 0) return;
-
-  const scale = Math.min(width / map.width, height / map.height);
-  stage.width(map.width * scale);
-  stage.height(map.height * scale);
-  stage.scale({ x: scale, y: scale });
-  stage.batchDraw();
-}
+export const MAX_ZOOM = 8;
+export const ZOOM_STEP = 1.5;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
-function boundTokenPosition(
+function clampStagePosition(
+  stage: Konva.Stage,
   position: Konva.Vector2d,
-  scale: number,
   map: BoardMapDefinition,
-  iconSize: number,
 ): Konva.Vector2d {
-  const point = clampToBoard(
-    { x: position.x / scale, y: position.y / scale },
-    map,
-    iconSize,
-  );
-  return { x: point.x * scale, y: point.y * scale };
+  const slackX = stage.width() - map.width * stage.scaleX();
+  const slackY = stage.height() - map.height * stage.scaleY();
+  return {
+    x: clamp(position.x, Math.min(0, slackX), Math.max(0, slackX)),
+    y: clamp(position.y, Math.min(0, slackY), Math.max(0, slackY)),
+  };
+}
+
+function wheelZoomFactor(event: WheelEvent): number {
+  const pixels = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 33 : 1;
+  return Math.exp(-event.deltaY * pixels * 0.002);
 }
 
 function setBoardCursor(stage: Konva.Stage, cursor: BoardCursor): void {
@@ -221,6 +216,81 @@ export function createBoardCanvas(
   let pointerTool: BoardTool = "move";
   let destroyed = false;
   let mapRequest = 0;
+  let zoom = 1;
+  let fitScale = 0;
+
+  function toMap(point: Konva.Vector2d): MapPoint {
+    return {
+      x: (point.x - stage.x()) / stage.scaleX(),
+      y: (point.y - stage.y()) / stage.scaleY(),
+    };
+  }
+
+  function toStage(point: MapPoint): Konva.Vector2d {
+    return {
+      x: stage.x() + point.x * stage.scaleX(),
+      y: stage.y() + point.y * stage.scaleY(),
+    };
+  }
+
+  function sizeStage(map: BoardMapDefinition): void {
+    const scale = fitScale * zoom;
+    stage.width(zoom === 1 ? map.width * scale : host.clientWidth);
+    stage.height(zoom === 1 ? map.height * scale : host.clientHeight);
+    stage.scale({ x: scale, y: scale });
+  }
+
+  function stageOrigin(): Konva.Vector2d {
+    return {
+      x: (host.clientWidth - stage.width()) / 2,
+      y: (host.clientHeight - stage.height()) / 2,
+    };
+  }
+
+  function layoutStage(map: BoardMapDefinition): void {
+    const { clientWidth: width, clientHeight: height } = host;
+    if (width <= 0 || height <= 0) return;
+
+    fitScale = Math.min(width / map.width, height / map.height);
+    sizeStage(map);
+    stage.position(clampStagePosition(stage, stage.position(), map));
+    stage.batchDraw();
+  }
+
+  function canPan(current: BoardSnapshot): boolean {
+    return zoom > 1 && (current.tool ?? "move") === "move";
+  }
+
+  function zoomAt(next: number, anchor: Konva.Vector2d): void {
+    if (!snapshot || fitScale === 0) return;
+    const target = clamp(next, 1, MAX_ZOOM);
+    if (target === zoom) return;
+    const point = toMap(anchor);
+    const before = stageOrigin();
+    zoom = target;
+    sizeStage(snapshot.map);
+    const after = stageOrigin();
+    const scale = stage.scaleX();
+    stage.position(
+      clampStagePosition(
+        stage,
+        {
+          x: anchor.x + before.x - after.x - point.x * scale,
+          y: anchor.y + before.y - after.y - point.y * scale,
+        },
+        snapshot.map,
+      ),
+    );
+    stage.draggable(canPan(snapshot));
+    if (!activeResize) setBoardCursor(stage, toolCursor(snapshot));
+    syncHandles(snapshot);
+    stage.batchDraw();
+    events.onZoomChange?.(zoom);
+  }
+
+  function zoomAtCenter(next: number): void {
+    zoomAt(next, { x: stage.width() / 2, y: stage.height() / 2 });
+  }
 
   function createDrawing(
     token: BoardToken,
@@ -250,11 +320,8 @@ export function createBoardCanvas(
     );
     group.dragBoundFunc((position) =>
       snapshot
-        ? boundTokenPosition(
-            position,
-            stage.scaleX(),
-            snapshot.map,
-            snapshot.iconSize,
+        ? toStage(
+            clampToBoard(toMap(position), snapshot.map, snapshot.iconSize),
           )
         : position,
     );
@@ -268,7 +335,9 @@ export function createBoardCanvas(
       events.onContextMenu(drawing.token, event.evt.clientX, event.evt.clientY);
     });
     group.on("pointerenter", () => setBoardCursor(stage, "grab"));
-    group.on("pointerleave", () => setBoardCursor(stage, "default"));
+    group.on("pointerleave", () =>
+      setBoardCursor(stage, snapshot ? toolCursor(snapshot) : "default"),
+    );
     group.on("dragstart", () => {
       drawing.dragging = true;
       group.moveToTop();
@@ -384,7 +453,8 @@ export function createBoardCanvas(
   }
 
   function toolCursor(current: BoardSnapshot): BoardCursor {
-    return current.tool && current.tool !== "move" ? "crosshair" : "default";
+    if (current.tool && current.tool !== "move") return "crosshair";
+    return canPan(current) ? "grab" : "default";
   }
 
   function shownDrawing(drawing: BoardDrawing): BoardDrawing {
@@ -396,18 +466,12 @@ export function createBoardCanvas(
     clientX: number,
     clientY: number,
   ): MapPoint | null {
-    if (!snapshot) return null;
-    const scaleX = stage.scaleX();
-    const scaleY = stage.scaleY();
-    if (scaleX === 0 || scaleY === 0) return null;
+    if (!snapshot || stage.scaleX() === 0 || stage.scaleY() === 0) return null;
     const bounds = stage.getContent().getBoundingClientRect();
+    const point = toMap({ x: clientX - bounds.left, y: clientY - bounds.top });
     return {
-      x: Math.round(
-        clamp((clientX - bounds.left) / scaleX, 0, snapshot.map.width),
-      ),
-      y: Math.round(
-        clamp((clientY - bounds.top) / scaleY, 0, snapshot.map.height),
-      ),
+      x: Math.round(clamp(point.x, 0, snapshot.map.width)),
+      y: Math.round(clamp(point.y, 0, snapshot.map.height)),
     };
   }
 
@@ -624,14 +688,16 @@ export function createBoardCanvas(
         });
         group.dragBoundFunc((point) => {
           if (!snapshot) return point;
-          const moved = moveDrawing(
-            entry.drawing,
-            point.x / stage.scaleX(),
-            point.y / stage.scaleY(),
-            snapshot.map,
-            measureBoardNote,
+          const target = toMap(point);
+          return toStage(
+            moveDrawing(
+              entry.drawing,
+              target.x,
+              target.y,
+              snapshot.map,
+              measureBoardNote,
+            ),
           );
-          return { x: moved.x * stage.scaleX(), y: moved.y * stage.scaleY() };
         });
         annotationLayer.add(group);
       }
@@ -661,11 +727,12 @@ export function createBoardCanvas(
   }
 
   function pointerPoint(): MapPoint | null {
-    const point = stage.getPointerPosition();
-    if (!point || !snapshot) return null;
+    const pointer = stage.getPointerPosition();
+    if (!pointer || !snapshot) return null;
+    const point = toMap(pointer);
     return {
-      x: Math.round(clamp(point.x / stage.scaleX(), 0, snapshot.map.width)),
-      y: Math.round(clamp(point.y / stage.scaleY(), 0, snapshot.map.height)),
+      x: Math.round(clamp(point.x, 0, snapshot.map.width)),
+      y: Math.round(clamp(point.y, 0, snapshot.map.height)),
     };
   }
   stage.on("pointerdown", (event) => {
@@ -754,8 +821,26 @@ export function createBoardCanvas(
       events.onDrawingSelect?.(null);
     }
   });
+  stage.on("wheel", (event) => {
+    const factor = wheelZoomFactor(event.evt);
+    const pointer = stage.getPointerPosition();
+    if (!pointer || (zoom === 1 && factor < 1)) return;
+    event.evt.preventDefault();
+    zoomAt(zoom * factor, pointer);
+  });
+  stage.dragBoundFunc((position) =>
+    snapshot ? clampStagePosition(stage, position, snapshot.map) : position,
+  );
+  stage.on("dragstart", (event) => {
+    if (event.target === stage) setBoardCursor(stage, "grabbing");
+  });
+  stage.on("dragend", (event) => {
+    if (event.target === stage && snapshot) {
+      setBoardCursor(stage, toolCursor(snapshot));
+    }
+  });
   const resizeObserver = new ResizeObserver(() => {
-    if (!destroyed && snapshot) resizeStage(stage, host, snapshot.map);
+    if (!destroyed && snapshot) layoutStage(snapshot.map);
   });
   resizeObserver.observe(host);
 
@@ -801,6 +886,12 @@ export function createBoardCanvas(
         }
       }
       snapshot = current;
+      if (mapChanged && zoom !== 1) {
+        zoom = 1;
+        events.onZoomChange?.(zoom);
+      }
+      if (mapChanged) stage.position({ x: 0, y: 0 });
+      stage.draggable(canPan(current));
       setBoardCursor(
         stage,
         activeResize ? activeResize.handle.cursor : toolCursor(current),
@@ -814,7 +905,7 @@ export function createBoardCanvas(
         setBoardCursor(stage, "default");
         mapLayer.destroyChildren();
         mapLayer.batchDraw();
-        resizeStage(stage, host, current.map);
+        layoutStage(current.map);
         const request = ++mapRequest;
         void loadImage(current.map.imagePath).then((image) => {
           if (destroyed || request !== mapRequest || !image) return;
@@ -826,10 +917,13 @@ export function createBoardCanvas(
     },
     toMapPoint(clientX, clientY) {
       const bounds = stage.getContent().getBoundingClientRect();
-      return {
-        x: (clientX - bounds.left) / stage.scaleX(),
-        y: (clientY - bounds.top) / stage.scaleY(),
-      };
+      return toMap({ x: clientX - bounds.left, y: clientY - bounds.top });
+    },
+    zoomBy(factor) {
+      zoomAtCenter(zoom * factor);
+    },
+    resetZoom() {
+      zoomAtCenter(1);
     },
     destroy() {
       if (destroyed) return;
