@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { openExampleBoard } from "./boardSetup";
 import type Konva from "konva";
 import type { BoardDrawing } from "../src/boardDrawings.ts";
+import { boardGeometry, boardPoint } from "./boardGeometry.ts";
+import { exampleToken, openExampleBoard } from "./boardSetup.ts";
 import type {} from "./fixtures/board.ts";
+import { HARNESS_MAP } from "./fixtures/boardMap.ts";
 
 for (const viewport of [
   { width: 1280, height: 1000 },
@@ -14,12 +16,11 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto("/");
     const canvas = page.locator(".stage-host canvas").first();
-    const bounds = await canvas.boundingBox();
-    if (!bounds) throw new Error("Missing map bounds");
+    const { bounds, scale } = await boardGeometry(page);
     const clientX = Math.floor(bounds.x + bounds.width / 2);
     const clientY = Math.floor(bounds.y + bounds.height / 2);
-    const expectedX = Math.round(((clientX - bounds.x) * 1200) / bounds.width);
-    const expectedY = Math.round(((clientY - bounds.y) * 654) / bounds.height);
+    const expectedX = Math.round((clientX - bounds.x) / scale);
+    const expectedY = Math.round((clientY - bounds.y) / scale);
     const dataTransfer = await page.evaluateHandle(() => {
       const data = new DataTransfer();
       data.setData("application/x-rivals-hero", "strange");
@@ -82,10 +83,10 @@ test("drop coordinates follow resize and map changes", async ({ page }) => {
   expect(
     await page.evaluate(() => window.boardHarness.board.toMapPoint(120, 120)),
   ).toEqual({ x: 200, y: 200 });
-  await page.locator("#board").evaluate((host) => {
+  await page.locator("#board").evaluate((host, ratio) => {
     host.style.width = "300px";
-    host.style.height = "163.5px";
-  });
+    host.style.height = `${300 * ratio}px`;
+  }, HARNESS_MAP.height / HARNESS_MAP.width);
   await expect
     .poll(() =>
       page.evaluate(() => window.boardHarness.board.toMapPoint(120, 120)),
@@ -95,7 +96,11 @@ test("drop coordinates follow resize and map changes", async ({ page }) => {
     const harness = window.boardHarness;
     harness.snapshot = {
       ...harness.snapshot,
-      map: { ...harness.snapshot.map, width: 600, height: 327 },
+      map: {
+        ...harness.snapshot.map,
+        width: harness.snapshot.map.width / 2,
+        height: harness.snapshot.map.height / 2,
+      },
     };
     harness.board.update(harness.snapshot);
   });
@@ -135,15 +140,15 @@ test("destroy ignores pending images and repeated cleanup", async ({
 
 test("React keeps selection across drag and map change", async ({ page }) => {
   await openExampleBoard(page);
-  const host = page.locator(".stage-host canvas").first();
-  const bounds = await host.boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  const x = bounds.x + 270 * scale;
-  const y = bounds.y + 435 * scale;
-  await page.mouse.move(x, y);
+  const strange = exampleToken("strange");
+  const { scale } = await boardGeometry(page);
+  const drag = { x: 60, y: 40 };
+  const start = await boardPoint(page, strange.x, strange.y);
+  await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(x + 60 * scale, y + 40 * scale, { steps: 8 });
+  await page.mouse.move(start.x + drag.x * scale, start.y + drag.y * scale, {
+    steps: 8,
+  });
   await page.mouse.up();
   await expect(page.locator(".selection-name strong")).toHaveText(
     "Doctor Strange",
@@ -153,8 +158,12 @@ test("React keeps selection across drag and map change", async ({ page }) => {
   if (!match?.[1] || !match[2]) throw new Error("Missing token coordinates");
   // Browser mouse events round screen coordinates to whole pixels.
   const tolerance = Math.ceil(1 / scale);
-  expect(Math.abs(Number(match[1]) - 330)).toBeLessThanOrEqual(tolerance);
-  expect(Math.abs(Number(match[2]) - 475)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(Number(match[1]) - (strange.x + drag.x))).toBeLessThanOrEqual(
+    tolerance,
+  );
+  expect(Math.abs(Number(match[2]) - (strange.y + drag.y))).toBeLessThanOrEqual(
+    tolerance,
+  );
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
@@ -182,7 +191,7 @@ test("late map images cannot replace the current map or selection", async ({
     if (!current) await oldMapReady;
     await route.fulfill({
       contentType: "image/svg+xml",
-      body: `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="654"><rect width="1200" height="654" fill="${current ? "blue" : "red"}"/></svg>`,
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="${HARNESS_MAP.width}" height="${HARNESS_MAP.height}"><rect width="${HARNESS_MAP.width}" height="${HARNESS_MAP.height}" fill="${current ? "blue" : "red"}"/></svg>`,
     });
   });
   await page.goto("/tests/fixtures/board.html", {

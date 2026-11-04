@@ -4,8 +4,7 @@ import {
   type BoardCanvas,
   type BoardSnapshot,
 } from "../../src/boardCanvas.ts";
-import { resolveBoardMap } from "../../src/boardMaps.ts";
-import { DEFAULT_MAP_ID } from "../../src/maps.ts";
+import { HARNESS_MAP } from "./boardMap.ts";
 
 interface BoardHarness {
   readonly board: BoardCanvas;
@@ -22,6 +21,8 @@ declare global {
 
 const host = document.getElementById("board");
 if (!(host instanceof HTMLDivElement)) throw new Error("Missing board host");
+
+host.style.height = `${(host.clientWidth * HARNESS_MAP.height) / HARNESS_MAP.width}px`;
 
 const board = createBoardCanvas(host, {
   onSelect(token) {
@@ -52,7 +53,7 @@ window.boardHarness = {
   board,
   stage,
   snapshot: {
-    map: resolveBoardMap({ kind: "builtin", id: DEFAULT_MAP_ID }),
+    map: HARNESS_MAP,
     boardRevision: 0,
     tokens: [
       { id: "ally-strange", heroId: "strange", team: "ally", x: 200, y: 200 },

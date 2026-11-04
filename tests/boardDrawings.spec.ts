@@ -1,6 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openExampleBoard } from "./boardSetup";
 import type Konva from "konva";
+import { clampToBoard, DEFAULT_ICON_SIZE } from "../src/boardTokens";
+import {
+  boardGeometry,
+  boardPoint,
+  coordinatesText,
+  type ClientPoint,
+} from "./boardGeometry";
+import { exampleToken, openExampleBoard } from "./boardSetup";
 
 declare global {
   interface Window {
@@ -54,23 +61,40 @@ function expectNoteInsideBoard(note: NoteLayout): void {
 
 type DrawingKind = "arrow" | "zone" | "note";
 
-async function point(
-  page: Page,
-  x: number,
-  y: number,
-): Promise<{ x: number; y: number }> {
+async function point(page: Page, x: number, y: number): Promise<ClientPoint> {
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board");
-  return {
-    x: bounds.x + (x * bounds.width) / 1200,
-    y: bounds.y + (y * bounds.width) / 1200,
-  };
+  return boardPoint(page, x, y);
+}
+
+async function chooseMap(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "Choose map", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Choose map", exact: true })
+    .getByRole("button", { name, exact: true })
+    .click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+}
+
+async function startOnLandscapeMap(page: Page): Promise<void> {
+  await chooseMap(page, "Arakko");
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Arakko");
+  await expect(
+    page.getByRole("button", { name: "Undo", exact: true }),
+  ).toBeDisabled();
+}
+
+async function strangeOnMap(page: Page): Promise<ClientPoint> {
+  return clampToBoard(
+    exampleToken("strange"),
+    await boardGeometry(page),
+    DEFAULT_ICON_SIZE,
+  );
 }
 async function click(
   page: Page,
@@ -252,6 +276,7 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   page,
 }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "arrow");
   await expect(
     page.getByRole("group", { name: "Drawings on this map" }),
@@ -281,39 +306,19 @@ test("map drawings are isolated; Clear preserves other maps", async ({
   page,
 }) => {
   await openExampleBoard(page);
+  await startOnLandscapeMap(page);
   await draw(page, "zone");
-  await page.getByRole("button", { name: "Choose map", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Choose map", exact: true })
-    .getByRole("button", {
-      name: "Hydra Charteris Base: Hell's Heaven",
-      exact: true,
-    })
-    .click();
+  await chooseMap(page, "Hydra Charteris Base: Hell's Heaven");
   await expectSelection(page, null);
   await draw(page, "arrow");
-  await page.getByRole("button", { name: "Choose map", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Choose map", exact: true })
-    .getByRole("button", {
-      name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
-      exact: true,
-    })
-    .click();
+  await chooseMap(page, "Arakko");
   await expectSelection(page, "zone");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
     "Allies 0",
   );
   await expectSelection(page, null);
-  await page.getByRole("button", { name: "Choose map", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Choose map", exact: true })
-    .getByRole("button", {
-      name: "Hydra Charteris Base: Hell's Heaven",
-      exact: true,
-    })
-    .click();
+  await chooseMap(page, "Hydra Charteris Base: Hell's Heaven");
   await expectSelection(page, "arrow");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expectSelection(page, null);
@@ -377,7 +382,13 @@ test("keyboard selection and removal preserve note text editing", async ({
   await page.keyboard.press("Enter");
   await expect(text).toHaveCount(0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expectSelection(page, "note", 540, 315);
+  const restored = await readNote(page, "New note");
+  await expectSelection(
+    page,
+    "note",
+    restored.x + restored.width / 2,
+    restored.y + 15,
+  );
   await page.locator(".stage-host").focus();
   await page.keyboard.press("Delete");
   await expect(text).toHaveCount(0);
@@ -385,6 +396,7 @@ test("keyboard selection and removal preserve note text editing", async ({
 
 test("cancelled drawing gestures do not enter history", async ({ page }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "arrow");
   await page.getByRole("button", { name: "Draw zone", exact: true }).click();
   for (const key of ["Escape", "Control+z"]) {
@@ -445,6 +457,8 @@ for (const kind of ["arrow", "zone", "note"] as const) {
     page,
   }) => {
     await openExampleBoard(page);
+    await startOnLandscapeMap(page);
+    const strange = await strangeOnMap(page);
     await draw(page, kind);
     const toolButton = page.getByRole("button", {
       name:
@@ -462,7 +476,7 @@ for (const kind of ["arrow", "zone", "note"] as const) {
     await expectSelection(
       page,
       kind,
-      kind === "note" ? 720 : 775,
+      kind === "note" ? 790 : 775,
       kind === "note" ? 115 : 125,
     );
     await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -470,20 +484,22 @@ for (const kind of ["arrow", "zone", "note"] as const) {
     await expect(
       page.getByRole("group", { name: "Drawings on this map" }),
     ).toHaveCount(0);
-    await drag(page, 270, 435, 330, 475);
+    await drag(page, strange.x, strange.y, strange.x + 60, strange.y + 40);
     await expect(page.locator(".selection-name strong")).toHaveText(
       "Doctor Strange",
     );
     await page.getByRole("button", { name: "Draw arrow", exact: true }).click();
-    const x = kind === "note" ? 420 : 500;
+    const x = kind === "note" ? 490 : 500;
     const y = kind === "note" ? 215 : 250;
     await expectSelection(page, kind, x, y);
     await drag(page, x, y, x + 40, y + 80);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expectSelection(page, kind, x, y);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await click(page, 270, 435);
-    await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
+    await click(page, strange.x, strange.y);
+    await expect(page.locator(".coordinates")).toHaveText(
+      coordinatesText(strange),
+    );
     await remove(page, kind, x, y);
     await expectSelection(page, null, x, y);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -511,13 +527,16 @@ for (const { name, text } of [
     page,
   }) => {
     await page.goto("/");
+    await startOnLandscapeMap(page);
+    const bottom = (await boardGeometry(page)).height - 14;
     await draw(page, "note");
     await page
       .getByRole("textbox", { name: "Note text", exact: true })
       .fill(text);
     await page.getByRole("button", { name: "Save note", exact: true }).click();
     const before = await noteLayout(page, text);
-    await drag(page, before.x + 20, before.y + 15, before.x + 20, 640);
+    const grab = before.x + before.width / 2;
+    await drag(page, grab, before.y + 15, grab, bottom);
     const moved = await noteLayout(page, text);
     expect(moved.y).toBeGreaterThan(before.y);
     expectNoteInsideBoard(moved);
@@ -531,8 +550,10 @@ for (const { name, text } of [
     page,
   }) => {
     await page.goto("/");
+    await startOnLandscapeMap(page);
+    const bottom = (await boardGeometry(page)).height - 14;
     await draw(page, "note");
-    await drag(page, 420, 215, 420, 640);
+    await drag(page, 490, 215, 490, bottom);
     const before = await noteLayout(page, "New note");
     const editor = page.getByRole("textbox", {
       name: "Note text",
@@ -576,6 +597,7 @@ test("dragging a zone corner changes its size and one undo restores it", async (
   page,
 }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "zone");
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "zone updated.",
@@ -597,6 +619,7 @@ test("escape cancels a zone resize and leaves the create as the only history ste
   page,
 }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "zone");
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "zone updated.",
@@ -616,6 +639,7 @@ test("escape cancels a zone resize and leaves the create as the only history ste
 
 test("dragging an arrow tip changes its direction", async ({ page }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "arrow");
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "arrow updated.",
@@ -629,6 +653,7 @@ test("dragging a note handle changes its width and keeps the text wrapping", asy
   page,
 }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "note");
   const text =
     "Hold the point and watch the left flank. Wait for the team before moving forward.";
@@ -667,6 +692,7 @@ test("dragging a zone body translates it and keeps its size", async ({
   page,
 }) => {
   await page.goto("/");
+  await startOnLandscapeMap(page);
   await draw(page, "zone");
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "zone updated.",

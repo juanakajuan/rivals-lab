@@ -29,7 +29,7 @@ import {
   type BoardMapId,
   type CustomBoardMap,
 } from "./boardMaps";
-import { MapPicker, type MapPickerEntry } from "./MapPicker";
+import { MapPicker, type MapPickerOption } from "./MapPicker";
 import { MAPS } from "./maps";
 
 export type BoardUploadState =
@@ -249,20 +249,16 @@ export function BoardPanel({
   onDrop,
   onKeyDown,
 }: BoardPanelProps): React.JSX.Element {
-  const mapOptions = [
-    ...MAPS.map((map): MapPickerEntry<BoardMapId> =>
-      "board" in map
-        ? boardMapOption(map)
-        : { placeholder: true, id: map.id, name: map.name, detail: map.mode },
-    ),
+  const mapOptions: readonly MapPickerOption<BoardMapId>[] = [
+    ...MAPS.map(boardMapOption),
     ...customMaps.map((map) => ({
       value: map.id,
       name: map.name,
       detail: map.mode,
       imagePath: map.imagePath,
-      imageSize: [map.width, map.height] satisfies readonly [number, number],
     })),
   ];
+  const stages = selectedMap.kind === "builtin" ? selectedMap.stages : [];
 
   function allowDrop(event: DragEvent<HTMLDivElement>): void {
     event.preventDefault();
@@ -275,6 +271,20 @@ export function BoardPanel({
         <div className="map-title">
           <h1 id="board-heading">{selectedMap.name}</h1>
           <p>{selectedMap.mode}</p>
+          {stages.length > 1 ? (
+            <div className="stage-switcher" role="group" aria-label="Stage">
+              {stages.map((stage) => (
+                <button
+                  type="button"
+                  key={stage.id}
+                  aria-pressed={stage.id === selectedMapId}
+                  onClick={() => onMapChange(stage.id)}
+                >
+                  {stage.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="board-heading-actions">
           <MapPicker<BoardMapId>
@@ -282,7 +292,6 @@ export function BoardPanel({
             selectedValue={selectedMapId}
             triggerLabel="Choose map"
             title="Choose map"
-            description="Placeholder cards still need an overhead map image."
             onChoose={onMapChange}
             onClose={onMapPickerClose}
             renderActions={(close) => (
@@ -331,6 +340,8 @@ export function BoardPanel({
           tabIndex={0}
           onKeyDown={onKeyDown}
           ref={boardHostRef}
+          data-map-width={selectedMap.width}
+          data-map-height={selectedMap.height}
           style={{
             aspectRatio: `${selectedMap.width} / ${selectedMap.height}`,
           }}

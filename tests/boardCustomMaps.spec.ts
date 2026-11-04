@@ -1,5 +1,8 @@
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import type Konva from "konva";
+import { scaledSize } from "../src/boardMaps";
+import { boardGeometry } from "./boardGeometry";
+import { openExampleBoard } from "./boardSetup";
 
 declare global {
   interface Window {
@@ -189,37 +192,14 @@ async function renderedBoard(page: Page): Promise<unknown> {
   });
 }
 
-for (const { name, width, height, logicalWidth, logicalHeight } of [
-  {
-    name: "portrait",
-    width: 400,
-    height: 800,
-    logicalWidth: 600,
-    logicalHeight: 1200,
-  },
-  {
-    name: "square",
-    width: 640,
-    height: 640,
-    logicalWidth: 1200,
-    logicalHeight: 1200,
-  },
-  { name: "tiny", width: 4, height: 2, logicalWidth: 1200, logicalHeight: 600 },
-  {
-    name: "large",
-    width: 4000,
-    height: 2000,
-    logicalWidth: 1200,
-    logicalHeight: 600,
-  },
-  {
-    name: "wide",
-    width: 2000,
-    height: 100,
-    logicalWidth: 6000,
-    logicalHeight: 300,
-  },
+for (const { name, width, height } of [
+  { name: "portrait", width: 400, height: 800 },
+  { name: "square", width: 640, height: 640 },
+  { name: "tiny", width: 4, height: 2 },
+  { name: "large", width: 4000, height: 2000 },
+  { name: "wide", width: 2000, height: 100 },
 ]) {
+  const logical = scaledSize(width, height);
   test(`${name} image keeps its exact ratio and all four corners`, async ({
     page,
   }) => {
@@ -262,8 +242,8 @@ for (const { name, width, height, logicalWidth, logicalHeight } of [
         ),
       };
     });
-    expect(geometry.width).toBeCloseTo(logicalWidth);
-    expect(geometry.height).toBeCloseTo(logicalHeight);
+    expect(geometry.width).toBeCloseTo(logical.width);
+    expect(geometry.height).toBeCloseTo(logical.height);
     expect(geometry.ratio).toBeCloseTo(width / height, 1);
     expect(geometry.inside).toBe(true);
     expect(geometry.colors).toEqual([
@@ -395,12 +375,14 @@ test("portrait heroes and each drawing tool work through image replacement and h
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "arrow selected.",
   );
+  const map = await boardGeometry(page);
+  expect(map.width).toBeCloseTo(scaledSize(400, 800).width);
 });
 
 test("failed uploads preserve image, drawings, formation, undo, and redo", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await upload(page, await imageFile(page, 800, 400));
   await page.getByRole("button", { name: "Draw zone", exact: true }).click();
   await page
@@ -636,6 +618,10 @@ for (const budget of ["bytes", "pixels"] as const) {
   test(`total ${budget} upload budget preserves the last accepted board`, async ({
     page,
   }) => {
+    test.slow(
+      budget === "bytes",
+      "Fills the 50 MiB budget with six 8 MiB uploads.",
+    );
     await page.goto("/");
     const source = await imageFile(
       page,

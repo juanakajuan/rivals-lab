@@ -1,40 +1,54 @@
 import { expect, type Page } from "@playwright/test";
-import { resolveBoardMap } from "../src/boardMaps";
 import { initialBoard } from "../src/boardSession";
 import {
   boardTokenId,
   clampToBoard,
   DEFAULT_ICON_SIZE,
+  type BoardToken,
 } from "../src/boardTokens";
 import type { Team } from "../src/heroes";
 import { encodeBoardRecord } from "../src/workspaceRecord";
+import { boardPoint, DEFAULT_BOARD } from "./boardGeometry";
 
 interface Placement {
   readonly heroId: string;
   readonly team: Team;
+  /** Fraction of the map width. */
   readonly x: number;
+  /** Fraction of the map height. */
   readonly y: number;
 }
 
-/** Heroes for tests that need a populated board. A new board is empty. */
-export const EXAMPLE_FORMATION: readonly Placement[] = [
-  { heroId: "strange", team: "ally", x: 270, y: 435 },
-  { heroId: "psylocke", team: "ally", x: 380, y: 350 },
-  { heroId: "luna", team: "ally", x: 230, y: 520 },
-  { heroId: "magneto", team: "enemy", x: 865, y: 310 },
-  { heroId: "magik", team: "enemy", x: 960, y: 410 },
-  { heroId: "rocket", team: "enemy", x: 910, y: 515 },
+const EXAMPLE_PLACEMENTS: readonly Placement[] = [
+  { heroId: "strange", team: "ally", x: 0.225, y: 0.665 },
+  { heroId: "psylocke", team: "ally", x: 0.317, y: 0.535 },
+  { heroId: "luna", team: "ally", x: 0.192, y: 0.795 },
+  { heroId: "magneto", team: "enemy", x: 0.721, y: 0.474 },
+  { heroId: "magik", team: "enemy", x: 0.8, y: 0.627 },
+  { heroId: "rocket", team: "enemy", x: 0.758, y: 0.787 },
 ];
 
-export async function boardPoint(
-  page: Page,
-  x: number,
-  y: number,
-): Promise<{ readonly x: number; readonly y: number }> {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
+/**
+ * Heroes for tests that need a populated board, in map pixels on the
+ * default map. A new board is empty.
+ */
+export const EXAMPLE_FORMATION: readonly BoardToken[] = EXAMPLE_PLACEMENTS.map(
+  ({ heroId, team, x, y }) => ({
+    id: boardTokenId(team, heroId),
+    heroId,
+    team,
+    ...clampToBoard(
+      { x: x * DEFAULT_BOARD.width, y: y * DEFAULT_BOARD.height },
+      DEFAULT_BOARD,
+      DEFAULT_ICON_SIZE,
+    ),
+  }),
+);
+
+export function exampleToken(heroId: string): BoardToken {
+  const token = EXAMPLE_FORMATION.find((item) => item.heroId === heroId);
+  if (!token) throw new Error(`${heroId} is not in the example formation`);
+  return token;
 }
 
 export async function dropHero(
@@ -87,18 +101,8 @@ export async function openExampleBoard(page: Page, path = "/"): Promise<void> {
   await page.goto(path);
   // The app creates the database before it shows the board.
   await expect(page.locator(".stage-host canvas").first()).toBeVisible();
-  const board = initialBoard();
-  const map = resolveBoardMap(board.map);
   const record = encodeBoardRecord(
-    {
-      ...board,
-      tokens: EXAMPLE_FORMATION.map(({ heroId, team, x, y }) => ({
-        id: boardTokenId(team, heroId),
-        heroId,
-        team,
-        ...clampToBoard({ x, y }, map, DEFAULT_ICON_SIZE),
-      })),
-    },
+    { ...initialBoard(), tokens: EXAMPLE_FORMATION },
     DEFAULT_ICON_SIZE,
   );
   await page.evaluate(

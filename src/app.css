@@ -429,6 +429,32 @@ button:focus-visible,
   gap: 8px;
 }
 
+.stage-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stage-switcher button {
+  min-height: 32px;
+  padding: 4px 10px;
+  color: #f4f5f8;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.stage-switcher button:hover {
+  background: var(--surface-hover);
+}
+
+.stage-switcher button[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
 .map-picker-actions {
   flex: 0 0 auto;
   display: grid;
@@ -568,25 +594,6 @@ button:focus-visible,
   border-color: var(--muted);
 }
 
-.map-picker-placeholder {
-  cursor: default;
-  border-style: dashed;
-  opacity: 1;
-}
-
-.map-picker-placeholder:hover {
-  border-color: var(--border);
-}
-
-.map-picker-placeholder-label {
-  justify-self: start;
-  padding: 4px 8px;
-  color: var(--muted);
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-  font-size: 12px;
-}
-
 .map-picker-trigger:focus-visible,
 .map-picker-close:focus-visible,
 .map-picker-search input:focus-visible,
@@ -599,6 +606,9 @@ button:focus-visible,
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #111214;
 }
 
 .map-picker-description {
@@ -847,17 +857,30 @@ button:focus-visible,
   }
 
   .board-panel {
-    order: 1;
-    height: auto;
-    display: block;
-    padding: 18px 12px 24px;
+    display: contents;
+  }
+
+  .board-panel > * {
+    margin-inline: 12px;
+  }
+
+  .board-heading {
+    margin-top: 18px;
+  }
+
+  .board-toolbar {
+    margin-bottom: 24px;
   }
 
   .hero-panel {
-    order: 2;
+    order: 1;
     overflow: visible;
     border-top: 1px solid var(--border);
     border-right: 0;
+  }
+
+  .hero-panel-header {
+    position: static;
   }
 
   .hero-list {
@@ -870,12 +893,10 @@ button:focus-visible,
   }
 
   .board-shell {
-    display: block;
-  }
-
-  .stage-host {
-    height: auto;
-    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    max-height: 45dvh;
   }
 
   .selection-name span,

@@ -522,7 +522,7 @@ export function useBoardController({
     cancelUpload();
     const builtin = findBoardMap(mapId);
     const selected = builtin
-      ? ({ kind: "builtin", id: builtin.id } satisfies SelectedBoardMap)
+      ? ({ kind: "builtin", id: builtin.stage.id } satisfies SelectedBoardMap)
       : customMaps.find((map) => map.id === mapId);
     if (!selected) return;
     const map = resolveBoardMap(selected);

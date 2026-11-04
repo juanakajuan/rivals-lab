@@ -18,7 +18,7 @@ import {
 } from "./boardTokens";
 import type { Comp } from "./comps";
 import { TEAMS, TEAM_SIZE, type Team } from "./heroes";
-import { DEFAULT_MAP_ID, type BuiltinBoardMapId } from "./maps";
+import { DEFAULT_MAP_ID, findBoardMap, type BuiltinBoardMapId } from "./maps";
 
 import {
   resolveBoardMap,
@@ -74,6 +74,27 @@ export function initialBoard(): BoardState {
   };
 }
 
+function clampDrawings(
+  board: BoardState,
+  customMaps: readonly CustomBoardMap[],
+  measureNote: MeasureBoardNote,
+): BoardState {
+  const drawingsByMap: Partial<Record<BoardMapId, readonly BoardDrawing[]>> =
+    {};
+  for (const [mapId, drawings] of Object.entries(board.drawingsByMap)) {
+    const builtin = findBoardMap(mapId);
+    const owner: SelectedBoardMap | undefined = builtin
+      ? { kind: "builtin", id: builtin.stage.id }
+      : customMaps.find((map) => map.id === mapId);
+    if (!owner || !drawings) continue;
+    const bounds = resolveBoardMap(owner);
+    drawingsByMap[owner.id] = drawings.map((drawing) =>
+      moveDrawing(drawing, drawing.x, drawing.y, bounds, measureNote),
+    );
+  }
+  return { ...board, drawingsByMap };
+}
+
 function clampTokens(board: BoardState, iconSize: number): BoardState {
   const map = resolveBoardMap(board.map);
   let moved = false;
@@ -122,6 +143,7 @@ export class BoardSession {
     iconSize: IconSize = DEFAULT_ICON_SIZE,
     customMaps: readonly CustomBoardMap[] = [],
   ) {
+    board = clampDrawings(board, customMaps, measureNote);
     this.current = {
       board,
       tokens: clampTokens(board, iconSize).tokens,

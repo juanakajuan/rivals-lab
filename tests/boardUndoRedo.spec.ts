@@ -1,10 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { clampToBoard, DEFAULT_ICON_SIZE } from "../src/boardTokens";
 import {
+  boardGeometry,
   boardPoint,
+  coordinatesText,
+  DEFAULT_BOARD,
+  type ClientPoint,
+} from "./boardGeometry";
+import {
   clickToken,
   dropHero,
+  exampleToken,
   openExampleBoard,
 } from "./boardSetup";
+
+const strange = exampleToken("strange");
+const strangeMoved = { x: strange.x + 80, y: strange.y + 45 };
+
+async function openSpot(page: Page): Promise<ClientPoint> {
+  const { width, height } = await boardGeometry(page);
+  return { x: Math.round(width / 2), y: Math.round(height / 5) };
+}
 
 test("placement, removal, and Clear restore in history order", async ({
   page,
@@ -15,10 +31,11 @@ test("placement, removal, and Clear restore in history order", async ({
   const allies = page.getByRole("button", { name: /^Allies/ });
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
-  await dropHero(page, "hulk", 500, 250);
+  const hulk = await openSpot(page);
+  await dropHero(page, "hulk", hulk.x, hulk.y);
   await expect(allies).toHaveText("Allies 4");
-  await dropHero(page, "hulk", 500, 250);
-  await clickToken(page, 500, 250, "right");
+  await dropHero(page, "hulk", hulk.x, hulk.y);
+  await clickToken(page, hulk.x, hulk.y, "right");
   await page.getByRole("menuitem", { name: "Remove Hulk" }).click();
   await expect(allies).toHaveText("Allies 3");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
@@ -27,7 +44,7 @@ test("placement, removal, and Clear restore in history order", async ({
   await expect(allies).toHaveText("Allies 3");
   await undo.click();
   await expect(allies).toHaveText("Allies 4");
-  await clickToken(page, 500, 250, "right");
+  await clickToken(page, hulk.x, hulk.y, "right");
   await expect(page.getByRole("menu")).toBeVisible();
   await page.keyboard.press("Control+z");
   await expect(allies).toHaveText("Allies 3");
@@ -47,19 +64,21 @@ test("one drag is one edit; selection and unchanged edits preserve redo", async 
   await openExampleBoard(page);
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
-  const start = await boardPoint(page, 270, 435);
-  const end = await boardPoint(page, 350, 480);
+  const start = await boardPoint(page, strange.x, strange.y);
+  const end = await boardPoint(page, strangeMoved.x, strangeMoved.y);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 12 });
   await expect(undo).toBeDisabled();
   await page.mouse.up();
   const moved = await page.locator(".coordinates").innerText();
-  expect(moved).not.toBe("x 270, y 435");
+  expect(moved).not.toBe(coordinatesText(strange));
   await undo.click();
-  await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(strange),
+  );
   await expect(undo).toBeDisabled();
-  await clickToken(page, 270, 435);
+  await clickToken(page, strange.x, strange.y);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 4 });
@@ -76,7 +95,7 @@ test("one drag is one edit; selection and unchanged edits preserve redo", async 
   await expect(undo).toBeDisabled();
   await expect(redo).toBeEnabled();
   await redo.click();
-  await clickToken(page, 350, 480);
+  await clickToken(page, strangeMoved.x, strangeMoved.y);
   await expect(page.locator(".coordinates")).toHaveText(moved);
   await undo.click();
   await page.getByRole("button", { name: "Clear", exact: true }).click();
@@ -99,8 +118,19 @@ test("map changes restore clamped positions in the same step", async ({
     .getByRole("dialog", { name: "Choose map", exact: true })
     .getByRole("button", { name: "Museum of Contemplation", exact: true })
     .click();
-  await dropHero(page, "strange", 0, 700);
-  await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
+  await expect(mapHeading).toHaveText("Museum of Contemplation");
+  const museum = await boardGeometry(page);
+  const onMuseum = clampToBoard(
+    { x: museum.width, y: museum.height },
+    museum,
+    DEFAULT_ICON_SIZE,
+  );
+  const onDefault = clampToBoard(onMuseum, DEFAULT_BOARD, DEFAULT_ICON_SIZE);
+  expect(onDefault).not.toEqual(onMuseum);
+  await dropHero(page, "strange", museum.width, museum.height);
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(onMuseum),
+  );
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Choose map", exact: true })
@@ -109,15 +139,21 @@ test("map changes restore clamped positions in the same step", async ({
       exact: true,
     })
     .click();
-  await expect(page.locator(".coordinates")).toHaveText("x 24, y 630");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(onDefault),
+  );
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(mapHeading).toHaveText("Museum of Contemplation");
-  await expect(page.locator(".coordinates")).toHaveText("x 24, y 634");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(onMuseum),
+  );
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(mapHeading).toHaveText(
     "Intergalactic Empire of Wakanda: Birnin T'Challa",
   );
-  await expect(page.locator(".coordinates")).toHaveText("x 24, y 630");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(onDefault),
+  );
 });
 
 for (const modifier of ["Control", "Meta"]) {
@@ -125,7 +161,8 @@ for (const modifier of ["Control", "Meta"]) {
     page,
   }) => {
     await openExampleBoard(page);
-    await dropHero(page, "hulk", 500, 250);
+    const hulk = await openSpot(page);
+    await dropHero(page, "hulk", hulk.x, hulk.y);
     const search = page.getByRole("searchbox");
     await search.fill("Hulk");
     await search.press("Backspace");
@@ -196,9 +233,10 @@ test("undo during a drag cancels the gesture without adding an edit", async ({
   page,
 }) => {
   await openExampleBoard(page);
-  await dropHero(page, "hulk", 500, 250);
-  const start = await boardPoint(page, 270, 435);
-  const end = await boardPoint(page, 350, 480);
+  const hulk = await openSpot(page);
+  await dropHero(page, "hulk", hulk.x, hulk.y);
+  const start = await boardPoint(page, strange.x, strange.y);
+  const end = await boardPoint(page, strangeMoved.x, strangeMoved.y);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 8 });
@@ -210,8 +248,10 @@ test("undo during a drag cancels the gesture without adding an edit", async ({
   await expect(
     page.getByRole("button", { name: "Redo", exact: true }),
   ).toBeEnabled();
-  await expect(page.locator(".coordinates")).toHaveText("x 270, y 435");
-  await clickToken(page, 270, 435);
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(strange),
+  );
+  await clickToken(page, strange.x, strange.y);
   await expect(page.locator(".selection-name strong")).toHaveText(
     "Doctor Strange",
   );
@@ -221,7 +261,8 @@ test("Ctrl+Y redoes a board edit and preserves native text history", async ({
   page,
 }) => {
   await openExampleBoard(page);
-  await dropHero(page, "hulk", 500, 250);
+  const hulk = await openSpot(page);
+  await dropHero(page, "hulk", hulk.x, hulk.y);
   const allies = page.getByRole("button", { name: /^Allies/ });
   await page.keyboard.press("Control+z");
   await expect(allies).toHaveText("Allies 3");

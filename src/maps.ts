@@ -19,12 +19,19 @@ export interface PreviewImage {
   readonly sourceImage: string;
 }
 
+export interface BoardStage {
+  readonly id: string;
+  readonly name: string;
+  readonly image: BoardImage;
+  readonly thumb: `/map-thumbs/${string}`;
+}
+
 export interface MapEntry {
   readonly id: string;
   readonly name: string;
   readonly shortName: string;
   readonly mode: GameMode;
-  readonly board?: BoardImage;
+  readonly stages: readonly [BoardStage, ...BoardStage[]];
   readonly preview?: PreviewImage;
   readonly legacyIds: readonly string[];
 }
@@ -35,11 +42,38 @@ export const MAPS = [
     name: "Intergalactic Empire of Wakanda: Birnin T'Challa",
     shortName: "Birnin T’Challa",
     mode: "Domination",
-    board: {
-      imagePath: "/maps/birnin-tchalla-domination.png",
-      width: 1200,
-      height: 654,
-    },
+    stages: [
+      {
+        id: "birnin-tchalla-imperial-institute-of-science",
+        name: "Imperial Institute of Science",
+        image: {
+          imagePath: "/maps/birnin-tchalla-imperial-institute-of-science.webp",
+          width: 943,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/birnin-tchalla-imperial-institute-of-science.webp",
+      },
+      {
+        id: "birnin-tchalla-spaceport",
+        name: "Spaceport",
+        image: {
+          imagePath: "/maps/birnin-tchalla-spaceport.webp",
+          width: 1729,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/birnin-tchalla-spaceport.webp",
+      },
+      {
+        id: "birnin-tchalla-waterfall",
+        name: "Waterfall",
+        image: {
+          imagePath: "/maps/birnin-tchalla-waterfall.webp",
+          width: 2560,
+          height: 2548,
+        },
+        thumb: "/map-thumbs/birnin-tchalla-waterfall.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/birnin-tchalla.webp",
       size: [1920, 803],
@@ -55,11 +89,48 @@ export const MAPS = [
     name: "Hydra Charteris Base: Hell's Heaven",
     shortName: "Hell’s Heaven",
     mode: "Domination",
-    board: {
-      imagePath: "/maps/hells-heaven-domination.png",
-      width: 1200,
-      height: 657,
-    },
+    stages: [
+      {
+        id: "hells-heaven-airfield-base",
+        name: "Airfield Base",
+        image: {
+          imagePath: "/maps/hells-heaven-airfield-base.webp",
+          width: 2334,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/hells-heaven-airfield-base.webp",
+      },
+      {
+        id: "hells-heaven-airfield-base-forward-view",
+        name: "Airfield Base (forward view)",
+        image: {
+          imagePath: "/maps/hells-heaven-airfield-base-forward-view.webp",
+          width: 2560,
+          height: 1834,
+        },
+        thumb: "/map-thumbs/hells-heaven-airfield-base-forward-view.webp",
+      },
+      {
+        id: "hells-heaven-monument",
+        name: "Monument",
+        image: {
+          imagePath: "/maps/hells-heaven-monument.webp",
+          width: 648,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/hells-heaven-monument.webp",
+      },
+      {
+        id: "hells-heaven-super-soldier-factory",
+        name: "Super Soldier Factory",
+        image: {
+          imagePath: "/maps/hells-heaven-super-soldier-factory.webp",
+          width: 827,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/hells-heaven-super-soldier-factory.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/hells-heaven.webp",
       size: [1720, 720],
@@ -75,11 +146,38 @@ export const MAPS = [
     name: "Cradle: Krakoa",
     shortName: "Krakoa",
     mode: "Domination",
-    board: {
-      imagePath: "/maps/krakoa-domination.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "krakoa-carousel",
+        name: "Carousel",
+        image: {
+          imagePath: "/maps/krakoa-carousel.webp",
+          width: 1118,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/krakoa-carousel.webp",
+      },
+      {
+        id: "krakoa-cradle",
+        name: "Cradle",
+        image: {
+          imagePath: "/maps/krakoa-cradle.webp",
+          width: 1219,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/krakoa-cradle.webp",
+      },
+      {
+        id: "krakoa-grove",
+        name: "Grove",
+        image: {
+          imagePath: "/maps/krakoa-grove.webp",
+          width: 1928,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/krakoa-grove.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/krakoa.webp",
       size: [1720, 720],
@@ -95,6 +193,38 @@ export const MAPS = [
     name: "Celestial Husk",
     shortName: "Celestial Husk",
     mode: "Domination",
+    stages: [
+      {
+        id: "celestial-husk-celestial-codex",
+        name: "Celestial Codex",
+        image: {
+          imagePath: "/maps/celestial-husk-celestial-codex.webp",
+          width: 1266,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/celestial-husk-celestial-codex.webp",
+      },
+      {
+        id: "celestial-husk-celestial-hand",
+        name: "Celestial Hand",
+        image: {
+          imagePath: "/maps/celestial-husk-celestial-hand.webp",
+          width: 1432,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/celestial-husk-celestial-hand.webp",
+      },
+      {
+        id: "celestial-husk-celestial-vault",
+        name: "Celestial Vault",
+        image: {
+          imagePath: "/maps/celestial-husk-celestial-vault.webp",
+          width: 2189,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/celestial-husk-celestial-vault.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/celestial-husk.webp",
       size: [1720, 720],
@@ -110,6 +240,38 @@ export const MAPS = [
     name: "The God Quarry",
     shortName: "The God Quarry",
     mode: "Domination",
+    stages: [
+      {
+        id: "god-quarry-confessional-eternity",
+        name: "Confessional Eternity",
+        image: {
+          imagePath: "/maps/god-quarry-confessional-eternity.webp",
+          width: 951,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/god-quarry-confessional-eternity.webp",
+      },
+      {
+        id: "god-quarry-halls-of-all-knowing",
+        name: "Halls of All-Knowing",
+        image: {
+          imagePath: "/maps/god-quarry-halls-of-all-knowing.webp",
+          width: 905,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/god-quarry-halls-of-all-knowing.webp",
+      },
+      {
+        id: "god-quarry-house-of-ideas",
+        name: "House of Ideas",
+        image: {
+          imagePath: "/maps/god-quarry-house-of-ideas.webp",
+          width: 549,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/god-quarry-house-of-ideas.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/god-quarry.jpg",
       size: [3840, 2160],
@@ -122,15 +284,61 @@ export const MAPS = [
     legacyIds: [],
   },
   {
+    id: "royal-palace",
+    name: "Yggsgard: Royal Palace",
+    shortName: "Royal Palace",
+    mode: "Domination",
+    stages: [
+      {
+        id: "royal-palace-archive",
+        name: "Archive",
+        image: {
+          imagePath: "/maps/royal-palace-archive.webp",
+          width: 852,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/royal-palace-archive.webp",
+      },
+      {
+        id: "royal-palace-bifrost-garden",
+        name: "Bifrost Garden",
+        image: {
+          imagePath: "/maps/royal-palace-bifrost-garden.webp",
+          width: 838,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/royal-palace-bifrost-garden.webp",
+      },
+      {
+        id: "royal-palace-throne-room",
+        name: "Throne Room",
+        image: {
+          imagePath: "/maps/royal-palace-throne-room.webp",
+          width: 809,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/royal-palace-throne-room.webp",
+      },
+    ],
+    legacyIds: [],
+  },
+  {
     id: "yggdrasill-path",
     name: "Yggdrasill Path",
     shortName: "Yggdrasill Path",
     mode: "Convoy",
-    board: {
-      imagePath: "/maps/yggdrasill-path-convoy.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "yggdrasill-path",
+        name: "Yggdrasill Path",
+        image: {
+          imagePath: "/maps/yggdrasill-path.webp",
+          width: 1944,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/yggdrasill-path.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/yggdrasill-path.webp",
       size: [1920, 804],
@@ -146,11 +354,18 @@ export const MAPS = [
     name: "Spider-Islands",
     shortName: "Spider-Islands",
     mode: "Convoy",
-    board: {
-      imagePath: "/maps/spider-islands-convoy.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "spider-islands",
+        name: "Spider-Islands",
+        image: {
+          imagePath: "/maps/spider-islands.webp",
+          width: 1724,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/spider-islands.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/spider-islands.webp",
       size: [1920, 804],
@@ -166,11 +381,18 @@ export const MAPS = [
     name: "Midtown",
     shortName: "Midtown",
     mode: "Convoy",
-    board: {
-      imagePath: "/maps/midtown-convoy.webp",
-      width: 1200,
-      height: 657,
-    },
+    stages: [
+      {
+        id: "midtown",
+        name: "Damaged",
+        image: {
+          imagePath: "/maps/midtown.webp",
+          width: 1974,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/midtown.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/midtown.webp",
       size: [1920, 803],
@@ -186,11 +408,18 @@ export const MAPS = [
     name: "Arakko",
     shortName: "Arakko",
     mode: "Convoy",
-    board: {
-      imagePath: "/maps/arakko-convoy.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "arakko",
+        name: "Arakko",
+        image: {
+          imagePath: "/maps/arakko.webp",
+          width: 2560,
+          height: 1904,
+        },
+        thumb: "/map-thumbs/arakko.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/arakko.webp",
       size: [1720, 720],
@@ -206,11 +435,18 @@ export const MAPS = [
     name: "Museum of Contemplation",
     shortName: "Museum of Contemplation",
     mode: "Convoy",
-    board: {
-      imagePath: "/maps/museum-of-contemplation-convoy.png",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "museum-of-contemplation",
+        name: "Museum of Contemplation",
+        image: {
+          imagePath: "/maps/museum-of-contemplation.webp",
+          width: 2092,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/museum-of-contemplation.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/museum-of-contemplation.jpg",
       size: [1920, 1080],
@@ -226,11 +462,18 @@ export const MAPS = [
     name: "Thebes",
     shortName: "Thebes",
     mode: "Convoy",
-    board: {
-      imagePath: "/maps/thebes-convoy.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "thebes",
+        name: "Thebes",
+        image: {
+          imagePath: "/maps/thebes.webp",
+          width: 1301,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/thebes.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/thebes.jpg",
       size: [3840, 2160],
@@ -246,11 +489,18 @@ export const MAPS = [
     name: "Hall of Djalia",
     shortName: "Hall of Djalia",
     mode: "Convergence",
-    board: {
-      imagePath: "/maps/hall-of-djalia-convergence.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "hall-of-djalia",
+        name: "Hall of Djalia",
+        image: {
+          imagePath: "/maps/hall-of-djalia.webp",
+          width: 1002,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/hall-of-djalia.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/hall-of-djalia.webp",
       size: [1720, 720],
@@ -266,11 +516,18 @@ export const MAPS = [
     name: "Symbiotic Surface",
     shortName: "Symbiotic Surface",
     mode: "Convergence",
-    board: {
-      imagePath: "/maps/symbiotic-surface-convergence.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "symbiotic-surface",
+        name: "Symbiotic Surface",
+        image: {
+          imagePath: "/maps/symbiotic-surface.webp",
+          width: 2229,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/symbiotic-surface.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/symbiotic-surface.webp",
       size: [1720, 720],
@@ -286,11 +543,28 @@ export const MAPS = [
     name: "Central Park",
     shortName: "Central Park",
     mode: "Convergence",
-    board: {
-      imagePath: "/maps/central-park-convergence.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "central-park-damaged",
+        name: "Damaged",
+        image: {
+          imagePath: "/maps/central-park-damaged.webp",
+          width: 1886,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/central-park-damaged.webp",
+      },
+      {
+        id: "central-park-repaired",
+        name: "Repaired",
+        image: {
+          imagePath: "/maps/central-park-repaired.webp",
+          width: 2560,
+          height: 2359,
+        },
+        thumb: "/map-thumbs/central-park-repaired.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/central-park.webp",
       size: [1720, 720],
@@ -306,11 +580,18 @@ export const MAPS = [
     name: "Heart of Heaven",
     shortName: "Heart of Heaven",
     mode: "Convergence",
-    board: {
-      imagePath: "/maps/heart-of-heaven-convergence.webp",
-      width: 1200,
-      height: 658,
-    },
+    stages: [
+      {
+        id: "heart-of-heaven",
+        name: "Heart of Heaven",
+        image: {
+          imagePath: "/maps/heart-of-heaven.webp",
+          width: 1276,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/heart-of-heaven.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/heart-of-heaven.webp",
       size: [1720, 720],
@@ -326,11 +607,18 @@ export const MAPS = [
     name: "Shin-Shibuya",
     shortName: "Shin-Shibuya",
     mode: "Convergence",
-    board: {
-      imagePath: "/maps/shin-shibuya-convergence.webp",
-      width: 1200,
-      height: 657,
-    },
+    stages: [
+      {
+        id: "shin-shibuya",
+        name: "Shin-Shibuya",
+        image: {
+          imagePath: "/maps/shin-shibuya.webp",
+          width: 1680,
+          height: 1568,
+        },
+        thumb: "/map-thumbs/shin-shibuya.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/shin-shibuya.webp",
       size: [1720, 720],
@@ -346,11 +634,18 @@ export const MAPS = [
     name: "Lower Manhattan",
     shortName: "Lower Manhattan",
     mode: "Convergence",
-    board: {
-      imagePath: "/maps/lower-manhattan-convergence.webp",
-      width: 1200,
-      height: 657,
-    },
+    stages: [
+      {
+        id: "lower-manhattan",
+        name: "Lower Manhattan",
+        image: {
+          imagePath: "/maps/lower-manhattan.webp",
+          width: 1401,
+          height: 2560,
+        },
+        thumb: "/map-thumbs/lower-manhattan.webp",
+      },
+    ],
     preview: {
       imagePath: "/map-previews/lower-manhattan.jpg",
       size: [3840, 2160],
@@ -363,23 +658,32 @@ export const MAPS = [
   },
 ] as const satisfies readonly MapEntry[];
 
-type CatalogMap = (typeof MAPS)[number];
+export type CatalogMap = (typeof MAPS)[number];
+export type MapId = CatalogMap["id"];
+export type CatalogStage = CatalogMap["stages"][number];
+export type BuiltinBoardMapId = CatalogStage["id"];
 
-export const BOARD_MAPS = MAPS.filter((map) => "board" in map);
-export type BoardMap = (typeof BOARD_MAPS)[number];
-export type BuiltinBoardMapId = BoardMap["id"];
+export const DEFAULT_MAP_ID: BuiltinBoardMapId =
+  "birnin-tchalla-imperial-institute-of-science";
 
-export const DEFAULT_MAP_ID: BuiltinBoardMapId = "birnin-tchalla";
+export interface CatalogBoard {
+  readonly map: CatalogMap;
+  readonly stage: CatalogStage;
+}
 
-const MAPS_BY_STORED_ID: ReadonlyMap<string, CatalogMap> = new Map(
-  MAPS.flatMap((map) => [map.id, ...map.legacyIds].map((id) => [id, map])),
+const BOARDS_BY_STORED_ID: ReadonlyMap<string, CatalogBoard> = new Map(
+  MAPS.flatMap((map): (readonly [string, CatalogBoard])[] => [
+    ...map.stages.map((stage) => [stage.id, { map, stage }] as const),
+    ...[map.id, ...map.legacyIds].map(
+      (id) => [id, { map, stage: map.stages[0] }] as const,
+    ),
+  ]),
 );
 
 export function findMap(storedId: string): CatalogMap | undefined {
-  return MAPS_BY_STORED_ID.get(storedId);
+  return BOARDS_BY_STORED_ID.get(storedId)?.map;
 }
 
-export function findBoardMap(storedId: string): BoardMap | undefined {
-  const map = findMap(storedId);
-  return map && "board" in map ? map : undefined;
+export function findBoardMap(storedId: string): CatalogBoard | undefined {
+  return BOARDS_BY_STORED_ID.get(storedId);
 }

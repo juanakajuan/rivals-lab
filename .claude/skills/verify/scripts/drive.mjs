@@ -32,15 +32,37 @@ async function pickHero(page, slot, hero) {
     .click();
 }
 
-function boardPoint(bounds, x, y) {
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
+function boardPoint(board, x, y) {
+  const scale = board.bounds.width / board.width;
+  return { x: board.bounds.x + x * scale, y: board.bounds.y + y * scale };
 }
 
 async function boardBounds(page) {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
+  const host = page.locator(".stage-host").first();
+  const bounds = await host.locator("canvas").first().boundingBox();
   check(bounds !== null, "board canvas has bounds");
-  return bounds;
+  const width = Number(await host.getAttribute("data-map-width"));
+  const height = Number(await host.getAttribute("data-map-height"));
+  check(width > 0 && height > 0, "board reports its map size");
+  return { bounds, width, height };
+}
+
+function coordinatesText(point) {
+  return `x ${point.x}, y ${point.y}`;
+}
+
+async function expectCoordinatesNear(coordinates, point, board) {
+  const tolerance = Math.ceil(board.width / board.bounds.width);
+  await expect
+    .poll(async () => {
+      const match = /^x (\d+), y (\d+)$/.exec(await coordinates.innerText());
+      if (!match) return Infinity;
+      return Math.max(
+        Math.abs(Number(match[1]) - point.x),
+        Math.abs(Number(match[2]) - point.y),
+      );
+    })
+    .toBeLessThanOrEqual(tolerance);
 }
 
 function navLink(page, name) {
@@ -122,32 +144,28 @@ const flows = {
     await expect(page.locator(".selection-name strong")).toHaveText(
       "Doctor Strange",
     );
-    const placed = (await coordinates.textContent())?.match(
-      /^x (\d+), y (\d+)$/,
-    );
-    check(
-      placed !== null && placed !== undefined,
-      "Doctor Strange has coordinates",
-    );
-    const [x, y] = [Number(placed[1]), Number(placed[2])];
-    const startText = `x ${x}, y ${y}`;
+    const placed = /^x (\d+), y (\d+)$/.exec(await coordinates.innerText());
+    check(placed !== null, "Doctor Strange has coordinates");
+    const startToken = { x: Number(placed[1]), y: Number(placed[2]) };
+    const startText = coordinatesText(startToken);
     await page.screenshot({ path: join(out, "1-selected.png") });
-    const bounds = await boardBounds(page);
-    const start = boardPoint(bounds, x, y);
-    const end = boardPoint(bounds, x + 80, y + 45);
+    const board = await boardBounds(page);
+    const endToken = { x: startToken.x + 80, y: startToken.y + 45 };
+    const start = boardPoint(board, startToken.x, startToken.y);
+    const end = boardPoint(board, endToken.x, endToken.y);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.mouse.move(end.x, end.y, { steps: 8 });
     await page.mouse.up();
-    await expect(coordinates).not.toHaveText(startText);
-    const movedText = await coordinates.textContent();
+    await expectCoordinatesNear(coordinates, endToken, board);
+    const movedText = await coordinates.innerText();
     check(true, `drag moves token from ${startText} to ${movedText}`);
     await page.screenshot({ path: join(out, "2-moved.png") });
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(coordinates).toHaveText(startText);
     check(true, "undo restores start position");
     await page.getByRole("button", { name: "Redo", exact: true }).click();
-    await expect(coordinates).toHaveText(movedText ?? "");
+    await expect(coordinates).toHaveText(movedText);
     check(true, "redo restores moved position");
     await page.screenshot({ path: join(out, "3-redone.png") });
   },

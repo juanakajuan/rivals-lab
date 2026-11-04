@@ -4,7 +4,6 @@ import { MAPS } from "../src/maps";
 const wakanda = "Intergalactic Empire of Wakanda: Birnin T'Challa";
 const hydra = "Hydra Charteris Base: Hell's Heaven";
 const museum = "Museum of Contemplation";
-const placeholderMaps = MAPS.filter((map) => !("board" in map));
 const convoyCount = MAPS.filter((map) => map.mode === "Convoy").length;
 const dominationCount = MAPS.filter((map) => map.mode === "Domination").length;
 
@@ -21,7 +20,8 @@ async function tabInPicker(
   key: "Tab" | "Shift+Tab",
   control: Locator,
 ): Promise<void> {
-  for (let step = 0; step < 8; step++) {
+  const stops = await picker(page).locator("button, input").count();
+  for (let step = 0; step < stops; step++) {
     await page.keyboard.press(key);
     expect(
       await picker(page).evaluate((element) =>
@@ -53,13 +53,11 @@ test("map cards show complete names and uncropped images; selection closes and r
   await trigger(page).click();
   const dialog = picker(page);
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText(
-    "Placeholder cards still need an overhead map image.",
-  );
   await expect(dialog.locator(".map-picker-card")).toHaveCount(MAPS.length);
-  await expect(dialog.locator(".map-picker-placeholder")).toHaveCount(
-    placeholderMaps.length,
-  );
+  for (const map of MAPS)
+    await expect(
+      dialog.getByRole("button", { name: map.name, exact: true }),
+    ).toBeEnabled();
   await expect(
     dialog.getByRole("button", { name: "Upload image", exact: true }),
   ).toBeVisible();
@@ -67,33 +65,19 @@ test("map cards show complete names and uncropped images; selection closes and r
     dialog.getByRole("button", { name: wakanda, exact: true }),
   ).toBeFocused();
 
-  for (const { name, mode, imagePath } of [
-    {
-      name: wakanda,
-      mode: "Domination",
-      imagePath: "/maps/birnin-tchalla-domination.png",
-    },
-    {
-      name: hydra,
-      mode: "Domination",
-      imagePath: "/maps/hells-heaven-domination.png",
-    },
-    {
-      name: museum,
-      mode: "Convoy",
-      imagePath: "/maps/museum-of-contemplation-convoy.png",
-    },
-  ]) {
+  for (const name of [wakanda, hydra, museum]) {
+    const map = MAPS.find((entry) => entry.name === name);
+    if (!map) throw new Error(`${name} is not in the catalog`);
     const card = dialog.getByRole("button", { name, exact: true });
     await card.scrollIntoViewIfNeeded();
     await expect(card.locator(".map-picker-card-name")).toHaveText(name);
-    await expect(card.locator(".map-picker-card-mode")).toHaveText(mode);
+    await expect(card.locator(".map-picker-card-mode")).toHaveText(map.mode);
     await expect(card).toHaveAttribute(
       "aria-pressed",
       name === wakanda ? "true" : "false",
     );
     const image = card.locator("img");
-    await expect(image).toHaveAttribute("src", imagePath);
+    await expect(image).toHaveAttribute("src", map.stages[0].thumb);
     await expect
       .poll(() =>
         image.evaluate(
@@ -104,32 +88,14 @@ test("map cards show complete names and uncropped images; selection closes and r
         ),
       )
       .toBe(true);
-    const ratios = await image.evaluate((element) => {
-      if (!(element instanceof HTMLImageElement))
-        throw new Error("Missing map image");
+    const frame = await image.evaluate((element) => {
       const bounds = element.getBoundingClientRect();
       return {
-        actual: bounds.width / bounds.height,
-        natural: element.naturalWidth / element.naturalHeight,
+        ratio: bounds.width / bounds.height,
+        fit: getComputedStyle(element).objectFit,
       };
     });
-    expect(ratios.actual).toBeCloseTo(ratios.natural, 2);
-    await expect(card).toBeEnabled();
-  }
-  for (const map of placeholderMaps) {
-    const card = dialog.getByRole("button", { name: map.name, exact: true });
-    await card.scrollIntoViewIfNeeded();
-    await expect(card).toBeDisabled();
-    await expect(card).not.toHaveAttribute("aria-pressed");
-    await expect(card.locator(".map-picker-card-name")).toHaveText(map.name);
-    await expect(card.locator(".map-picker-card-mode")).toHaveText(map.mode);
-    await expect(card.locator(".map-picker-neutral")).toHaveText(
-      "Map image needed",
-    );
-    await expect(card.locator(".map-picker-placeholder-label")).toHaveText(
-      "Placeholder",
-    );
-    await expect(card.locator("img")).toHaveCount(0);
+    expect(frame).toEqual({ ratio: expect.closeTo(16 / 9, 2), fit: "contain" });
   }
   await expect(dialog.getByText("Selected", { exact: true })).toHaveCount(1);
   await expect(
@@ -238,19 +204,6 @@ test("search matches names and modes without edits, recovers from no results, an
   );
   await expect(dialog.locator(".map-picker-card")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(wakanda);
-  await search.fill("placeholder");
-  await expect(dialog.locator(".map-picker-card")).toHaveCount(
-    placeholderMaps.length,
-  );
-  await expect(dialog.locator(".map-picker-placeholder")).toHaveCount(
-    placeholderMaps.length,
-  );
-  await expect(
-    dialog.getByRole("button", { name: wakanda, exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: "The God Quarry", exact: true }),
-  ).toBeDisabled();
   await search.fill("");
   await expect(dialog.locator(".map-picker-card")).toHaveCount(MAPS.length);
   await expect(dialog.getByRole("status")).toHaveCount(0);

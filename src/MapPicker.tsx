@@ -23,33 +23,11 @@ export interface MapPickerSingleOption<Single> extends MapPickerCard {
   readonly value: Single;
 }
 
-export interface MapPickerPlaceholder {
-  readonly placeholder: true;
-  readonly id: string;
-  readonly name: string;
-  readonly detail: string;
-}
-
 export type MapPickerEntry<Value extends string, Single = never> =
-  MapPickerOption<Value> | MapPickerSingleOption<Single> | MapPickerPlaceholder;
-
-type MapPickerChoice<Value extends string, Single> =
   MapPickerOption<Value> | MapPickerSingleOption<Single>;
 
-export function isMapPlaceholder<Value extends string, Single>(
-  option: MapPickerEntry<Value, Single>,
-): option is MapPickerPlaceholder {
-  return "placeholder" in option;
-}
-
-export function isMapChoice<Value extends string, Single>(
-  option: MapPickerEntry<Value, Single>,
-): option is MapPickerChoice<Value, Single> {
-  return !isMapPlaceholder(option);
-}
-
 function isSingleOption<Value extends string, Single>(
-  option: MapPickerChoice<Value, Single>,
+  option: MapPickerEntry<Value, Single>,
 ): option is MapPickerSingleOption<Single> {
   return "single" in option;
 }
@@ -103,16 +81,11 @@ export function MapPicker<Value extends string, Single = never>({
   const [draft, setDraft] = useState<readonly Value[]>([]);
   const searchTerm = normalizeSearch(query);
   const visibleOptions = options.filter((option) =>
-    normalizeSearch(
-      isMapPlaceholder(option)
-        ? `${option.name} ${option.detail} placeholder`
-        : `${option.name} ${option.detail}`,
-    ).includes(searchTerm),
+    normalizeSearch(`${option.name} ${option.detail}`).includes(searchTerm),
   );
-  const choices = options.filter(isMapChoice);
-  const initialValue = choices.some((option) => option.value === selectedValue)
+  const initialValue = options.some((option) => option.value === selectedValue)
     ? selectedValue
-    : choices[0]?.value;
+    : options[0]?.value;
 
   function openPicker(): void {
     const dialog = dialogRef.current;
@@ -126,7 +99,7 @@ export function MapPicker<Value extends string, Single = never>({
     selectedCardRef.current?.focus();
   }
 
-  function isSelected(option: MapPickerChoice<Value, Single>): boolean {
+  function isSelected(option: MapPickerEntry<Value, Single>): boolean {
     if (isSingleOption(option))
       return !selecting && option.value === selectedValue;
     if (selecting) return draft.includes(option.value);
@@ -245,76 +218,50 @@ export function MapPicker<Value extends string, Single = never>({
               No maps match your search.
             </p>
           ) : null}
-          {visibleOptions.map((option) =>
-            isMapPlaceholder(option) ? (
-              <button
-                type="button"
-                className="map-picker-card map-picker-placeholder"
-                key={`placeholder:${option.id}`}
-                aria-labelledby={`map-placeholder-${option.id}`}
-                disabled
-              >
-                <span className="map-picker-neutral" aria-hidden="true">
-                  Map image needed
-                </span>
-                <span className="map-picker-card-details">
-                  <span
-                    className="map-picker-card-name"
-                    id={`map-placeholder-${option.id}`}
-                  >
-                    {option.name}
-                  </span>
-                  <span className="map-picker-card-mode">{option.detail}</span>
-                  <span className="map-picker-placeholder-label">
-                    Placeholder
-                  </span>
-                </span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="map-picker-card"
-                key={
-                  isSingleOption(option)
-                    ? `single:${option.id}`
-                    : `map:${option.value}`
+          {visibleOptions.map((option) => (
+            <button
+              type="button"
+              className="map-picker-card"
+              key={
+                isSingleOption(option)
+                  ? `single:${option.id}`
+                  : `map:${option.value}`
+              }
+              ref={option.value === initialValue ? selectedCardRef : null}
+              aria-label={option.name}
+              aria-pressed={isSelected(option)}
+              onClick={() => {
+                if (selecting && !isSingleOption(option)) {
+                  toggleDraft(option.value);
+                  return;
                 }
-                ref={option.value === initialValue ? selectedCardRef : null}
-                aria-label={option.name}
-                aria-pressed={isSelected(option)}
-                onClick={() => {
-                  if (selecting && !isSingleOption(option)) {
-                    toggleDraft(option.value);
-                    return;
-                  }
-                  closePicker();
-                  onChoose(option.value);
-                }}
-              >
-                {option.imagePath ? (
-                  <img
-                    src={option.imagePath}
-                    alt=""
-                    width={option.imageSize?.[0]}
-                    height={option.imageSize?.[1]}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : (
-                  <span className="map-picker-neutral" aria-hidden="true">
-                    {option.name}
-                  </span>
-                )}
-                <span className="map-picker-card-details">
-                  <span className="map-picker-card-name">{option.name}</span>
-                  <span className="map-picker-card-mode">{option.detail}</span>
-                  {isSelected(option) ? (
-                    <span className="map-picker-selected">Selected</span>
-                  ) : null}
+                closePicker();
+                onChoose(option.value);
+              }}
+            >
+              {option.imagePath ? (
+                <img
+                  src={option.imagePath}
+                  alt=""
+                  width={option.imageSize?.[0]}
+                  height={option.imageSize?.[1]}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <span className="map-picker-neutral" aria-hidden="true">
+                  {option.name}
                 </span>
-              </button>
-            ),
-          )}
+              )}
+              <span className="map-picker-card-details">
+                <span className="map-picker-card-name">{option.name}</span>
+                <span className="map-picker-card-mode">{option.detail}</span>
+                {isSelected(option) ? (
+                  <span className="map-picker-selected">Selected</span>
+                ) : null}
+              </span>
+            </button>
+          ))}
         </div>
         {multiple && selecting ? (
           <div className="map-picker-footer">

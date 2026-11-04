@@ -117,7 +117,7 @@ export function decodeBoardRecord(
   const version = storedVersion(record.version ?? 1, BOARD_RECORD_VERSION);
   const storedMap = (id: string): SelectedBoardMap | undefined => {
     const builtin = findBoardMap(id);
-    if (builtin) return { kind: "builtin", id: builtin.id };
+    if (builtin) return { kind: "builtin", id: builtin.stage.id };
     return customMaps.find((map) => map.id === id);
   };
   const map = typeof record.mapId === "string" && storedMap(record.mapId);

@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "mapId": "birnin-tchalla",
+  "tokens": [
+    {
+      "id": "ally-strange",
+      "heroId": "strange",
+      "team": "ally",
+      "x": 1150,
+      "y": 600
+    },
+    {
+      "id": "enemy-magneto",
+      "heroId": "magneto",
+      "team": "enemy",
+      "x": 1100,
+      "y": 620
+    }
+  ],
+  "drawingsByMap": {
+    "birnin-tchalla": [
+      {
+        "id": "zone",
+        "kind": "zone",
+        "x": 900,
+        "y": 400,
+        "width": 240,
+        "height": 180,
+        "color": "#ef476f"
+      },
+      {
+        "id": "note",
+        "kind": "note",
+        "x": 1000,
+        "y": 600,
+        "color": "#ffd166",
+        "text": "Hold right",
+        "width": 180
+      }
+    ],
+    "hells-heaven-domination": [
+      {
+        "id": "zone",
+        "kind": "zone",
+        "x": 1050,
+        "y": 500,
+        "width": 120,
+        "height": 100,
+        "color": "#06d6a0"
+      },
+      {
+        "id": "note",
+        "kind": "note",
+        "x": 1100,
+        "y": 620,
+        "color": "#ffd166",
+        "text": "Flank",
+        "width": 180
+      }
+    ]
+  },
+  "iconSize": 120
+}
