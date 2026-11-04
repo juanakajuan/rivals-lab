@@ -117,9 +117,13 @@ test("unchanged edits retain the state reference and redo; a new edit clears red
   expect(session.clear()).toBe(edited);
   expect(session.redo()).toBe(edited);
   expect(session.undo().board.tokens).toEqual(initial.tokens);
-  const defaults = new BoardSession(measureNote);
-  const unchanged = defaults.getSnapshot();
-  expect(defaults.reset()).toBe(unchanged);
+});
+
+test("a new board starts with no heroes", () => {
+  const session = new BoardSession(measureNote);
+  const empty = session.getSnapshot();
+  expect(empty.board.tokens).toEqual([]);
+  expect(session.clear()).toBe(empty);
 });
 
 test("history retains the last 100 edits in order and supports branching", () => {
@@ -298,11 +302,6 @@ test("drawings remain isolated by map through edit, clear, reset, and history", 
     color: "#ff6268",
   });
   expect(session.clear().board.drawingsByMap).toEqual({
-    [DEFAULT_MAP_ID]: [note],
-    "hells-heaven": [],
-  });
-  expect(session.undo().board.drawingsByMap["hells-heaven"]).toEqual([arrow]);
-  expect(session.reset().board.drawingsByMap).toEqual({
     [DEFAULT_MAP_ID]: [note],
     "hells-heaven": [],
   });

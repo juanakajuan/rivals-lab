@@ -34,7 +34,13 @@ through the edit module interface. Session tests also cover rejected edits and
 saved conflict plans.
 Board session tests cover placement, map changes, drawing isolation, comp transfer,
 edit order, redo invalidation, unchanged edits, and the 100-edit limit. Browser
-tests cover drag completion, restore during a drag, text-safe shortcuts, and session reset.
+tests cover drag completion, restore during a drag, text-safe shortcuts, and
+empty history after a reload.
+
+A new board has no heroes. When a test needs heroes on the board, call
+`openExampleBoard` from `tests/boardSetup.ts`. It stores a board with six
+heroes in IndexedDB and reloads the page. The test then starts with exact
+hero positions, no edit history, and no selection.
 
 ## Production browser flows
 

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
+import { openExampleBoard } from "./boardSetup";
 import { MAPS } from "../src/maps";
 
 async function chooseCompMap(page: Page, name: string): Promise<void> {
@@ -90,7 +91,7 @@ test("saved comp fields survive a production reload", async ({ page }) => {
 
 test("board token drag can be undone and redone", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.goto("/board");
+  await openExampleBoard(page, "/board");
   const canvas = page.locator(".stage-host canvas").first();
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error("Missing board bounds");

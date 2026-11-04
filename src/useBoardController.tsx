@@ -489,12 +489,6 @@ export function useBoardController({
     }
   }
 
-  function resetBoard(): void {
-    session.reset();
-    setSelectedTokenId(null);
-    setAnnouncement("The example formation is restored.");
-  }
-
   function clearBoard(): void {
     session.clear();
     setSelectedTokenId(null);
@@ -595,9 +589,6 @@ export function useBoardController({
         </button>
         <button className="secondary-button" type="button" onClick={clearBoard}>
           Clear
-        </button>
-        <button className="primary-button" type="button" onClick={resetBoard}>
-          Reset
         </button>
       </div>
     ),

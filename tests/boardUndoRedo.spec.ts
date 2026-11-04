@@ -1,65 +1,20 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import {
+  boardPoint,
+  clickToken,
+  dropHero,
+  openExampleBoard,
+} from "./boardSetup";
 
-async function boardPoint(
-  page: Page,
-  x: number,
-  y: number,
-): Promise<{ x: number; y: number }> {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
-}
-
-async function dropHero(
-  page: Page,
-  heroId: string,
-  x: number,
-  y: number,
-): Promise<void> {
-  const point = await boardPoint(page, x, y);
-  const dataTransfer = await page.evaluateHandle((id) => {
-    const data = new DataTransfer();
-    data.setData("application/x-rivals-hero", id);
-    data.setData("application/x-rivals-team", "ally");
-    return data;
-  }, heroId);
-  await page.locator(".stage-host canvas").first().dispatchEvent("drop", {
-    dataTransfer,
-    clientX: point.x,
-    clientY: point.y,
-  });
-  await dataTransfer.dispose();
-}
-
-async function clickToken(
-  page: Page,
-  x: number,
-  y: number,
-  button: "left" | "right" = "left",
-): Promise<void> {
-  // Canvas hit regions update on the next animation frame.
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      }),
-  );
-  const point = await boardPoint(page, x, y);
-  await page.mouse.click(point.x, point.y, { button });
-}
-
-test("placement, removal, Clear and Reset restore in history order", async ({
+test("placement, removal, and Clear restore in history order", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   const allies = page.getByRole("button", { name: /^Allies/ });
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect(undo).toBeDisabled();
   await dropHero(page, "hulk", 500, 250);
   await expect(allies).toHaveText("Allies 4");
   await dropHero(page, "hulk", 500, 250);
@@ -67,10 +22,6 @@ test("placement, removal, Clear and Reset restore in history order", async ({
   await page.getByRole("menuitem", { name: "Remove Hulk" }).click();
   await expect(allies).toHaveText("Allies 3");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
-  await expect(allies).toHaveText("Allies 0");
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect(allies).toHaveText("Allies 3");
-  await undo.click();
   await expect(allies).toHaveText("Allies 0");
   await undo.click();
   await expect(allies).toHaveText("Allies 3");
@@ -83,7 +34,7 @@ test("placement, removal, Clear and Reset restore in history order", async ({
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.locator(".selection-summary")).toHaveCount(0);
   await expect(undo).toBeDisabled();
-  for (const count of [4, 3, 0, 3]) {
+  for (const count of [4, 3, 0]) {
     await redo.click();
     await expect(allies).toHaveText(`Allies ${count}`);
   }
@@ -93,7 +44,7 @@ test("placement, removal, Clear and Reset restore in history order", async ({
 test("one drag is one edit; selection and unchanged edits preserve redo", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   const start = await boardPoint(page, 270, 435);
@@ -122,7 +73,6 @@ test("one drag is one edit; selection and unchanged edits preserve redo", async 
       exact: true,
     })
     .click();
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
   await expect(undo).toBeDisabled();
   await expect(redo).toBeEnabled();
   await redo.click();
@@ -174,7 +124,7 @@ for (const modifier of ["Control", "Meta"]) {
   test(`${modifier} shortcuts preserve text editing and view state`, async ({
     page,
   }) => {
-    await page.goto("/");
+    await openExampleBoard(page);
     await dropHero(page, "hulk", 500, 250);
     const search = page.getByRole("searchbox");
     await search.fill("Hulk");
@@ -245,7 +195,7 @@ for (const modifier of ["Control", "Meta"]) {
 test("undo during a drag cancels the gesture without adding an edit", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await dropHero(page, "hulk", 500, 250);
   const start = await boardPoint(page, 270, 435);
   const end = await boardPoint(page, 350, 480);
@@ -270,7 +220,7 @@ test("undo during a drag cancels the gesture without adding an edit", async ({
 test("Ctrl+Y redoes a board edit and preserves native text history", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await dropHero(page, "hulk", 500, 250);
   const allies = page.getByRole("button", { name: /^Allies/ });
   await page.keyboard.press("Control+z");

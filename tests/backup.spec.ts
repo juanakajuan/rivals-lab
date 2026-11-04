@@ -168,7 +168,7 @@ async function expectWorkspace(page: Page): Promise<void> {
     "scrim-map.png",
   );
   await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
-    "Allies 4",
+    "Allies 1",
   );
   await expect(
     page.getByRole("slider", { name: "Hero icon size" }),
@@ -207,7 +207,7 @@ test("a full backup restores the whole workspace in a fresh browser", async ({
     }),
   ).toBeVisible();
   await expect(dialog).toContainText(
-    "has 1 saved comp, the open comp “Gate dive” (unsaved changes), a board on “scrim-map.png” with 7 heroes and 1 drawing on 1 map, 1 custom map image (less than 0.1 MB), and icon size 150%.",
+    "has 1 saved comp, the open comp “Gate dive” (unsaved changes), a board on “scrim-map.png” with 1 hero and 1 drawing on 1 map, 1 custom map image (less than 0.1 MB), and icon size 150%.",
   );
   await expect(dialog).toContainText(
     "This browser has 0 saved comps and 0 custom map images now. They will be replaced.",
@@ -243,7 +243,7 @@ test("a comps file adds copies and a bad file changes nothing", async ({
   );
   await closeBackup(target);
   await expect(target.getByRole("button", { name: /^Allies/ })).toHaveText(
-    "Allies 4",
+    "Allies 1",
   );
   await expect(target.getByRole("heading", { level: 1 })).not.toHaveText(
     "scrim-map.png",
@@ -256,7 +256,7 @@ test("a comps file adds copies and a bad file changes nothing", async ({
   await closeBackup(target);
   await target.reload();
   await expect(target.getByRole("button", { name: /^Allies/ })).toHaveText(
-    "Allies 4",
+    "Allies 1",
   );
   await openBuilder(target);
   await expect(

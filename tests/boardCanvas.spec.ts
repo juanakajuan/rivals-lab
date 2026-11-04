@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openExampleBoard } from "./boardSetup";
 import type Konva from "konva";
 import type { BoardDrawing } from "../src/boardDrawings.ts";
 import type {} from "./fixtures/board.ts";
@@ -133,7 +134,7 @@ test("destroy ignores pending images and repeated cleanup", async ({
 });
 
 test("React keeps selection across drag and map change", async ({ page }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   const host = page.locator(".stage-host canvas").first();
   const bounds = await host.boundingBox();
   if (!bounds) throw new Error("Missing board bounds");

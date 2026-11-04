@@ -333,7 +333,6 @@ test("portrait heroes and each drawing tool work through image replacement and h
 }) => {
   await page.goto("/");
   await upload(page, await imageFile(page, 400, 800, "portrait.png"));
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
   await page
     .getByRole("button", { name: "Add Hulk to Allies", exact: true })
     .click();
@@ -396,26 +395,6 @@ test("portrait heroes and each drawing tool work through image replacement and h
   await expect(page.locator('[aria-live="polite"]')).toHaveText(
     "arrow selected.",
   );
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
-  const renderedTokens = await page.evaluate(() => {
-    const stage = window.Konva?.stages.find((item) =>
-      item.container().matches(".stage-host"),
-    );
-    if (!stage) throw new Error("Missing board");
-    return stage
-      .getLayers()
-      .at(-1)
-      ?.getChildren()
-      .map((node) => ({ x: node.x(), y: node.y() }));
-  });
-  expect(renderedTokens).toEqual([
-    { x: 270, y: 435 },
-    { x: 380, y: 350 },
-    { x: 230, y: 520 },
-    { x: 576, y: 310 },
-    { x: 576, y: 410 },
-    { x: 576, y: 515 },
-  ]);
 });
 
 test("failed uploads preserve image, drawings, formation, undo, and redo", async ({

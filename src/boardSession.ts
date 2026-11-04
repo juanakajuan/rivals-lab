@@ -64,39 +64,12 @@ export function keepEarliestTeamPlacements(board: BoardState): BoardState {
 
 const HISTORY_LIMIT = 100;
 
-const INITIAL_PLACEMENTS: Readonly<
-  Record<Team, readonly Pick<BoardToken, "heroId" | "x" | "y">[]>
-> = {
-  ally: [
-    { heroId: "strange", x: 270, y: 435 },
-    { heroId: "psylocke", x: 380, y: 350 },
-    { heroId: "luna", x: 230, y: 520 },
-  ],
-  enemy: [
-    { heroId: "magneto", x: 865, y: 310 },
-    { heroId: "magik", x: 960, y: 410 },
-    { heroId: "rocket", x: 910, y: 515 },
-  ],
-};
-
 const TEAM_HALF_START: Readonly<Record<Team, number>> = { ally: 0, enemy: 0.5 };
-
-function initialTokens(): BoardToken[] {
-  return TEAMS.flatMap((team) =>
-    INITIAL_PLACEMENTS[team].map(({ heroId, x, y }) => ({
-      id: boardTokenId(team, heroId),
-      heroId,
-      team,
-      x,
-      y,
-    })),
-  );
-}
 
 export function initialBoard(): BoardState {
   return {
     map: { kind: "builtin", id: DEFAULT_MAP_ID },
-    tokens: initialTokens(),
+    tokens: [],
     drawingsByMap: {},
   };
 }
@@ -346,18 +319,6 @@ export class BoardSession {
     return this.commit({
       ...this.board,
       tokens: [],
-      drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
-    });
-  }
-
-  reset(): BoardSnapshot {
-    const map = resolveBoardMap(this.board.map);
-    return this.commit({
-      ...this.board,
-      tokens: initialTokens().map((token) => ({
-        ...token,
-        ...clampToBoard(token, map, this.iconSize),
-      })),
       drawingsByMap: { ...this.board.drawingsByMap, [this.board.map.id]: [] },
     });
   }

@@ -1,23 +1,12 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { TEAM_SIZE } from "../src/heroes";
-
-async function boardPoint(
-  page: Page,
-  x: number,
-  y: number,
-): Promise<{ readonly x: number; readonly y: number }> {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
-}
+import { boardPoint, openExampleBoard } from "./boardSetup";
 
 for (const key of ["Enter", "Space"]) {
   test(`${key} adds and removes a hero through the keyboard with one history edit per action`, async ({
     page,
   }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
     const add = page.getByRole("button", {
       name: "Add Angela to Allies",
       exact: true,
@@ -82,7 +71,6 @@ test("six per team disables Add and rejects new drops while allowing moves and r
   page,
 }) => {
   await page.goto("/board");
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
   const canvas = page.locator(".stage-host canvas").last();
   for (const label of ["Allies", "Opponents"]) {
     const team = page.getByRole("button", { name: new RegExp(`^${label}`) });
@@ -139,7 +127,6 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
   const allies = page.getByRole("button", { name: /^Allies/ });
   await page
     .getByRole("button", { name: "Add Angela to Allies", exact: true })
@@ -221,7 +208,6 @@ for (const { iconSize, count } of [
     page,
   }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Clear", exact: true }).click();
     const size = page.getByRole("slider", { name: "Hero icon size" });
     await size.press("End");
     if (iconSize === 140) await size.press("ArrowLeft");
@@ -289,7 +275,7 @@ test.describe("touch placement", () => {
   test("tap adds and removes the same hero independently for each team with history", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openExampleBoard(page);
     const allies = page.getByRole("button", { name: /^Allies/ });
     const opponents = page.getByRole("button", { name: /^Opponents/ });
     await page.getByRole("slider", { name: "Hero icon size" }).press("End");

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openExampleBoard } from "./boardSetup";
 import type Konva from "konva";
 
 declare global {
@@ -276,10 +277,10 @@ test("pointer drawings move, resize with the map, and undo once per gesture", as
   await expectSelection(page, null, 500, 290);
 });
 
-test("map drawings are isolated; Clear and Reset preserve other maps", async ({
+test("map drawings are isolated; Clear preserves other maps", async ({
   page,
 }) => {
-  await page.goto("/");
+  await openExampleBoard(page);
   await draw(page, "zone");
   await page.getByRole("button", { name: "Choose map", exact: true }).click();
   await page
@@ -314,10 +315,7 @@ test("map drawings are isolated; Clear and Reset preserve other maps", async ({
     })
     .click();
   await expectSelection(page, "arrow");
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
-    "Allies 3",
-  );
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expectSelection(page, null);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expectSelection(page, "arrow");
@@ -446,7 +444,7 @@ for (const kind of ["arrow", "zone", "note"] as const) {
   test(`${kind} drawings move directly and have a right-click remove menu`, async ({
     page,
   }) => {
-    await page.goto("/");
+    await openExampleBoard(page);
     await draw(page, kind);
     const toolButton = page.getByRole("button", {
       name:

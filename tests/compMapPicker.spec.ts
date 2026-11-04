@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { openExampleBoard } from "./boardSetup";
 import { addCompCopies, exportCompLibrary } from "./compLibrary";
 import { emptyComp } from "../src/comps";
 import {
@@ -584,6 +585,7 @@ for (const width of [320, 390]) {
 test("fallback cards preserve comp map and data on rejected replacement and transfer without hidden focus", async ({
   page,
 }) => {
+  await openExampleBoard(page);
   await page.goto("/builder");
   const transfer = page.getByRole("button", {
     name: "Open on Position Board",
