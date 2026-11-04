@@ -1,15 +1,24 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DEFAULT_ICON_SIZE, tokenBoundary } from "../src/boardTokens";
 import { TEAM_SIZE } from "../src/heroes";
+import {
+  boardGeometry,
+  boardPoint,
+  coordinatesText,
+  type ClientPoint,
+} from "./boardGeometry";
 
-async function boardPoint(
+function addSpacing(iconSize: number): number {
+  return tokenBoundary(iconSize) * 2 + 4;
+}
+
+async function canvasPoint(
   page: Page,
-  x: number,
-  y: number,
-): Promise<{ readonly x: number; readonly y: number }> {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
+  fractionX: number,
+  fractionY: number,
+): Promise<ClientPoint> {
+  const { width, height, scale } = await boardGeometry(page);
+  return { x: width * fractionX * scale, y: height * fractionY * scale };
 }
 
 for (const key of ["Enter", "Space"]) {
@@ -18,6 +27,8 @@ for (const key of ["Enter", "Space"]) {
   }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Clear", exact: true }).click();
+    const spacing = addSpacing(DEFAULT_ICON_SIZE);
+    const firstSlot = coordinatesText({ x: spacing, y: spacing });
     const add = page.getByRole("button", {
       name: "Add Angela to Allies",
       exact: true,
@@ -42,7 +53,7 @@ for (const key of ["Enter", "Space"]) {
     await expect(allies).toHaveText("Allies 1");
     await expect(opponents).toHaveText("Opponents 0");
     await expect(page.locator(".selection-name strong")).toHaveText("Angela");
-    await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+    await expect(page.locator(".coordinates")).toHaveText(firstSlot);
     await expect(remove).toBeEnabled();
     await expect(remove).toHaveText("");
     await expect(remove.locator("svg.lucide-trash-2")).toHaveAttribute(
@@ -61,7 +72,7 @@ for (const key of ["Enter", "Space"]) {
     await expect(add).toBeEnabled();
     await expect(add).toBeFocused();
     await expect(page.locator(".selection-summary")).toHaveCount(0);
-    const point = await boardPoint(page, 52, 52);
+    const point = await boardPoint(page, spacing, spacing);
     await page.mouse.click(point.x, point.y);
     await expect(page.locator(".selection-summary")).toHaveCount(0);
     await undo.click();
@@ -69,7 +80,7 @@ for (const key of ["Enter", "Space"]) {
     await expect(remove).toBeEnabled();
     await page.mouse.click(point.x, point.y);
     await expect(page.locator(".selection-name strong")).toHaveText("Angela");
-    await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+    await expect(page.locator(".coordinates")).toHaveText(firstSlot);
     await redo.click();
     await expect(allies).toHaveText("Allies 0");
     await expect(add).toBeEnabled();
@@ -101,7 +112,7 @@ test("six per team disables Add and rejects new drops while allowing moves and r
     const newRow = adds.first().locator("..");
     await newRow.dragTo(canvas, {
       sourcePosition: { x: 60, y: 21 },
-      targetPosition: { x: 200, y: 200 },
+      targetPosition: await canvasPoint(page, 0.5, 0.3),
     });
     await expect(team).toHaveText(`${label} 6`);
     await expect(page.locator("[aria-live='polite']")).toHaveText(
@@ -113,7 +124,7 @@ test("six per team disables Add and rejects new drops while allowing moves and r
     });
     await angela.locator("..").dragTo(canvas, {
       sourcePosition: { x: 60, y: 21 },
-      targetPosition: { x: 220, y: 220 },
+      targetPosition: await canvasPoint(page, 0.55, 0.35),
     });
     await expect(page.locator(".selection-name strong")).toHaveText("Angela");
     await expect(team).toHaveText(`${label} 6`);
@@ -140,6 +151,9 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
+  const spacing = addSpacing(DEFAULT_ICON_SIZE);
+  const angelaSlot = { x: spacing, y: spacing };
+  const hulkSlot = coordinatesText({ x: spacing * 2, y: spacing });
   const allies = page.getByRole("button", { name: /^Allies/ });
   await page
     .getByRole("button", { name: "Add Angela to Allies", exact: true })
@@ -148,38 +162,42 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
     .getByRole("button", { name: "Add Hulk to Allies", exact: true })
     .click();
   await expect(allies).toHaveText("Allies 2");
-  await expect(page.locator(".coordinates")).toHaveText("x 104, y 52");
+  await expect(page.locator(".coordinates")).toHaveText(hulkSlot);
   const canvas = page.locator(".stage-host canvas").last();
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
+  const map = await boardGeometry(page);
+  const target = {
+    x: Math.round(map.width * 0.6),
+    y: Math.round(map.height * 0.4),
+  };
   const hulkRow = page
     .locator(".hero-row")
     .filter({ has: page.locator("strong", { hasText: /^Hulk$/ }) });
   await hulkRow.dragTo(canvas, {
     sourcePosition: { x: 60, y: 21 },
-    targetPosition: {
-      x: (500 * bounds.width) / 1200,
-      y: (250 * bounds.width) / 1200,
-    },
+    targetPosition: { x: target.x * map.scale, y: target.y * map.scale },
   });
   await expect(allies).toHaveText("Allies 2");
   const moved = await page.locator(".coordinates").innerText();
   const coordinates = /^x (\d+), y (\d+)$/.exec(moved);
   if (!coordinates?.[1] || !coordinates[2])
     throw new Error("Missing token coordinates");
-  const tolerance = Math.ceil(1200 / bounds.width);
-  expect(Math.abs(Number(coordinates[1]) - 500)).toBeLessThanOrEqual(tolerance);
-  expect(Math.abs(Number(coordinates[2]) - 250)).toBeLessThanOrEqual(tolerance);
+  const tolerance = Math.ceil(1 / map.scale);
+  expect(Math.abs(Number(coordinates[1]) - target.x)).toBeLessThanOrEqual(
+    tolerance,
+  );
+  expect(Math.abs(Number(coordinates[2]) - target.y)).toBeLessThanOrEqual(
+    tolerance,
+  );
   const removeHulk = page.getByRole("button", {
     name: "Remove Hulk from Allies",
     exact: true,
   });
   await expect(removeHulk).toBeEnabled();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.locator(".coordinates")).toHaveText("x 104, y 52");
+  await expect(page.locator(".coordinates")).toHaveText(hulkSlot);
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(page.locator(".coordinates")).toHaveText(moved);
-  const angela = await boardPoint(page, 52, 52);
+  const angela = await boardPoint(page, angelaSlot.x, angelaSlot.y);
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
@@ -188,15 +206,19 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
   );
   await page.mouse.click(angela.x, angela.y);
   await expect(page.locator(".selection-name strong")).toHaveText("Angela");
-  await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(angelaSlot),
+  );
   await removeHulk.click();
   await expect(allies).toHaveText("Allies 1");
   await expect(
     page.getByRole("button", { name: "Add Hulk to Allies", exact: true }),
   ).toBeEnabled();
   await expect(page.locator(".selection-name strong")).toHaveText("Angela");
-  await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
-  const hulk = await boardPoint(page, 500, 250);
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(angelaSlot),
+  );
+  const hulk = await boardPoint(page, target.x, target.y);
   await page.mouse.click(hulk.x, hulk.y);
   await expect(page.locator(".selection-summary")).toHaveCount(0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -210,7 +232,9 @@ test("Add and Remove preserve other tokens and native row dragging", async ({
   await expect(page.locator(".selection-summary")).toHaveCount(0);
   await page.mouse.click(angela.x, angela.y);
   await expect(page.locator(".selection-name strong")).toHaveText("Angela");
-  await expect(page.locator(".coordinates")).toHaveText("x 52, y 52");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText(angelaSlot),
+  );
 });
 
 for (const { iconSize, count } of [
@@ -226,7 +250,8 @@ for (const { iconSize, count } of [
     await size.press("End");
     if (iconSize === 140) await size.press("ArrowLeft");
     await expect(size).toHaveValue(String(iconSize));
-    const boundary = Math.ceil((24 * iconSize) / 100);
+    const boundary = tokenBoundary(iconSize);
+    const map = await boardGeometry(page);
     const placements: {
       readonly hero: string;
       readonly x: number;
@@ -246,9 +271,9 @@ for (const { iconSize, count } of [
       if (!Number.isFinite(x) || !Number.isFinite(y))
         throw new Error(`Invalid board coordinates: ${coordinates}`);
       expect(x).toBeGreaterThanOrEqual(boundary);
-      expect(x).toBeLessThanOrEqual(1200 - boundary);
+      expect(x).toBeLessThanOrEqual(map.width - boundary);
       expect(y).toBeGreaterThanOrEqual(boundary);
-      expect(y).toBeLessThanOrEqual(654 - boundary);
+      expect(y).toBeLessThanOrEqual(map.height - boundary);
       for (const previous of placements) {
         expect(
           Math.hypot(x - previous.x, y - previous.y),
@@ -292,20 +317,27 @@ test.describe("touch placement", () => {
     await page.goto("/");
     const allies = page.getByRole("button", { name: /^Allies/ });
     const opponents = page.getByRole("button", { name: /^Opponents/ });
-    await page.getByRole("slider", { name: "Hero icon size" }).press("End");
+    const size = page.getByRole("slider", { name: "Hero icon size" });
+    await size.press("End");
+    const spacing = addSpacing(Number(await size.inputValue()));
+    const { width } = await boardGeometry(page);
     await page
       .getByRole("button", { name: "Add Angela to Allies", exact: true })
       .tap();
     await expect(allies).toHaveText("Allies 4");
     await expect(opponents).toHaveText("Opponents 3");
-    await expect(page.locator(".coordinates")).toHaveText("x 76, y 76");
+    await expect(page.locator(".coordinates")).toHaveText(
+      coordinatesText({ x: spacing, y: spacing }),
+    );
     await opponents.tap();
     await page
       .getByRole("button", { name: "Add Angela to Opponents", exact: true })
       .tap();
     await expect(allies).toHaveText("Allies 4");
     await expect(opponents).toHaveText("Opponents 4");
-    await expect(page.locator(".coordinates")).toHaveText("x 676, y 76");
+    await expect(page.locator(".coordinates")).toHaveText(
+      coordinatesText({ x: Math.floor(width / 2) + spacing, y: spacing }),
+    );
     const removeOpponent = page.getByRole("button", {
       name: "Remove Angela from Opponents",
       exact: true,

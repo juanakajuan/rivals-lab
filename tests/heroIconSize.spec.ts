@@ -1,16 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clampToBoard, tokenBoundary } from "../src/boardTokens";
+import { boardGeometry, boardPoint, coordinatesText } from "./boardGeometry";
 import type {} from "./fixtures/board.ts";
-
-async function boardPoint(
-  page: Page,
-  x: number,
-  y: number,
-): Promise<{ readonly x: number; readonly y: number }> {
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  return { x: bounds.x + x * scale, y: bounds.y + y * scale };
-}
 
 async function frame(page: Page): Promise<void> {
   await page.evaluate(
@@ -61,23 +52,29 @@ for (const width of [1280, 360]) {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(width);
-      const boundary = (24 * size) / 100;
+      const map = await boardGeometry(page);
+      const corner = clampToBoard({ x: 0, y: 0 }, map, size);
+      const farCorner = clampToBoard(
+        { x: map.width, y: map.height },
+        map,
+        size,
+      );
       for (const team of ["ally", "enemy"] as const) {
         await dropHero(page, team, 0, 0);
         await expect(page.locator(".coordinates")).toHaveText(
-          `x ${boundary}, y ${boundary}`,
+          coordinatesText(corner),
         );
-        const start = await boardPoint(page, boundary, boundary);
-        const end = await boardPoint(page, 1200, 654);
+        const start = await boardPoint(page, corner.x, corner.y);
+        const end = await boardPoint(page, map.width, map.height);
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(end.x, end.y, { steps: 8 });
         await page.mouse.up();
         await expect(page.locator(".coordinates")).toHaveText(
-          `x ${1200 - boundary}, y ${654 - boundary}`,
+          coordinatesText(farCorner),
         );
         await frame(page);
-        const token = await boardPoint(page, 1200 - boundary, 654 - boundary);
+        const token = await boardPoint(page, farCorner.x, farCorner.y);
         await page.mouse.click(token.x, token.y, { button: "right" });
         await expect(
           page.getByRole("menu", { name: "Hulk actions" }),
@@ -95,21 +92,35 @@ test("resizing and history restoration keep edge tokens inside the map", async (
   await page.goto("/");
   const slider = page.getByRole("slider", { name: "Hero icon size" });
   await slider.press("Home");
+  const map = await boardGeometry(page);
+  const smallEdge = tokenBoundary(50);
+  const largeEdge = tokenBoundary(150);
   await dropHero(page, "ally", 0, 0);
-  await dropHero(page, "ally", 500, 300);
+  await dropHero(
+    page,
+    "ally",
+    Math.round(map.width / 2),
+    Math.round(map.height / 2),
+  );
   const placedCoordinates = await page.locator(".coordinates").innerText();
   await slider.press("End");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(page.locator(".coordinates")).toHaveText("x 36, y 36");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText({ x: largeEdge, y: largeEdge }),
+  );
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(page.locator(".coordinates")).toHaveText(placedCoordinates);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await slider.press("Home");
-  await expect(page.locator(".coordinates")).toHaveText("x 12, y 12");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText({ x: smallEdge, y: smallEdge }),
+  );
   await slider.press("End");
-  await expect(page.locator(".coordinates")).toHaveText("x 36, y 36");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText({ x: largeEdge, y: largeEdge }),
+  );
   await frame(page);
-  const point = await boardPoint(page, 36, 36);
+  const point = await boardPoint(page, largeEdge, largeEdge);
   await page.mouse.click(point.x, point.y);
   await page.keyboard.press("Delete");
   await expect(page.locator(".selection-summary")).toHaveCount(0);
@@ -121,18 +132,41 @@ test("a token stored outside the current icon bounds can be dragged", async ({
   await page.goto("/");
   const slider = page.getByRole("slider", { name: "Hero icon size" });
   await slider.press("Home");
+  const map = await boardGeometry(page);
+  const smallEdge = tokenBoundary(50);
+  const largeEdge = tokenBoundary(150);
   await dropHero(page, "ally", 0, 0);
-  await expect(page.locator(".coordinates")).toHaveText("x 12, y 12");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText({ x: smallEdge, y: smallEdge }),
+  );
   await slider.press("End");
-  await expect(page.locator(".coordinates")).toHaveText("x 36, y 36");
+  await expect(page.locator(".coordinates")).toHaveText(
+    coordinatesText({ x: largeEdge, y: largeEdge }),
+  );
   await frame(page);
-  const start = await boardPoint(page, 36, 36);
-  const end = await boardPoint(page, 500, 300);
+  const target = {
+    x: Math.round(map.width / 2),
+    y: Math.round(map.height / 4),
+  };
+  const start = await boardPoint(page, largeEdge, largeEdge);
+  const end = await boardPoint(page, target.x, target.y);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 8 });
   await page.mouse.up();
-  await expect(page.locator(".coordinates")).toHaveText("x 500, y 300");
+  await expect(page.locator(".selection-name strong")).toHaveText("Hulk");
+  const moved = /^x (\d+), y (\d+)$/.exec(
+    await page.locator(".coordinates").innerText(),
+  );
+  // Konva reads drag positions in whole client pixels.
+  const tolerance = Math.ceil(1 / map.scale);
+  expect(tolerance).toBeLessThan(largeEdge - smallEdge);
+  expect(Math.abs(Number(moved?.[1]) - target.x)).toBeLessThanOrEqual(
+    tolerance,
+  );
+  expect(Math.abs(Number(moved?.[2]) - target.y)).toBeLessThanOrEqual(
+    tolerance,
+  );
 });
 
 test("existing and new portraits and rings scale together after delayed image loading", async ({

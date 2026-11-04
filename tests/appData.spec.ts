@@ -4,6 +4,7 @@ import type {} from "./fixtures/appData.ts";
 import { HEROES } from "../src/heroes";
 import { emptyComp } from "../src/comps";
 import { decodeCompLibrary, serializeCompLibrary } from "../src/compLibrary";
+import { DEFAULT_MAP_ID } from "../src/maps";
 
 const SEVEN_ALLIES = HEROES.slice(0, 7).map((hero) => ({
   id: `ally-${hero.id}`,
@@ -192,7 +193,7 @@ test("boot keeps the parts that decode and starts fresh for the rest", async ({
     { library, openComp },
   );
   expect(booted).toEqual({
-    mapId: "birnin-tchalla",
+    mapId: DEFAULT_MAP_ID,
     tokens: 6,
     iconSize: 100,
     openComp,
@@ -228,7 +229,7 @@ test("writes from a replaced data generation change nothing", async ({
     data.autosave.syncBoard({
       ...data.workspace,
       board: {
-        map: { kind: "builtin", id: "hells-heaven" },
+        map: { kind: "builtin", id: "hells-heaven-airfield-base" },
         tokens: [],
         drawingsByMap: {},
       },
@@ -383,7 +384,7 @@ async function seedWorkspace(page: Page): Promise<number> {
                 dy: 40,
               },
             ],
-            "hells-heaven": [
+            "hells-heaven-airfield-base": [
               {
                 id: "zone-1",
                 kind: "zone",
@@ -688,8 +689,8 @@ test("a rejected file explains why and writes nothing", async ({ page }) => {
     }),
   ).join(",");
   const crowded = backup.replace(
-    '"hells-heaven":[',
-    `"hells-heaven":[${zones},`,
+    '"hells-heaven-airfield-base":[',
+    `"hells-heaven-airfield-base":[${zones},`,
   );
   const resized = backup.replace(
     /"sourceBytes":(\d+)/,

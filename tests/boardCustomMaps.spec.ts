@@ -1,5 +1,17 @@
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import type Konva from "konva";
+import { scaledSize } from "../src/boardMaps";
+import { DEFAULT_ICON_SIZE, clampToBoard } from "../src/boardTokens";
+import { boardGeometry } from "./boardGeometry";
+
+const RESET_FORMATION = [
+  { x: 0.225, y: 0.665 },
+  { x: 0.317, y: 0.535 },
+  { x: 0.192, y: 0.795 },
+  { x: 0.721, y: 0.474 },
+  { x: 0.8, y: 0.627 },
+  { x: 0.758, y: 0.787 },
+] as const;
 
 declare global {
   interface Window {
@@ -189,37 +201,14 @@ async function renderedBoard(page: Page): Promise<unknown> {
   });
 }
 
-for (const { name, width, height, logicalWidth, logicalHeight } of [
-  {
-    name: "portrait",
-    width: 400,
-    height: 800,
-    logicalWidth: 600,
-    logicalHeight: 1200,
-  },
-  {
-    name: "square",
-    width: 640,
-    height: 640,
-    logicalWidth: 1200,
-    logicalHeight: 1200,
-  },
-  { name: "tiny", width: 4, height: 2, logicalWidth: 1200, logicalHeight: 600 },
-  {
-    name: "large",
-    width: 4000,
-    height: 2000,
-    logicalWidth: 1200,
-    logicalHeight: 600,
-  },
-  {
-    name: "wide",
-    width: 2000,
-    height: 100,
-    logicalWidth: 6000,
-    logicalHeight: 300,
-  },
+for (const { name, width, height } of [
+  { name: "portrait", width: 400, height: 800 },
+  { name: "square", width: 640, height: 640 },
+  { name: "tiny", width: 4, height: 2 },
+  { name: "large", width: 4000, height: 2000 },
+  { name: "wide", width: 2000, height: 100 },
 ]) {
+  const logical = scaledSize(width, height);
   test(`${name} image keeps its exact ratio and all four corners`, async ({
     page,
   }) => {
@@ -262,8 +251,8 @@ for (const { name, width, height, logicalWidth, logicalHeight } of [
         ),
       };
     });
-    expect(geometry.width).toBeCloseTo(logicalWidth);
-    expect(geometry.height).toBeCloseTo(logicalHeight);
+    expect(geometry.width).toBeCloseTo(logical.width);
+    expect(geometry.height).toBeCloseTo(logical.height);
     expect(geometry.ratio).toBeCloseTo(width / height, 1);
     expect(geometry.inside).toBe(true);
     expect(geometry.colors).toEqual([
@@ -397,6 +386,8 @@ test("portrait heroes and each drawing tool work through image replacement and h
     "arrow selected.",
   );
   await page.getByRole("button", { name: "Reset", exact: true }).click();
+  const map = await boardGeometry(page);
+  expect(map.width).toBeCloseTo(scaledSize(400, 800).width);
   const renderedTokens = await page.evaluate(() => {
     const stage = window.Konva?.stages.find((item) =>
       item.container().matches(".stage-host"),
@@ -408,14 +399,15 @@ test("portrait heroes and each drawing tool work through image replacement and h
       ?.getChildren()
       .map((node) => ({ x: node.x(), y: node.y() }));
   });
-  expect(renderedTokens).toEqual([
-    { x: 270, y: 435 },
-    { x: 380, y: 350 },
-    { x: 230, y: 520 },
-    { x: 576, y: 310 },
-    { x: 576, y: 410 },
-    { x: 576, y: 515 },
-  ]);
+  expect(renderedTokens).toEqual(
+    RESET_FORMATION.map((slot) =>
+      clampToBoard(
+        { x: slot.x * map.width, y: slot.y * map.height },
+        map,
+        DEFAULT_ICON_SIZE,
+      ),
+    ),
+  );
 });
 
 test("failed uploads preserve image, drawings, formation, undo, and redo", async ({

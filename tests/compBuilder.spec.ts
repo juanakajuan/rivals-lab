@@ -5,7 +5,9 @@ import {
   libraryErrorSummary,
   parseCompLibraryStrict,
 } from "../src/compLibrary";
+import { clampToBoard } from "../src/boardTokens";
 import { emptyDraft } from "../src/draft";
+import { boardGeometry, boardPoint } from "./boardGeometry";
 import {
   addCompCopies,
   exportCompLibrary,
@@ -17,6 +19,20 @@ async function openBuilder(page: Page): Promise<void> {
   await page
     .getByRole("link", { name: "Draft / Comp Builder", exact: true })
     .click();
+}
+
+async function openedAllyPoint(page: Page, index: number) {
+  const { width, height } = await boardGeometry(page);
+  const iconSize = 100;
+  const slot = clampToBoard(
+    {
+      x: width * 0.25 + (index % 2) * 65 - 32,
+      y: height * 0.3 + Math.floor(index / 2) * 80,
+    },
+    { width, height },
+    iconSize,
+  );
+  return boardPoint(page, slot.x, slot.y);
 }
 
 async function pickHero(page: Page, slot: string, hero: string): Promise<void> {
@@ -345,10 +361,8 @@ test("board transfer requires a supported map and confirms replacement; edits st
   await expect(
     page.getByRole("button", { name: "Opponents 1", exact: true }),
   ).toBeVisible();
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  await page.mouse.click(bounds.x + 268 * scale, bounds.y + 197 * scale);
+  const firstAlly = await openedAllyPoint(page, 0);
+  await page.mouse.click(firstAlly.x, firstAlly.y);
   await expect(page.locator(".selection-name strong")).toHaveText("Hulk");
   await openBuilder(page);
   await expect(page.locator(".selected-map-preview figcaption")).toHaveText(
@@ -446,10 +460,8 @@ test("Deadpool role choices persist, transfer to the board, and obey hero limits
   );
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Open on Position Board" }).click();
-  const bounds = await page.locator(".stage-host canvas").first().boundingBox();
-  if (!bounds) throw new Error("Missing board bounds");
-  const scale = bounds.width / 1200;
-  await page.mouse.click(bounds.x + 268 * scale, bounds.y + 197 * scale);
+  const firstAlly = await openedAllyPoint(page, 0);
+  await page.mouse.click(firstAlly.x, firstAlly.y);
   await expect(page.locator(".selection-name strong")).toHaveText(
     "Deadpool · Duelist",
   );
