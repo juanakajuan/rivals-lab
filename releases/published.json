@@ -1,5 +1,31 @@
 [
   {
+    "id": "a6541844-1c89-4346-8f09-8569eb1228f6",
+    "date": "2026-11-04",
+    "notes": [
+      {
+        "id": "board-map-zoom",
+        "text": "Feature: Zoom in on the Position Board map with the scroll wheel, the + and - buttons, or the + and - keys, and drag the map to move around it."
+      },
+      {
+        "id": "board-stage-maps",
+        "text": "Feature: The Position Board shows full overhead maps for every map, including The God Quarry, Celestial Husk, and the new Royal Palace, and you can switch between a map's stages."
+      },
+      {
+        "id": "board-starts-empty",
+        "text": "Feature: The position board now starts empty, with no example heroes, and the Reset button is gone. Use Clear to empty the board."
+      },
+      {
+        "id": "board-taller-map",
+        "text": "Feature: The Position Board map is taller on desktop. The zoom buttons, drawing tools, and hero icon size are now in one panel at the right of the map."
+      },
+      {
+        "id": "mobile-board-sticky-map",
+        "text": "Bug fix: On a phone, the Position Board map stays at the top of the screen while you scroll the hero list and add heroes."
+      }
+    ]
+  },
+  {
     "id": "f1cd0ce2-cfa0-40df-8854-682a2e9c030a",
     "date": "2026-10-20",
     "notes": [
