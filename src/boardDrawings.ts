@@ -166,8 +166,14 @@ export function moveDrawing(
         : { width: Math.max(0, drawing.dx), height: Math.max(0, drawing.dy) };
   return {
     ...drawing,
-    x: Math.round(Math.max(-left, Math.min(map.width - size.width, x))),
-    y: Math.round(Math.max(-top, Math.min(map.height - size.height, y))),
+    x: Math.max(
+      -left,
+      Math.min(Math.floor(map.width - size.width), Math.round(x)),
+    ),
+    y: Math.max(
+      -top,
+      Math.min(Math.floor(map.height - size.height), Math.round(y)),
+    ),
   };
 }
 

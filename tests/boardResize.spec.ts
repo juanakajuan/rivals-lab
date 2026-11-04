@@ -565,3 +565,11 @@ test("moveDrawing measures a note at its stored width", () => {
     y: 594,
   });
 });
+
+test("a note moved to the edge of a map with a fractional size stays inside it", () => {
+  const fractional = { width: 1200.5, height: 892.5 };
+  const moved = moveDrawing(note, 5000, 5000, fractional, alwaysTall);
+  expect(moved.x + note.width).toBeLessThanOrEqual(fractional.width);
+  expect(moved.y + 500).toBeLessThanOrEqual(fractional.height);
+  expect(moved).toMatchObject({ x: 1020, y: 392 });
+});
