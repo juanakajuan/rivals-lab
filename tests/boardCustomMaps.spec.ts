@@ -649,6 +649,10 @@ for (const budget of ["bytes", "pixels"] as const) {
   test(`total ${budget} upload budget preserves the last accepted board`, async ({
     page,
   }) => {
+    test.slow(
+      budget === "bytes",
+      "Fills the 50 MiB budget with six 8 MiB uploads.",
+    );
     await page.goto("/");
     const source = await imageFile(
       page,
