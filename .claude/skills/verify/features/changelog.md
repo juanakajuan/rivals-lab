@@ -17,7 +17,7 @@ The changelog page lists published release notes, one entry per date, latest fir
 
 Preconditions: server up and doctor clean.
 
-- **Open.** Run `node .claude/skills/verify/scripts/drive.mjs changelog`. It opens `/builder`, chooses the `Changelog` link, and asserts the URL `/changelog`, the title `Changelog | Rivals Lab`, `aria-current="page"` on the link, and the `Changelog` h1. It reads `releases/published.json` and `releases/pending/`, then asserts one `.release-entry` per published date, the latest note first, and no `[data-note-id]` for a pending note.
+- **Open.** Run `node .claude/skills/verify/scripts/drive.mjs changelog`. It opens `/builder`, chooses the `Changelog` link, and asserts the URL `/changelog`, the title `Changelog | Rivals Lab`, `aria-current="page"` on the link, and the `Changelog` h1. It reads `releases/published.json` and `releases/pending/` (the folder is absent when no note is pending), then asserts one `.release-entry` per published date, the latest note first, and no `[data-note-id]` for a pending note.
 
 ## Gotchas
 

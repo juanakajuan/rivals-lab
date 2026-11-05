@@ -11,8 +11,8 @@ The builder lets users name a comp, pick heroes, write notes, choose a map, and 
 - `save-autosave` the open comp comes back after a reload with no click.
 - `save-load` `Load <name>` opens a saved comp.
 - `save-status` the `.save-status` line reads `New comp · not saved`, `Unsaved changes`, `All changes saved`, or the last action, such as `Saved <name>.`, `Loaded <name>.`, or `New comp.`.
-- `library` `New comp`, `Search saved comps`, card `Rename`, `Export`, and `Delete`, plus `Import` and `Export all` (see `src/CompLibraryPanel.tsx`, `src/SavedCompCard.tsx`). No flow.
-- `draft` the `Draft format` select (Free build, MRC, Ignite) adds ban and save slots (see `tests/draft.spec.ts`). No flow.
+- `library` `New comp`, `Search saved comps`, and the card buttons `Rename <name>`, `Export <name>` (downloads `rivals-comp.json`), and `Delete <name>`, plus `Export all` (downloads `rivals-comps.json`) and `Import`. `Import` opens the Backup dialog (see [backup.md](./backup.md)). See `src/CompLibraryPanel.tsx` and `src/SavedCompCard.tsx`. No flow.
+- `draft` the `Draft format` select (`Free build`, `MRC · 3 bans / 2 saves`, `Ignite · 5 bans / 2 saves`; values `free`, `mrc`, `ignite`) adds slots such as `Allies ban 1: Choose hero` and `Allies save 1: Choose hero` (see `tests/draft.spec.ts`). No flow.
 
 ## How to get to it (user POV)
 
@@ -32,3 +32,5 @@ Preconditions: server up and doctor clean.
 - Saved comps and the open comp live in IndexedDB per browser context, so a fresh context starts empty.
 - Because of autosave, a reload alone does not prove `Load`. Open an empty comp with `New comp` first.
 - Read the builder status from `.save-status`. Other `status` regions can exist on the page.
+- `Delete <name>`, `Load` or `New comp` with unsaved edits, and a `Draft format` change with filled bans or saves ask with `window.confirm`. Accept it with `page.once("dialog", (d) => d.accept())` before the click.
+- The `Save comp as` and `Rename comp` dialogs have their own `Comp name` field. Scope the locator to the dialog.
