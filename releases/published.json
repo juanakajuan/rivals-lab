@@ -1,5 +1,15 @@
 [
   {
+    "id": "b7872f2b-ada0-4c3a-bb43-9acc96b425dc",
+    "date": "2026-11-05",
+    "notes": [
+      {
+        "id": "site-logo",
+        "text": "Feature: Rivals Lab has a new logo in the top bar and on the browser tab."
+      }
+    ]
+  },
+  {
     "id": "a6541844-1c89-4346-8f09-8569eb1228f6",
     "date": "2026-11-04",
     "notes": [
