@@ -4,6 +4,7 @@ import { BackupButton, BackupDialog, StorageNotice } from "./BackupDialog";
 import { Changelog } from "./Changelog";
 import { CompBuilder } from "./CompBuilder";
 import type { Comp } from "./comps";
+import { LogoMark } from "./LogoMark";
 import type { BuiltinBoardMapId } from "./maps";
 import { PAGE_LABELS, PageNavigation, type Page } from "./PageNavigation";
 import { useBoardController } from "./useBoardController";
@@ -139,6 +140,7 @@ export default function App({
     >
       <header className="topbar">
         <div className="title-group">
+          <LogoMark />
           <strong>Rivals Lab</strong>
         </div>
         <PageNavigation page={page} onNavigate={navigate} />

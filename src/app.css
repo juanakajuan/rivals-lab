@@ -69,8 +69,14 @@ button:focus-visible,
 
 .title-group {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
 }
 
 .title-group strong {
