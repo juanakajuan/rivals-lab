@@ -25,9 +25,9 @@ Each file has an H1, one paragraph, then exactly four H2s: `Sub-features`, `How 
 
 ## Features
 
-- [Position Board](./board.md) covers token selection, drag, undo, redo, placement, and autosave.
-- [Comp Builder save](./builder-save.md) covers naming, hero picks, notes, map, save, autosave, and load.
+- [Position Board](./board.md) covers token selection, drag, undo, redo, placement, zoom and pan, drawings, maps, and autosave.
+- [Comp Builder save](./builder-save.md) covers naming, hero picks, notes, map, save, autosave, load, the saved comps library, and draft format.
 - [Image export](./export-png.md) covers PNG download from the builder.
 - [Changelog](./changelog.md) covers the release notes page.
-- [Backup](./backup.md) covers the full-data backup download.
+- [Backup](./backup.md) covers the full-data backup download and import.
 - [Page routes](./routes.md) covers URL handling, tab titles, and the not-found page.

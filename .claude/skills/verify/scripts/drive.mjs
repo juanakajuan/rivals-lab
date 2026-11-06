@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { chromium, expect } from "@playwright/test";
 import {
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -241,7 +242,9 @@ const flows = {
       readFileSync(join(root, "releases", "published.json"), "utf8"),
     );
     const dates = new Set(published.map((release) => release.date));
-    const pending = readdirSync(join(root, "releases", "pending"))
+    const pendingDir = join(root, "releases", "pending");
+    // Git drops the folder when a deploy publishes every note.
+    const pending = (existsSync(pendingDir) ? readdirSync(pendingDir) : [])
       .filter((file) => file.endsWith(".json"))
       .map((file) => file.slice(0, -".json".length));
 
@@ -272,6 +275,12 @@ const flows = {
 
   async backup(page) {
     await page.goto("/board");
+    await page
+      .getByRole("button", { name: "Add Angela to Allies", exact: true })
+      .click();
+    await expect(page.getByRole("button", { name: /^Allies/ })).toHaveText(
+      "Allies 1",
+    );
     await page.getByRole("button", { name: "Backup", exact: true }).click();
     const dialog = page.getByRole("dialog", {
       name: "Back up everything in this browser",
@@ -293,9 +302,116 @@ const flows = {
     const backup = JSON.parse(readFileSync(file, "utf8"));
     check(backup.format === "rivals-lab-backup", "file is a Rivals Lab backup");
     check(
-      Array.isArray(backup.board?.tokens) && backup.board.tokens.length > 0,
+      backup.board?.tokens?.some((token) => token.heroId === "angela"),
       "backup holds the board tokens",
     );
+
+    const fresh = await page
+      .context()
+      .browser()
+      .newContext({
+        baseURL: base,
+        viewport: { width: 1280, height: 1000 },
+      });
+    try {
+      const other = await fresh.newPage();
+      await other.goto("/board");
+      const allies = other.getByRole("button", { name: /^Allies/ });
+      await expect(allies).toHaveText("Allies 0");
+      await other.getByRole("button", { name: "Backup", exact: true }).click();
+      const input = other.getByLabel("Import backup or comps file", {
+        exact: true,
+      });
+      const newer = join(out, "newer-version.json");
+      writeFileSync(newer, JSON.stringify({ ...backup, version: 2 }));
+      await input.setInputFiles(newer);
+      await expect(other.getByRole("alert")).toContainText(
+        "Import failed. This backup was made by a newer version",
+      );
+      check(true, "a backup from a newer version is refused");
+      await input.setInputFiles(file);
+      await expect(
+        other.getByRole("heading", {
+          name: "Replace everything in this browser?",
+        }),
+      ).toBeVisible();
+      await other.screenshot({ path: join(out, "2-import-preview.png") });
+      await Promise.all([
+        other.waitForEvent("load"),
+        other
+          .getByRole("button", { name: "Replace browser data", exact: true })
+          .click(),
+      ]);
+      await expect(allies).toHaveText("Allies 1");
+      check(true, "import into a fresh browser restores the board");
+      await other.screenshot({ path: join(out, "3-imported.png") });
+    } finally {
+      await fresh.close();
+    }
+  },
+
+  async "board-zoom"(page) {
+    await page.goto("/board");
+    await page
+      .getByRole("button", {
+        name: "Add Doctor Strange to Allies",
+        exact: true,
+      })
+      .click();
+    const coordinates = page.locator(".coordinates");
+    const placed = await coordinates.innerText();
+    const level = page.locator(".zoom-level");
+    const zoom = page.getByRole("group", { name: "Map zoom" });
+    const fit = zoom.getByRole("button", { name: "Fit map", exact: true });
+    await expect(level).toHaveText("100%");
+    await expect(fit).toBeDisabled();
+    await zoom.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expect(level).toHaveText("150%");
+    await page.locator(".stage-host").focus();
+    await page.keyboard.press("+");
+    await expect(level).toHaveText("225%");
+    await page.keyboard.press("-");
+    await expect(level).toHaveText("150%");
+    check(true, "Zoom in and the + and - keys change the zoom");
+    const host = page.locator(".stage-host");
+    const box = await host.boundingBox();
+    check(box !== null, "board host has bounds");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8);
+    await page.mouse.wheel(0, -200);
+    await expect
+      .poll(async () => parseInt(await level.innerText()))
+      .toBeGreaterThan(150);
+    check(true, "the scroll wheel zooms in");
+    await page.screenshot({ path: join(out, "1-zoomed.png") });
+    const before = await host.screenshot();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + box.width / 2 - 60,
+      box.y + box.height * 0.6,
+      {
+        steps: 6,
+      },
+    );
+    await page.mouse.up();
+    check(!before.equals(await host.screenshot()), "dragging the map pans it");
+    await page.screenshot({ path: join(out, "2-panned.png") });
+    await fit.click();
+    await expect(level).toHaveText("100%");
+    await expect(fit).toBeDisabled();
+    const match = /^x (\d+), y (\d+)$/.exec(placed);
+    check(match !== null, "Doctor Strange has coordinates");
+    const point = boardPoint(
+      await boardBounds(page),
+      Number(match[1]),
+      Number(match[2]),
+    );
+    await page.mouse.click(point.x, point.y);
+    await expect(coordinates).toHaveText(placed);
+    check(true, "Fit map returns to 100% and the pan moved no hero");
+    await page.reload();
+    await expect(level).toHaveText("100%");
+    check(true, "zoom is not saved");
   },
 
   async routes(page) {
